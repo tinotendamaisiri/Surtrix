@@ -76,7 +76,15 @@ allow camera access, type a question and click Capture.
 
 `scripts/seedDemoSkill.ts` writes the demo skill (`src/demoSkill.ts`) as
 `skills/sample-led` with steps `step-1` to `step-4`. `npm run dev:local` runs it
-against the emulator. To write it to the real Firestore (shared by staging and the
+against the emulator. With `npm run emulators` and `npm run dev` in separate
+terminals, run it once the emulators are up, with `.env.local` so it finds this
+worktree's emulator:
+
+```
+node --env-file-if-exists=.env.local scripts/seedDemoSkill.ts emulator
+```
+
+To write it to the real Firestore (shared by staging and the
 live site), run it with an access token of a project owner:
 
 ```

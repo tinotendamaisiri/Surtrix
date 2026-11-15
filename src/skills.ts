@@ -2,7 +2,7 @@ import { collection, doc, getDoc, getDocs, orderBy, query, where, writeBatch, ty
 import { auth, db, signInLearner } from './firebase'
 import type { CoachSkill } from './coach'
 import type { Skill } from './skill'
-import { skillDocuments, type StepDocument } from './skillDocuments'
+import { coachSkillFromDocuments, isDocumentId, skillDocuments, type StepDocument } from './skillDocuments'
 
 export type SkillSummary = { id: string; title: string; stepCount: number }
 
@@ -33,19 +33,18 @@ export async function listMySkills(): Promise<SkillSummary[]> {
     .map(({ id, title, stepCount }) => ({ id, title, stepCount }))
 }
 
-// Loads one saved skill with its steps in order, or null when there is no such skill.
+// Loads one saved skill with its steps in order, or null when there is no such whole skill.
 export async function loadSkill(skillId: string): Promise<CoachSkill | null> {
+  if (!isDocumentId(skillId)) return null
   await learnerId()
   const skillRef = doc(db, 'skills', skillId)
   const skillSnapshot = await getDoc(skillRef)
   if (!skillSnapshot.exists()) return null
   const steps = await getDocs(query(collection(skillRef, 'steps'), orderBy('number')))
-  return {
-    id: skillId,
-    title: skillSnapshot.get('title') as string,
-    steps: steps.docs.map((d) => {
-      const { title, instruction, parts, doneWhen } = d.data() as StepDocument
-      return { id: d.id, title, instruction, parts, doneWhen }
-    }),
-  }
+  // A skill whose steps are missing or out of order is treated as not found.
+  return coachSkillFromDocuments(
+    skillId,
+    { title: skillSnapshot.get('title'), stepCount: skillSnapshot.get('stepCount') },
+    steps.docs.map((d) => ({ id: d.id, data: d.data() as Partial<StepDocument> })),
+  )
 }

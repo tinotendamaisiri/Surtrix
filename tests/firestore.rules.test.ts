@@ -10,13 +10,17 @@ import {
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing'
 import {
+  collection,
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
+  query,
   serverTimestamp,
   setDoc,
   Timestamp,
   updateDoc,
+  where,
   writeBatch,
   type DocumentData,
 } from 'firebase/firestore'
@@ -113,6 +117,18 @@ describe('skills and steps', () => {
     await assertSucceeds(getDoc(doc(otherLearner().firestore(), 'skills/skill-1/steps/step-2')))
   })
 
+  test("a learner lists their own skills with home's query", async () => {
+    await saveSkill(learner())
+    const db = learner().firestore()
+    const mine = await assertSucceeds(getDocs(query(collection(db, 'skills'), where('creatorId', '==', 'learner-1'))))
+    if (mine.size !== 1) throw new Error(`expected 1 skill, got ${mine.size}`)
+  })
+
+  test("a signed out visitor cannot run home's query", async () => {
+    await saveSkill(learner())
+    await assertFails(getDocs(query(collection(visitor().firestore(), 'skills'), where('creatorId', '==', 'learner-1'))))
+  })
+
   test('a signed out visitor cannot read a skill or its steps', async () => {
     await saveSkill(learner())
     await assertFails(getDoc(doc(visitor().firestore(), 'skills/skill-1')))
@@ -197,6 +213,10 @@ describe('skills and steps', () => {
     await assertFails(saveSkill(learner(), { stepChanges: { title: 'a'.repeat(201) } }))
     await assertFails(saveSkill(learner(), { stepChanges: { instruction: 'a'.repeat(2001) } }))
     await assertFails(saveSkill(learner(), { stepChanges: { doneWhen: 'a'.repeat(1001) } }))
+  })
+
+  test('limits count characters, not bytes: 2,000 ohm signs fit an instruction', async () => {
+    await assertSucceeds(saveSkill(learner(), { stepChanges: { instruction: '\u03a9'.repeat(2000) } }))
   })
 
   test('more than 30 parts in a step is refused', async () => {

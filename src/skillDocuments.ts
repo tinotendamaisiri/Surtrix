@@ -1,4 +1,5 @@
 import { serverTimestamp, type FieldValue } from 'firebase/firestore'
+import type { CoachSkill } from './coach.ts'
 import type { Skill, Step } from './skill.ts'
 
 // How a skill is stored in Firestore: skills/{skillId}, and its steps at
@@ -29,6 +30,36 @@ export function skillDocuments(
         parts: step.parts,
         doneWhen: step.doneWhen,
       },
+    })),
+  }
+}
+
+// Whether Firestore accepts this as a document id. Anything else cannot be a saved skill.
+export function isDocumentId(id: string): boolean {
+  return id !== '' && id !== '.' && id !== '..' && !id.includes('/') && !/^__.*__$/.test(id)
+}
+
+// Builds the coach's skill from the stored documents, or null when they do not form a
+// whole skill: the steps must be exactly step-1 to step-{stepCount}, each with its number.
+export function coachSkillFromDocuments(
+  id: string,
+  skill: { title: unknown; stepCount: unknown },
+  steps: { id: string; data: Partial<StepDocument> }[],
+): CoachSkill | null {
+  if (typeof skill.title !== 'string' || typeof skill.stepCount !== 'number') return null
+  if (steps.length === 0 || steps.length !== skill.stepCount) return null
+  const ordered = [...steps].sort((a, b) => (a.data.number ?? 0) - (b.data.number ?? 0))
+  const whole = ordered.every((s, i) => s.data.number === i + 1 && s.id === stepId(i + 1))
+  if (!whole) return null
+  return {
+    id,
+    title: skill.title,
+    steps: ordered.map(({ id: stepDocId, data }) => ({
+      id: stepDocId,
+      title: String(data.title),
+      instruction: String(data.instruction),
+      parts: Array.isArray(data.parts) ? data.parts.map(String) : [],
+      doneWhen: String(data.doneWhen),
     })),
   }
 }

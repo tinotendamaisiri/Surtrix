@@ -26,6 +26,7 @@ export default function Home({ skills }: { skills: CoachSkill[] }) {
             </li>
           ))}
         </ul>
+        <a href="#new-skill">New skill</a>
       </section>
     </main>
   )

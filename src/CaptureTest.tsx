@@ -140,6 +140,9 @@ export default function CaptureTest() {
       <header>
         <h1>Surtrix</h1>
         <p className="muted">Capture test</p>
+        <p>
+          <a href="#new-skill">Turn a procedure into steps</a>
+        </p>
         {signInFailed && <p className="error">Could not sign in. Reload the page to try again.</p>}
       </header>
 

@@ -17,6 +17,10 @@ test('a coach address with no skill id, or more after it, opens home', () => {
   expect(screenFromHash('#coach/sample-led/2')).toEqual({ screen: 'home' })
 })
 
+test('#new-skill opens New skill', () => {
+  expect(screenFromHash('#new-skill')).toEqual({ screen: 'new-skill' })
+})
+
 test('#capture-test opens the capture test page', () => {
   expect(screenFromHash('#capture-test')).toEqual({ screen: 'capture-test' })
 })

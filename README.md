@@ -14,10 +14,13 @@ The app today has these screens:
 * The coach (`#coach/{skill id}`) walks you through a skill one step at a time, next
   to a live camera preview. You move with Back and Next, and Mark step done moves on
   to the next step. It does not use AI yet.
+* New skill (`#new-skill`): upload a PDF (up to 10 MB) or paste a procedure (up to
+  50,000 characters), and Gemini (`gemini-3.5-flash-lite`, in the cloud) turns it into
+  a list of steps to review. Nothing is saved yet.
 * The capture test page (`#capture-test`): a live camera preview, a question box and
   a Capture button. Each capture sends the frame and your question to Gemini and
   shows the answer, whether it came from the device or the cloud, and how long it
-  took. It is used for measurements and is not linked from the app.
+  took. It is used for measurements and is not linked from home.
 
 ## Run it locally
 

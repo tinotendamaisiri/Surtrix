@@ -13,7 +13,10 @@ The app today has these screens:
   resistor on a breadboard.
 * The coach (`#coach/{skill id}`) walks you through a skill one step at a time, next
   to a live camera preview. You move with Back and Next, and Mark step done moves on
-  to the next step. It does not use AI yet.
+  to the next step. It does not use AI yet. Ask an Expert sends the current camera
+  frame and your question about the step to a human expert, and lists your questions
+  for the step with the expert's reply as soon as it arrives. The expert's screen
+  comes next, so for now nobody answers.
 * New skill (`#new-skill`): upload a PDF (up to 10 MB) or paste a procedure (up to
   50,000 characters), and Gemini (`gemini-3.5-flash-lite`, in the cloud) turns it into
   a list of steps to review. Nothing is saved yet.

@@ -40,7 +40,7 @@ const appCheck = initializeAppCheck(app, {
   isTokenAutoRefreshEnabled: true,
 })
 
-const ai = getAI(app, { backend: new GoogleAIBackend() })
+export const ai = getAI(app, { backend: new GoogleAIBackend() })
 
 export const auth = getAuth(app)
 export const db = getFirestore(app)

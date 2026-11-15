@@ -7,9 +7,20 @@ Expert answers are saved to the skill and reused, including offline.
 
 Built for the Google #BuildHybridAI 2026 hackathon.
 
-The app today is a capture test page: a live camera preview, a question box and a
-Capture button. Each capture sends the frame and your question to Gemini and shows
-the answer, whether it came from the device or the cloud, and how long it took.
+The app today has these screens:
+
+* Home lists the skills. For now that is one built in sample: lighting an LED with a
+  resistor on a breadboard.
+* The coach (`#coach/{skill id}`) walks you through a skill one step at a time, next
+  to a live camera preview. You move with Back and Next, and Mark step done moves on
+  to the next step. It does not use AI yet.
+* New skill (`#new-skill`): upload a PDF (up to 10 MB) or paste a procedure (up to
+  50,000 characters), and Gemini (`gemini-3.5-flash-lite`, in the cloud) turns it into
+  a list of steps to review. Nothing is saved yet.
+* The capture test page (`#capture-test`): a live camera preview, a question box and
+  a Capture button. Each capture sends the frame and your question to Gemini and
+  shows the answer, whether it came from the device or the cloud, and how long it
+  took. It is used for measurements and is not linked from home.
 
 ## Run it locally
 
@@ -52,7 +63,8 @@ Auth always go to the emulators. Gemini and App Check still use the real project
 The dev server stops with an error if its port is busy, because the Firebase web key
 only accepts requests from localhost 5173 to 5175.
 
-Click Start camera, allow camera access, type a question and click Capture.
+To try a capture, open http://localhost:5173/#capture-test, click Start camera,
+allow camera access, type a question and click Capture.
 
 ### Checks
 

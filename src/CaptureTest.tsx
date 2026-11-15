@@ -52,7 +52,7 @@ function formatMs(ms: number): string {
   return `${ms.toLocaleString('en-US')} ms`
 }
 
-export default function App() {
+export default function CaptureTest() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const [cameraOn, setCameraOn] = useState(false)
@@ -140,6 +140,9 @@ export default function App() {
       <header>
         <h1>Surtrix</h1>
         <p className="muted">Capture test</p>
+        <p>
+          <a href="#new-skill">Turn a procedure into steps</a>
+        </p>
         {signInFailed && <p className="error">Could not sign in. Reload the page to try again.</p>}
       </header>
 

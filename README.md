@@ -82,7 +82,8 @@ allow camera access, type a question and click Capture.
 ### The demo skill
 
 `scripts/seedDemoSkill.ts` writes the demo skill (`src/demoSkill.ts`) as
-`skills/sample-led` with steps `step-1` to `step-4`. `npm run dev:local` runs it
+`skills/sample-led` with steps `step-1` to `step-4`, and 3 saved expert answers from
+the Surtrix team for common beginner mistakes on steps 2 and 4. `npm run dev:local` runs it
 against the emulator. With `npm run emulators` and `npm run dev` in separate
 terminals, run it once the emulators are up, with `.env.local` so it finds this
 worktree's emulator:
@@ -98,8 +99,8 @@ live site), run it with an access token of a project owner:
 GOOGLE_ACCESS_TOKEN="$(gcloud auth print-access-token --account <owner account>)" node scripts/seedDemoSkill.ts real
 ```
 
-Running it again rewrites only those 5 documents and keeps what is stored under the
-steps. Questions and expert answers point at these ids, so they never change.
+Running it again rewrites only those documents and keeps any other answers stored
+under the steps. Questions and expert answers point at these ids, so they never change.
 
 ### Checks
 

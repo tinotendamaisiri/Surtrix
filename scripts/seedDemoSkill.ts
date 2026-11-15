@@ -1,5 +1,6 @@
 // Writes the demo skill (src/demoSkill.ts) to Firestore as skills/sample-led with its
-// steps step-1 to step-4, in one commit, in the saved skill shape (#25). It writes with
+// steps step-1 to step-4 (#25) and its saved expert answers (#29), in one commit, in the
+// shapes from the Contracts. It writes with
 // the owner's credentials, so the rules do not apply to it.
 //   node scripts/seedDemoSkill.ts emulator
 //     The Firestore emulator of this worktree. npm run dev:local runs this on start.
@@ -7,10 +8,10 @@
 //     The real Firestore of the project, shared by staging and live. Needs
 //     GOOGLE_ACCESS_TOKEN, an access token of a project owner, for example from
 //     gcloud auth print-access-token --account <owner account>.
-// Rerunning it rewrites only these 5 documents. Anything under the steps (expert answers)
-// is left alone.
+// Rerunning it rewrites only these documents. Anything else under the steps (answers
+// saved by experts) is left alone.
 import { firebaseConfig } from '../src/firebase-config.ts'
-import { DEMO_CREATOR_ID, DEMO_SKILL_ID, demoSkill } from '../src/demoSkill.ts'
+import { DEMO_CREATOR_ID, DEMO_EXPERT_NAME, DEMO_SKILL_ID, demoAnswers, demoSkill } from '../src/demoSkill.ts'
 import { skillDocuments } from '../src/skillDocuments.ts'
 import { parseWorktree, worktreePorts } from '../src/worktree.ts'
 
@@ -40,19 +41,34 @@ function fields(data: Record<string, unknown>): Record<string, Value> {
   return Object.fromEntries(Object.entries(data).map(([key, v]) => [key, value(v)]))
 }
 
-// The writes for one commit: the skill, with createdAt set to the server time, and each
-// step. A write without a field mask replaces the whole document and nothing under it.
+// The writes for one commit: the skill, each step, and each answer, with createdAt set to
+// the server time. A write without a field mask replaces the whole document and nothing
+// under it.
 export function demoSkillWrites(projectId: string) {
   const documents = skillDocuments(demoSkill, DEMO_CREATOR_ID)
   const skillName = `projects/${projectId}/databases/(default)/documents/skills/${DEMO_SKILL_ID}`
   const { createdAt: _serverTime, ...skillData } = documents.skill
+  const serverTime = [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }]
   return [
     {
       update: { name: skillName, fields: fields(skillData) },
-      updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }],
+      updateTransforms: serverTime,
     },
     ...documents.steps.map((step) => ({
       update: { name: `${skillName}/steps/${step.id}`, fields: fields(step.data) },
+    })),
+    ...demoAnswers.map((a) => ({
+      update: {
+        name: `${skillName}/steps/${a.stepId}/answers/${a.id}`,
+        fields: fields({
+          questionId: a.id,
+          question: a.question,
+          answer: a.answer,
+          expertId: DEMO_CREATOR_ID,
+          expertName: DEMO_EXPERT_NAME,
+        }),
+      },
+      updateTransforms: serverTime,
     })),
   ]
 }
@@ -98,7 +114,9 @@ if (import.meta.main) {
     const where = process.argv[2]
     const target = targetFrom(where)
     await seedDemoSkill(target)
-    console.log(`Seeded skills/${DEMO_SKILL_ID} with ${demoSkill.steps.length} steps (${where}, ${target.projectId}).`)
+    console.log(
+      `Seeded skills/${DEMO_SKILL_ID} with ${demoSkill.steps.length} steps and ${demoAnswers.length} answers (${where}, ${target.projectId}).`,
+    )
   } catch (e) {
     console.error(e instanceof Error ? e.message : e)
     process.exit(1)

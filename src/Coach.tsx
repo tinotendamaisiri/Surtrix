@@ -32,6 +32,10 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const streamRef = useRef<MediaStream | null>(null)
   // False once the learner leaves, so a camera that opens late is turned off at once.
   const onScreenRef = useRef(true)
+  // True from the Start camera click until the camera opens or fails, so a second
+  // click never opens a second camera that would stay on.
+  const startingRef = useRef(false)
+  const [cameraStarting, setCameraStarting] = useState(false)
   const [cameraOn, setCameraOn] = useState(false)
   const [cameraError, setCameraError] = useState(false)
   const [progress, setProgress] = useState(() => startProgress(skill.steps.length))
@@ -47,6 +51,9 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   }, [])
 
   async function startCamera() {
+    if (startingRef.current || streamRef.current) return
+    startingRef.current = true
+    setCameraStarting(true)
     setCameraError(false)
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
@@ -59,6 +66,9 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       setCameraOn(true)
     } catch {
       setCameraError(true)
+    } finally {
+      startingRef.current = false
+      setCameraStarting(false)
     }
   }
 
@@ -79,7 +89,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
         <section className="camera">
           <video ref={videoRef} autoPlay playsInline muted hidden={!cameraOn} />
           {!cameraOn && (
-            <button type="button" onClick={startCamera}>
+            <button type="button" onClick={startCamera} disabled={cameraStarting}>
               Start camera
             </button>
           )}
@@ -99,7 +109,12 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
           <section className="step-card">
             <p className="muted">
               Step {progress.stepIndex + 1} of {skill.steps.length}
-              {progress.done[progress.stepIndex] && <span className="done-mark">Done</span>}
+              {progress.done[progress.stepIndex] && (
+                <>
+                  {' '}
+                  <span className="done-mark">Done</span>
+                </>
+              )}
             </p>
             <p className="step-heading">{step.title}</p>
             <p>{step.instruction}</p>

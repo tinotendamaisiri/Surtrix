@@ -158,7 +158,11 @@ export default function App() {
 
         {path === InferenceMode.ONLY_ON_DEVICE &&
           (deviceStatus === 'downloading' || deviceStatus === 'downloadable') && (
-            <p className="muted">The answer will come once the on device model finishes downloading.</p>
+            <p className="muted">
+              {deviceStatus === 'downloadable' && !cameraOn
+                ? 'Click Start camera to download the on device model.'
+                : 'The answer will come once the on device model finishes downloading.'}
+            </p>
           )}
 
         <p className="muted">

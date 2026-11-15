@@ -24,8 +24,9 @@ function readBase64(file: File): Promise<string> {
   })
 }
 
-function isPdf(file: File): boolean {
-  return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+// A real PDF starts with %PDF-, whatever the file is named.
+async function isPdf(file: File): Promise<boolean> {
+  return (await file.slice(0, 5).text()) === '%PDF-'
 }
 
 // Upload a PDF or paste a procedure, then review the steps the model made from it.
@@ -50,14 +51,14 @@ export default function NewSkill() {
     setError(null)
   }
 
-  function chooseFile(chosen: File | undefined) {
+  async function chooseFile(chosen: File | undefined) {
     setFile(null)
     setFileError(null)
     setError(null)
     if (!chosen) return
-    if (!isPdf(chosen)) setFileError('Choose a PDF file.')
-    else if (chosen.size === 0) setFileError('This PDF is empty. Choose another file.')
+    if (chosen.size === 0) setFileError('This PDF is empty. Choose another file.')
     else if (chosen.size > MAX_PDF_BYTES) setFileError('This PDF is too large. Choose one under 10 MB.')
+    else if (!(await isPdf(chosen))) setFileError('Choose a PDF file.')
     else setFile(chosen)
   }
 

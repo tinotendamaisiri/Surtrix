@@ -233,12 +233,14 @@ reported, and left for Tino to merge.
   service pauses for the rest of the month. A 403 from AI Logic, or AI Logic
   paused, may mean the cap was hit: check billing before debugging code.
 * The Gemini API is on Prepay: Tino bought $5 of credit on Nov 15, with auto
-  reload off. The credit balance shows only in AI Studio, not in API responses.
+  reload off. The balance is in AI Studio; the API responses carry none (checked
+  in the raw responses on Nov 15).
   Errors seen or documented so far:
   * 429 "Your prepayment credits are depleted": the credit ran out. Calls fail
-    until Tino tops up in AI Studio; log it under Needs Tino.
+    until Tino tops up in AI Studio. Tell Tino (in unattended runs, log it under
+    Needs Tino). A 403 or a paused AI Logic points to the spend cap instead.
   * 429 naming `generate_content_free_tier_requests`: a free tier limit (seen Nov
-    15 as 20 hydrogen requests per day).
+    15, before Blaze, as 20 hydrogen requests per day; it no longer applies).
   * 429 `RESOURCE_EXHAUSTED` from the Tier 1 spend limit, $10 per rolling 10
     minutes (documented, not seen yet).
   These are usually billing or quota stops, but a bug that sends too many cloud

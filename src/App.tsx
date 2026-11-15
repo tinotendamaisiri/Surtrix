@@ -5,6 +5,7 @@ import {
   DeviceModelUnavailableError,
   getDeviceModelStatus,
   prepareDeviceModel,
+  signInLearner,
   type DeviceModelStatus,
   type FrameAnswer,
   type Path,
@@ -64,6 +65,7 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [capture, setCapture] = useState<Capture | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [signInFailed, setSignInFailed] = useState(false)
 
   // When the on-device model cannot run here, "On device only" is not an option.
   function updateDeviceStatus(status: DeviceModelStatus) {
@@ -76,6 +78,13 @@ export default function App() {
   function refreshDeviceStatus() {
     getDeviceModelStatus().then(updateDeviceStatus, () => updateDeviceStatus('unavailable'))
   }
+
+  useEffect(() => {
+    signInLearner().catch((e) => {
+      console.error('Sign in failed', e)
+      setSignInFailed(true)
+    })
+  }, [])
 
   useEffect(() => {
     refreshDeviceStatus()
@@ -131,6 +140,7 @@ export default function App() {
       <header>
         <h1>Surtrix</h1>
         <p className="muted">Capture test</p>
+        {signInFailed && <p className="error">Could not sign in. Reload the page to try again.</p>}
       </header>
 
       <section className="camera">

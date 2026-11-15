@@ -210,9 +210,9 @@ reported, and left for Tino to merge.
 
 * The Firebase web key in `src/firebase-config.ts` is public by design. It is
   limited to the Surtrix sites (surtrix.com, the live and staging `web.app` and
-  `firebaseapp.com` addresses, and `http://localhost:5173`) and to the APIs the app
-  calls, and the APIs behind it are protected by App Check. Never rotate or delete
-  it without Tino.
+  `firebaseapp.com` addresses, and `http://localhost:5173` to `5175`, one port per
+  worktree) and to the APIs the app calls, and the APIs behind it are protected by
+  App Check. Never rotate or delete it without Tino.
 * Any issue that adds a Firebase product adds that product's APIs to the key's API
   restrictions in the same issue, and verifies them locally. For example Firestore:
   `firestore.googleapis.com`; Auth: `identitytoolkit.googleapis.com` and

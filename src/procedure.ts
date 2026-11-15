@@ -75,5 +75,13 @@ export async function procedureToSteps(procedure: Procedure): Promise<ProcedureS
       : [`Procedure (text):\n\n${procedure.text}`]
   const result = await procedureModel.generateContent(input)
   const ms = Math.round(performance.now() - started)
-  return { skill: parseSkill(result.response.text()), source: result.response.inferenceSource ?? 'unknown', ms }
+  let skill
+  try {
+    skill = parseSkill(result.response.text())
+  } catch (e) {
+    // MAX_TOKENS here means a long procedure was cut off, so trying again will not help.
+    console.error('Unusable answer, finish reason:', result.response.candidates?.[0]?.finishReason)
+    throw e
+  }
+  return { skill, source: result.response.inferenceSource ?? 'unknown', ms }
 }

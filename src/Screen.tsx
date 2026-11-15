@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import App from './App.tsx'
 import NewSkill from './NewSkill.tsx'
 
-// Screens are picked from the address hash (see Contracts in the build plan).
+// The one place that picks the screen from the address hash. No other file reads the hash
+// to choose a screen.
 export default function Screen() {
   const [hash, setHash] = useState(location.hash)
   useEffect(() => {

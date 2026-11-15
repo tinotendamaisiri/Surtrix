@@ -1,5 +1,5 @@
-// The skill shape shared by every track (see Contracts in the build plan): a skill is a
-// title and 1 to 40 steps in order.
+// The skill shape every part of the app builds against: a title and 1 to 40 steps in
+// order. Change it only together with every screen and rule that reads it.
 export type Step = {
   title: string
   // What to do, including any safety warning.

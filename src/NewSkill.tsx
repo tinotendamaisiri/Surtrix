@@ -42,11 +42,21 @@ export default function NewSkill() {
   const textTooLong = text.length > MAX_TEXT_CHARACTERS
   const ready = input === 'pdf' ? file !== null : text.trim() !== '' && !textTooLong
 
+  // Switching between PDF and text clears the file, since the file input comes back empty.
+  function chooseInput(chosen: Input) {
+    setInput(chosen)
+    setFile(null)
+    setFileError(null)
+    setError(null)
+  }
+
   function chooseFile(chosen: File | undefined) {
     setFile(null)
     setFileError(null)
+    setError(null)
     if (!chosen) return
     if (!isPdf(chosen)) setFileError('Choose a PDF file.')
+    else if (chosen.size === 0) setFileError('This PDF is empty. Choose another file.')
     else if (chosen.size > MAX_PDF_BYTES) setFileError('This PDF is too large. Choose one under 10 MB.')
     else setFile(chosen)
   }
@@ -90,11 +100,11 @@ export default function NewSkill() {
           <fieldset disabled={busy}>
             <legend>Procedure</legend>
             <label>
-              <input type="radio" name="input" checked={input === 'pdf'} onChange={() => setInput('pdf')} />
+              <input type="radio" name="input" checked={input === 'pdf'} onChange={() => chooseInput('pdf')} />
               Upload a PDF
             </label>
             <label>
-              <input type="radio" name="input" checked={input === 'text'} onChange={() => setInput('text')} />
+              <input type="radio" name="input" checked={input === 'text'} onChange={() => chooseInput('text')} />
               Paste text
             </label>
           </fieldset>
@@ -112,7 +122,10 @@ export default function NewSkill() {
           ) : (
             <label className="question">
               Procedure text
-              <textarea rows={12} value={text} disabled={busy} onChange={(e) => setText(e.target.value)} />
+              <textarea rows={12} value={text} disabled={busy} onChange={(e) => {
+                  setText(e.target.value)
+                  setError(null)
+                }} />
               <span className={textTooLong ? 'error' : 'muted'}>
                 {text.length.toLocaleString('en-US')} of {MAX_TEXT_CHARACTERS.toLocaleString('en-US')} characters
                 {textTooLong && '. Shorten the text to make steps.'}

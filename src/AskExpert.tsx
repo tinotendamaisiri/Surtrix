@@ -1,7 +1,7 @@
 // Ask an Expert (#17). The coach renders this for the current step: the button, the
 // panel that sends a question with the camera frame, and this learner's questions
 // for the step with their replies, live.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   askExpert,
   FrameTooLargeError,
@@ -49,7 +49,10 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null }: Pro
   const { skillId, stepId } = step
   const stepKey = JSON.stringify([skillId, stepId])
   const [draft, setDraft] = useState<Draft | null>(null)
-  const [sending, setSending] = useState(false)
+  // The step a question is being sent from. The learner may move on while it sends.
+  const [sendingFor, setSendingFor] = useState<string | null>(null)
+  const sending = sendingFor === stepKey
+  const stepKeyRef = useRef(stepKey)
   const [error, setError] = useState<string | null>(null)
   // A question that was still sending when the panel closed, and then failed.
   const [lateError, setLateError] = useState(false)
@@ -63,6 +66,7 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null }: Pro
     setShownStepKey(stepKey)
     setDraft(null)
     setError(null)
+    setLateError(false)
   }
   // A new judge offer opens the panel.
   if (judgeOffer !== seenOffer) {
@@ -73,6 +77,10 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null }: Pro
       setLateError(false)
     }
   }
+
+  useEffect(() => {
+    stepKeyRef.current = stepKey
+  }, [stepKey])
 
   useEffect(() => {
     const key = JSON.stringify([skillId, stepId])
@@ -97,8 +105,11 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null }: Pro
   }
 
   async function send() {
-    if (!draft?.frame || questionProblem(draft.question)) return
-    setSending(true)
+    if (!draft?.frame || questionProblem(draft.question) || sending) return
+    const sentFrom = stepKey
+    // False once the learner has moved to another step: this panel is gone then.
+    const stillOnStep = () => stepKeyRef.current === sentFrom
+    setSendingFor(sentFrom)
     setError(null)
     try {
       const { saved } = await askExpert({
@@ -114,16 +125,18 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null }: Pro
           setLateError(true)
         })
       }
-      setDraft(null)
+      if (stillOnStep()) setDraft(null)
     } catch (e) {
       console.error('Could not send the question', e)
-      setError(
-        e instanceof FrameTooLargeError
-          ? 'The photo is too large to send. Retake it.'
-          : 'Could not send your question. Please try again.',
-      )
+      if (!stillOnStep()) setLateError(true)
+      else
+        setError(
+          e instanceof FrameTooLargeError
+            ? 'The photo is too large to send. Retake it.'
+            : 'Could not send your question. Please try again.',
+        )
     } finally {
-      setSending(false)
+      setSendingFor((current) => (current === sentFrom ? null : current))
     }
   }
 
@@ -150,7 +163,7 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null }: Pro
             onClick={() => setDraft({ ...draft, frame: captureFrame() })}
             disabled={sending}
           >
-            Retake
+            {draft.frame ? 'Retake' : 'Take photo'}
           </button>
           <label className="question">
             Your question

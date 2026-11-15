@@ -89,6 +89,10 @@ describe('creating a question', () => {
     )
   })
 
+  test('a frame just under 900 KB is accepted', async () => {
+    await assertSucceeds(ask(learner('learner-1'), { ...validQuestion('learner-1'), frame: frameOfSize(900 * 1024 - 1) }))
+  })
+
   test('a question of exactly 500 characters is accepted', async () => {
     await assertSucceeds(ask(learner('learner-1'), { ...validQuestion('learner-1'), question: 'a'.repeat(500) }))
   })
@@ -120,6 +124,14 @@ describe('creating a question', () => {
     ['a step number that is not whole', (q) => (q.stepNumber = 1.5)],
     ['an empty skill id', (q) => (q.skillId = '')],
     ['an empty step title', (q) => (q.stepTitle = ' ')],
+    ['a question with spaces around it', (q) => (q.question = ' Is it right? ')],
+    ['judge words ending in a newline', (q) => ((q.origin = 'judge'), (q.judgeSaid = 'The LED may be reversed.\n'))],
+    ['a skill id of 129 characters', (q) => (q.skillId = 'a'.repeat(129))],
+    ['a step id of 129 characters', (q) => (q.stepId = 'a'.repeat(129))],
+    ['a skill title of 201 characters', (q) => (q.skillTitle = 'a'.repeat(201))],
+    ['a step title of 201 characters', (q) => (q.stepTitle = 'a'.repeat(201))],
+    ['a step instruction of 5,001 characters', (q) => (q.stepInstruction = 'a'.repeat(5001))],
+    ['judge words of 2,001 characters', (q) => ((q.origin = 'judge'), (q.judgeSaid = 'a'.repeat(2001)))],
   ]
   for (const [name, change] of refused) {
     test(`a question with ${name} is refused`, async () => {
@@ -163,6 +175,22 @@ describe('reading questions', () => {
 
   test('a learner cannot list every question', async () => {
     await assertFails(getDocs(collection(learner('learner-1'), 'questions')))
+  })
+})
+
+describe('signed out visitors', () => {
+  const visitorDb = () => testEnv.unauthenticatedContext().firestore()
+
+  test('cannot list questions', async () => {
+    await assertFails(getDocs(query(collection(visitorDb(), 'questions'), where('learnerId', '==', 'learner-1'))))
+  })
+
+  test('cannot change a question', async () => {
+    await assertFails(updateDoc(doc(visitorDb(), 'questions/asked-by-learner-1'), { status: 'answered' }))
+  })
+
+  test('cannot delete a question', async () => {
+    await assertFails(deleteDoc(doc(visitorDb(), 'questions/asked-by-learner-1')))
   })
 })
 

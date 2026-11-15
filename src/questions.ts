@@ -23,6 +23,7 @@ export const FRAME_MAX_BYTES = 900 * 1024
 // length limit, so longer text is cut: the copy is only there to show the expert.
 const TITLE_MAX_LENGTH = 200
 const INSTRUCTION_MAX_LENGTH = 5000
+const JUDGE_SAID_MAX_LENGTH = 2000
 
 // The step a question is about. It is copied into the question, so an expert can
 // answer without reading the skill.
@@ -80,8 +81,9 @@ export type NewQuestion = {
   judgeSaid: string | null
 }
 
+// Trimmed and at most max characters, as the rules require.
 function clip(text: string, max: number): string {
-  return text.trim().slice(0, max)
+  return text.trim().slice(0, max).trim()
 }
 
 // Saves the question for an expert. Resolves as soon as the question is saved in the
@@ -90,6 +92,8 @@ function clip(text: string, max: number): string {
 export async function askExpert({ step, question, frameBase64, judgeSaid }: NewQuestion): Promise<{ saved: Promise<void> }> {
   const problem = questionProblem(question)
   if (problem) throw new Error(problem)
+  // Model answers often end with a newline; empty words mean the learner asked.
+  const judgeWords = judgeSaid === null ? '' : clip(judgeSaid, JUDGE_SAID_MAX_LENGTH)
   const frame = Bytes.fromBase64String(frameBase64)
   if (frame.toUint8Array().byteLength >= FRAME_MAX_BYTES) throw new FrameTooLargeError()
   await signInLearner()
@@ -105,8 +109,8 @@ export async function askExpert({ step, question, frameBase64, judgeSaid }: NewQ
     stepInstruction: clip(step.stepInstruction, INSTRUCTION_MAX_LENGTH),
     question: question.trim(),
     frame,
-    origin: judgeSaid === null ? 'learner' : 'judge',
-    judgeSaid,
+    origin: judgeWords ? 'judge' : 'learner',
+    judgeSaid: judgeWords || null,
     status: 'open',
     createdAt: serverTimestamp(),
   }).then(() => undefined)

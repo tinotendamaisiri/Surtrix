@@ -5,7 +5,7 @@ import { loadSkill } from './skills.ts'
 
 type State = { kind: 'loading' } | { kind: 'loaded'; skill: CoachSkill | null } | { kind: 'failed' }
 
-// Loads a saved skill from Firestore, then shows its coach. A skill that does not exist
+// Loads a skill from Firestore (a saved skill or the demo skill), then shows its coach. A skill that does not exist
 // gets the coach's own "could not be found" screen.
 export default function SavedSkillCoach({ skillId }: { skillId: string }) {
   const [state, setState] = useState<State>({ kind: 'loading' })

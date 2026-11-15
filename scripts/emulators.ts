@@ -1,7 +1,8 @@
 // Runs the Firebase emulators for this worktree, on its own ports (src/worktree.ts)
 // and with Java 21, which the Firestore emulator requires.
 //   start: the Firestore and Auth emulators with the Emulator UI, next to npm run dev
-//   dev:   the same emulators and the Vite dev server in one command
+//   dev:   the same emulators and the Vite dev server in one command, with the demo skill
+//          seeded into the Firestore emulator first (scripts/seedDemoSkill.ts)
 //   test:  a separate Firestore emulator for the rules tests, as project demo-surtrix
 // Run through npm (npm run emulators, dev:local or test), which loads .env.local.
 import { execFileSync, spawn } from 'node:child_process'
@@ -62,7 +63,7 @@ writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`)
 
 const args: Record<Mode, string[]> = {
   start: ['emulators:start', '--only', 'firestore,auth', '--project', 'surtrix-50d22'],
-  dev: ['emulators:exec', '--only', 'firestore,auth', '--project', 'surtrix-50d22', '--ui', 'vite'],
+  dev: ['emulators:exec', '--only', 'firestore,auth', '--project', 'surtrix-50d22', '--ui', 'node scripts/seedDemoSkill.ts emulator && vite'],
   test: ['emulators:exec', '--only', 'firestore', '--project', 'demo-surtrix', 'vitest run'],
 }
 

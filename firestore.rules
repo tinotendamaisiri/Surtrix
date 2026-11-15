@@ -14,10 +14,12 @@ service cloud.firestore {
     }
 
     // Every signed in learner can read every skill. A learner creates a skill only as
-    // its creator. Nobody updates or deletes skills yet.
+    // its creator. Nobody updates or deletes skills yet. The demo skill's id is kept for
+    // the seeded demo skill (scripts/seedDemoSkill.ts), which learners never create.
     match /skills/{skillId} {
       allow read: if signedIn();
       allow create: if signedIn()
+        && skillId != 'sample-led'
         && request.resource.data.keys().hasOnly(['title', 'creatorId', 'stepCount', 'createdAt'])
         && request.resource.data.keys().hasAll(['title', 'creatorId', 'stepCount', 'createdAt'])
         && isText(request.resource.data.title, 200)

@@ -39,6 +39,7 @@ export default function App() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const [cameraOn, setCameraOn] = useState(false)
+  const [videoReady, setVideoReady] = useState(false)
   const [path, setPath] = useState<Path>(InferenceMode.PREFER_ON_DEVICE)
   const [question, setQuestion] = useState('Which parts are visible, and is the LED lit?')
   const [deviceStatus, setDeviceStatus] = useState<DeviceModelStatus | null>(null)
@@ -54,6 +55,17 @@ export default function App() {
 
   async function startCamera() {
     setError(null)
+    // The on-device model may need a download, which Chrome only allows right after a
+    // click, so start it before waiting on the camera permission prompt.
+    prepareDeviceModel((fraction) => {
+      setDeviceStatus('downloading')
+      setDownloadPercent(Math.round(fraction * 100))
+    })
+      .catch((e) => console.error('On device model preparation failed', e))
+      .then(getDeviceModelStatus)
+      .then(setDeviceStatus, () => setDeviceStatus('unavailable'))
+      .finally(() => setDownloadPercent(null))
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
       streamRef.current = stream
@@ -61,22 +73,12 @@ export default function App() {
       setCameraOn(true)
     } catch {
       setError('Could not open the camera. Check the browser has permission to use it.')
-      return
     }
-    // The on-device model may need a download, which Chrome only allows after a click.
-    prepareDeviceModel((fraction) => {
-      setDeviceStatus('downloading')
-      setDownloadPercent(Math.round(fraction * 100))
-    })
-      .then(getDeviceModelStatus)
-      .then(setDeviceStatus)
-      .catch(() => setDeviceStatus('unavailable'))
-      .finally(() => setDownloadPercent(null))
   }
 
   async function captureAndAsk() {
     const video = videoRef.current
-    if (!video || !question.trim()) return
+    if (!video || !videoReady || !question.trim()) return
     setBusy(true)
     setError(null)
     const frameUrl = grabFrame(video)
@@ -84,7 +86,8 @@ export default function App() {
       const result = await askAboutFrame(path, question.trim(), frameUrl.split(',')[1])
       setCapture({ ...result, frameUrl, question: question.trim() })
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      console.error('Capture failed', e)
+      setError('Could not get an answer. Please try again.')
     } finally {
       setBusy(false)
     }
@@ -98,7 +101,14 @@ export default function App() {
       </header>
 
       <section className="camera">
-        <video ref={videoRef} autoPlay playsInline muted hidden={!cameraOn} />
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          hidden={!cameraOn}
+          onLoadedMetadata={() => setVideoReady(true)}
+        />
         {!cameraOn && (
           <button type="button" onClick={startCamera}>
             Start camera
@@ -140,7 +150,7 @@ export default function App() {
           <textarea rows={2} value={question} onChange={(e) => setQuestion(e.target.value)} />
         </label>
 
-        <button type="button" onClick={captureAndAsk} disabled={!cameraOn || busy || !question.trim()}>
+        <button type="button" onClick={captureAndAsk} disabled={!videoReady || busy || !question.trim()}>
           {busy ? 'Thinking' : 'Capture'}
         </button>
       </section>

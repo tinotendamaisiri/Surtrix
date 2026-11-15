@@ -14,9 +14,13 @@ The app today has these screens:
   Firestore like any saved skill.
 * The coach (`#coach/{skill id}`) walks you through a skill one step at a time, next
   to a live camera preview. You move with Back and Next, and Mark step done moves on
-  to the next step. It does not use AI yet. Ask an Expert sends the current camera
-  frame and your question about the step to a human expert, and lists your questions
-  for the step with the expert's reply as soon as it arrives.
+  to the next step. While the camera is on, Gemini Nano in Chrome on a computer
+  watches the bench on device, about every 5 seconds: it says which of the step's
+  parts it sees and whether an LED is lit. It never calls the cloud and never moves
+  the step. Elsewhere the coach says watching needs Chrome on a computer. Ask an
+  Expert sends the current camera frame and your question about the step to a human
+  expert, and lists your questions for the step with the expert's reply as soon as
+  it arrives.
 * The expert dashboard (`#expert`): an expert signs in with Google and sees every
   open question with the learner's photo and step, oldest first, and replies. The
   reply reaches the learner live and is saved under the skill's step. Only Google

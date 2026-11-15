@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
+import { InferenceSource } from 'firebase/ai'
 import AskExpert from './AskExpert.tsx'
+import { useBenchWatch, type BenchWatch } from './benchWatch.ts'
 import { grabFrameBase64 } from './cameraFrame.ts'
 import { goBack, goNext, markStepDone, startProgress, type CoachSkill } from './coach.ts'
+import { describeBenchAnswer } from './watch.ts'
 
 function Header() {
   return (
@@ -15,7 +18,8 @@ function Header() {
   )
 }
 
-// The coach for one skill. No AI yet: the learner moves through the steps by hand.
+// The coach for one skill. The learner moves through the steps by hand; while the camera
+// is on, Gemini Nano watches the bench on device and the coach shows what it sees.
 export default function Coach({ skill }: { skill: CoachSkill | undefined }) {
   if (!skill) {
     return (
@@ -41,6 +45,8 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const [cameraOn, setCameraOn] = useState(false)
   const [cameraError, setCameraError] = useState(false)
   const [progress, setProgress] = useState(() => startProgress(skill.steps.length))
+  const step = skill.steps[progress.stepIndex]
+  const watch = useBenchWatch(videoRef, cameraOn && !progress.finished, step.id, step.parts)
 
   // The camera turns off when the learner leaves the coach.
   useEffect(() => {
@@ -54,6 +60,8 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
 
   async function startCamera() {
     if (startingRef.current || streamRef.current) return
+    // Chrome only starts the on device model download right after a click.
+    watch.prepare()
     startingRef.current = true
     setCameraStarting(true)
     setCameraError(false)
@@ -66,6 +74,17 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       streamRef.current = stream
       videoRef.current!.srcObject = stream
       setCameraOn(true)
+      // If the camera stops on its own (for example the phone disconnects), Start camera
+      // comes back.
+      for (const track of stream.getVideoTracks()) {
+        track.addEventListener('ended', () => {
+          if (streamRef.current !== stream) return
+          stream.getTracks().forEach((t) => t.stop())
+          streamRef.current = null
+          if (videoRef.current) videoRef.current.srcObject = null
+          setCameraOn(false)
+        })
+      }
     } catch {
       setCameraError(true)
     } finally {
@@ -74,7 +93,6 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     }
   }
 
-  const step = skill.steps[progress.stepIndex]
   const isFirst = progress.stepIndex === 0
   const isLast = progress.stepIndex === skill.steps.length - 1
 
@@ -128,6 +146,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
             <p>
               <span className="label">Done when:</span> {step.doneWhen}
             </p>
+            <BenchLine watch={watch} cameraOn={cameraOn} />
             <div className="step-buttons">
               <button type="button" className="secondary" onClick={() => setProgress(goBack)} disabled={isFirst}>
                 Back
@@ -156,5 +175,35 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
 
       {cameraError && <p className="error">Could not open the camera. Check the browser has permission to use it.</p>}
     </main>
+  )
+}
+
+const sourceText: Record<string, string> = {
+  [InferenceSource.ON_DEVICE]: 'On device',
+  [InferenceSource.IN_CLOUD]: 'Cloud',
+}
+
+// What watching the bench shows under the step: the latest answer, or why there is none.
+function BenchLine({ watch, cameraOn }: { watch: BenchWatch; cameraOn: boolean }) {
+  if (watch.deviceStatus === 'unavailable') {
+    return <p className="muted bench">Watching the bench needs Chrome on a computer.</p>
+  }
+  if (watch.deviceStatus === 'downloading') {
+    return (
+      <p className="muted bench">
+        Getting ready to watch the bench{watch.downloadPercent === null ? '.' : `: ${watch.downloadPercent}%`}
+      </p>
+    )
+  }
+  if (!cameraOn || watch.deviceStatus !== 'available') return null
+  if (!watch.look) return <p className="muted bench">Watching the bench.</p>
+  const { answer, source, at, ms } = watch.look
+  return (
+    <p className="bench">
+      <span className="label">On the bench:</span> {describeBenchAnswer(answer)}{' '}
+      <span className="muted">
+        {sourceText[source] ?? source}, {at.toLocaleTimeString('en-US')}, {ms.toLocaleString('en-US')} ms
+      </span>
+    </p>
   )
 }

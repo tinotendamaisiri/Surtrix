@@ -316,6 +316,11 @@ button.secondary {
   border: 1px solid var(--border);
 }
 
+.step-card p.bench {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
 @media (max-width: 760px) {
   .coach-body {
     grid-template-columns: minmax(0, 1fr);

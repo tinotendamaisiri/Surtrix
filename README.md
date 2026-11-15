@@ -38,10 +38,13 @@ Click Start camera, allow camera access, type a question and click Capture.
 All AI calls go through the Firebase AI Logic Web SDK (`firebase/ai`) with the
 Gemini Developer API, protected by Firebase App Check with reCAPTCHA Enterprise.
 
-* **Prefer on device** (the default) uses `InferenceMode.PREFER_ON_DEVICE`. When
-  Chrome's built in Gemini Nano is available, the frame and question are answered
-  on the computer itself: private, free and quick. When it is not, the SDK falls
-  back to the cloud model.
+* **Hybrid (on device first, cloud fallback)**, the default, uses
+  `InferenceMode.PREFER_ON_DEVICE`. When Chrome's built in Gemini Nano is
+  available, the frame and question are answered on the computer itself: private,
+  free and quick. When it is not, the SDK falls back to the cloud model.
+* **On device only** uses `InferenceMode.ONLY_ON_DEVICE` and only ever answers on
+  the computer. It is greyed out where Gemini Nano is not available, and the app
+  never sends these questions to the cloud.
 * **Cloud only** uses `InferenceMode.ONLY_IN_CLOUD` and always asks the cloud
   model, `gemini-4-hydrogen` with low thinking.
 * Every answer shows which path produced it, read from the response's

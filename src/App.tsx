@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { InferenceMode, InferenceSource } from 'firebase/ai'
 import {
   askAboutFrame,
+  DeviceModelUnavailableError,
   getDeviceModelStatus,
   prepareDeviceModel,
   type DeviceModelStatus,
@@ -20,6 +21,12 @@ const deviceStatusText: Record<DeviceModelStatus, string> = {
   downloading: 'Downloading',
   unavailable: 'Not available on this device',
 }
+
+const pathOptions: { path: Path; label: string }[] = [
+  { path: InferenceMode.PREFER_ON_DEVICE, label: 'Hybrid (on device first, cloud fallback)' },
+  { path: InferenceMode.ONLY_ON_DEVICE, label: 'On device only' },
+  { path: InferenceMode.ONLY_IN_CLOUD, label: 'Cloud only' },
+]
 
 const sourceText: Record<string, string> = {
   [InferenceSource.ON_DEVICE]: 'On device',
@@ -48,8 +55,20 @@ export default function App() {
   const [capture, setCapture] = useState<Capture | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // When the on-device model cannot run here, "On device only" is not an option.
+  function updateDeviceStatus(status: DeviceModelStatus) {
+    setDeviceStatus(status)
+    if (status === 'unavailable') {
+      setPath((current) => (current === InferenceMode.ONLY_ON_DEVICE ? InferenceMode.PREFER_ON_DEVICE : current))
+    }
+  }
+
+  function refreshDeviceStatus() {
+    getDeviceModelStatus().then(updateDeviceStatus, () => updateDeviceStatus('unavailable'))
+  }
+
   useEffect(() => {
-    getDeviceModelStatus().then(setDeviceStatus, () => setDeviceStatus('unavailable'))
+    refreshDeviceStatus()
     return () => streamRef.current?.getTracks().forEach((track) => track.stop())
   }, [])
 
@@ -62,8 +81,7 @@ export default function App() {
       setDownloadPercent(Math.round(fraction * 100))
     })
       .catch((e) => console.error('On device model preparation failed', e))
-      .then(getDeviceModelStatus)
-      .then(setDeviceStatus, () => setDeviceStatus('unavailable'))
+      .then(refreshDeviceStatus)
       .finally(() => setDownloadPercent(null))
 
     try {
@@ -87,7 +105,12 @@ export default function App() {
       setCapture({ ...result, frameUrl, question: question.trim() })
     } catch (e) {
       console.error('Capture failed', e)
-      setError('Could not get an answer. Please try again.')
+      if (e instanceof DeviceModelUnavailableError) {
+        setError('The on device model is not available on this computer.')
+        refreshDeviceStatus()
+      } else {
+        setError('Could not get an answer. Please try again.')
+      }
     } finally {
       setBusy(false)
     }
@@ -119,25 +142,28 @@ export default function App() {
       <section className="controls">
         <fieldset>
           <legend>Answer from</legend>
-          <label>
-            <input
-              type="radio"
-              name="path"
-              checked={path === InferenceMode.PREFER_ON_DEVICE}
-              onChange={() => setPath(InferenceMode.PREFER_ON_DEVICE)}
-            />
-            Prefer on device
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="path"
-              checked={path === InferenceMode.ONLY_IN_CLOUD}
-              onChange={() => setPath(InferenceMode.ONLY_IN_CLOUD)}
-            />
-            Cloud only
-          </label>
+          {pathOptions.map((option) => (
+            <label key={option.path}>
+              <input
+                type="radio"
+                name="path"
+                checked={path === option.path}
+                disabled={option.path === InferenceMode.ONLY_ON_DEVICE && deviceStatus === 'unavailable'}
+                onChange={() => setPath(option.path)}
+              />
+              {option.label}
+            </label>
+          ))}
         </fieldset>
+
+        {path === InferenceMode.ONLY_ON_DEVICE &&
+          (deviceStatus === 'downloading' || deviceStatus === 'downloadable') && (
+            <p className="muted">
+              {deviceStatus === 'downloadable' && !cameraOn
+                ? 'Click Start camera to download the on device model.'
+                : 'The answer will come once the on device model finishes downloading.'}
+            </p>
+          )}
 
         <p className="muted">
           On device model:{' '}

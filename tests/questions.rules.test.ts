@@ -1,5 +1,6 @@
 // Rules tests for Ask an Expert questions (#17). They run against the Firestore
-// emulator through npm test, which starts it as project demo-surtrix.
+// emulator through npm test. They use their own project id, so another test file
+// clearing demo-surtrix at the same time never removes the questions saved here.
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
@@ -30,7 +31,7 @@ let testEnv: RulesTestEnvironment
 
 beforeAll(async () => {
   testEnv = await initializeTestEnvironment({
-    projectId: 'demo-surtrix',
+    projectId: 'demo-surtrix-questions',
     firestore: { rules: readFileSync(join(import.meta.dirname, '..', 'firestore.rules'), 'utf8') },
   })
   // Two questions already saved: one by learner-1 and one by learner-2.

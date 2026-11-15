@@ -65,10 +65,7 @@ service cloud.firestore {
       allow create: if request.auth != null && isNewQuestion(request.resource.data);
     }
 
-    function isText(value, max) {
-      return value is string && value.trim().size() > 0 && value.size() <= max;
-    }
-
+    // Uses isText from the skills rules above: trimmed, non empty, at most max characters.
     function isNewQuestion(q) {
       let fields = ['learnerId', 'skillId', 'skillTitle', 'stepId', 'stepNumber', 'stepTitle',
         'stepInstruction', 'question', 'frame', 'origin', 'judgeSaid', 'status', 'createdAt'];

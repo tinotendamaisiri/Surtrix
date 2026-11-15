@@ -16,8 +16,11 @@ The app today has these screens:
   to a live camera preview. You move with Back and Next, and Mark step done moves on
   to the next step. It does not use AI yet. Ask an Expert sends the current camera
   frame and your question about the step to a human expert, and lists your questions
-  for the step with the expert's reply as soon as it arrives. The expert's screen
-  comes next, so for now nobody answers.
+  for the step with the expert's reply as soon as it arrives.
+* The expert dashboard (`#expert`): an expert signs in with Google and sees every
+  open question with the learner's photo and step, oldest first, and replies. The
+  reply reaches the learner live and is saved under the skill's step. Only Google
+  accounts the Surtrix team lists in Firestore's `experts` collection are experts.
 * New skill (`#new-skill`): upload a PDF (up to 10 MB) or paste a procedure (up to
   50,000 characters), and Gemini (`gemini-3.5-flash-lite`, in the cloud) turns it into
   a list of steps to review. Try a sample fills in the demo skill's procedure as

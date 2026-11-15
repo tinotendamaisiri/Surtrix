@@ -25,6 +25,11 @@ test('#capture-test opens the capture test page', () => {
   expect(screenFromHash('#capture-test')).toEqual({ screen: 'capture-test' })
 })
 
+test('#expert opens the expert dashboard', () => {
+  expect(screenFromHash('#expert')).toEqual({ screen: 'expert' })
+  expect(screenFromHash('#experts')).toEqual({ screen: 'home' })
+})
+
 test('any other hash opens home', () => {
   expect(screenFromHash('#something-else')).toEqual({ screen: 'home' })
   expect(screenFromHash('#Capture-Test')).toEqual({ screen: 'home' })

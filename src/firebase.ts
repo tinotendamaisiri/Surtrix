@@ -1,6 +1,8 @@
 import { initializeApp } from 'firebase/app'
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check'
 import {
+  AIError,
+  AIErrorCode,
   getAI,
   getGenerativeModel,
   GoogleAIBackend,
@@ -43,7 +45,11 @@ const deviceCreateOptions: LanguageModelCreateOptions = {
   initialPrompts: [{ role: 'system', content: [{ type: 'text', value: SYSTEM_PROMPT }] }],
 }
 
-export type Path = typeof InferenceMode.PREFER_ON_DEVICE | typeof InferenceMode.ONLY_IN_CLOUD
+// Hybrid (PREFER_ON_DEVICE) is the default: on device first, cloud fallback.
+export type Path =
+  | typeof InferenceMode.PREFER_ON_DEVICE
+  | typeof InferenceMode.ONLY_ON_DEVICE
+  | typeof InferenceMode.ONLY_IN_CLOUD
 
 function createModel(mode: Path): GenerativeModel {
   return getGenerativeModel(ai, {
@@ -59,7 +65,20 @@ function createModel(mode: Path): GenerativeModel {
 
 const models: Record<Path, GenerativeModel> = {
   [InferenceMode.PREFER_ON_DEVICE]: createModel(InferenceMode.PREFER_ON_DEVICE),
+  [InferenceMode.ONLY_ON_DEVICE]: createModel(InferenceMode.ONLY_ON_DEVICE),
   [InferenceMode.ONLY_IN_CLOUD]: createModel(InferenceMode.ONLY_IN_CLOUD),
+}
+
+// Thrown when "On device only" is chosen but the on-device model cannot answer here.
+export class DeviceModelUnavailableError extends Error {
+  constructor() {
+    super('The on-device model is not available in this browser.')
+    this.name = 'DeviceModelUnavailableError'
+  }
+}
+
+function getLanguageModelApi(): LanguageModelApi | undefined {
+  return (globalThis as { LanguageModel?: LanguageModelApi }).LanguageModel
 }
 
 export type FrameAnswer = {
@@ -70,11 +89,23 @@ export type FrameAnswer = {
 
 // Sends one camera frame (base64 JPEG) and a question through the hybrid model.
 export async function askAboutFrame(path: Path, question: string, jpegBase64: string): Promise<FrameAnswer> {
+  const deviceOnly = path === InferenceMode.ONLY_ON_DEVICE
+  // Without Chrome's LanguageModel API the SDK would quietly answer "On device only"
+  // from the cloud, so refuse here instead.
+  if (deviceOnly && !getLanguageModelApi()) throw new DeviceModelUnavailableError()
   const started = performance.now()
-  const result = await models[path].generateContent([
-    question,
-    { type: 'inlineData', inlineData: { mimeType: 'image/jpeg', data: jpegBase64 } },
-  ])
+  let result
+  try {
+    result = await models[path].generateContent([
+      question,
+      { type: 'inlineData', inlineData: { mimeType: 'image/jpeg', data: jpegBase64 } },
+    ])
+  } catch (e) {
+    const deviceRefused =
+      e instanceof AIError && (e.code === AIErrorCode.API_NOT_ENABLED || e.code === AIErrorCode.UNSUPPORTED)
+    if (deviceOnly && deviceRefused) throw new DeviceModelUnavailableError()
+    throw e
+  }
   const ms = Math.round(performance.now() - started)
   return {
     answer: result.response.text(),
@@ -92,13 +123,17 @@ type LanguageModelApi = {
 // Reads whether Chrome's on-device model can take our text and image input.
 // This only reports status; all inference goes through firebase/ai.
 export async function getDeviceModelStatus(): Promise<DeviceModelStatus> {
-  const api = (globalThis as { LanguageModel?: LanguageModelApi }).LanguageModel
+  const api = getLanguageModelApi()
   if (!api) return 'unavailable'
   const { expectedInputs, expectedOutputs } = deviceCreateOptions
   return api.availability({ expectedInputs, expectedOutputs })
 }
 
-// Starts the on-device model download if needed. Must run after a user click.
+// Starts the on-device model download if needed, for both modes that use it.
+// Must run after a user click. Chrome downloads the model once.
 export function prepareDeviceModel(onProgress: (fraction: number) => void): Promise<void> {
+  models[InferenceMode.ONLY_ON_DEVICE]
+    .initializeDeviceModel()
+    .catch((e) => console.warn('On device only model preparation failed', e))
   return models[InferenceMode.PREFER_ON_DEVICE].initializeDeviceModel(onProgress)
 }

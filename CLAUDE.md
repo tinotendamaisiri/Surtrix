@@ -130,7 +130,10 @@ internals.
 * One branch per issue, named after it (for example `1-scaffold-app`), cut from the
   latest `origin/staging`, with a pull request into `staging`.
 * Commit author: Tinotenda Maisiri, with the GitHub noreply address set in this
-  repo's git config. No Co-Authored-By AI trailers. Commit or push only as part of an agreed issue.
+  repo's git config. Commit or push only as part of an agreed issue.
+* Never push anything to GitHub with Claude as author or co-author: no
+  Co-Authored-By trailers, no "Generated with Claude Code" lines, and no Claude
+  credit in commits, pull requests, issues or comments. Check before every push.
 * Never write "Closes #N" or "Fixes #N". Never put close, closes, closed, fix,
   fixes, fixed, resolve, resolves or resolved directly before #N anywhere in a PR
   or commit. Write "Part of #N" and nothing more about closing. An issue is closed

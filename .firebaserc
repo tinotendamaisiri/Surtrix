@@ -1,0 +1,13 @@
+{
+  "projects": {
+    "default": "surtrix-50d22"
+  },
+  "targets": {
+    "surtrix-50d22": {
+      "hosting": {
+        "live": ["surtrix-50d22"],
+        "staging": ["surtrix-staging"]
+      }
+    }
+  }
+}

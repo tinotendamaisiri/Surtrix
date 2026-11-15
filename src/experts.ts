@@ -33,22 +33,32 @@ function isGoogleUser(user: User | null): user is User {
 }
 
 // Calls onChange with the signed in account's expert status, now and whenever the
-// account changes. Returns a function that stops listening.
+// account or its experts entry changes (Tino adding the account shows at once).
+// Returns a function that stops listening.
 export function watchExpertStatus(onChange: (status: ExpertStatus) => void, onError: (error: unknown) => void): () => void {
-  return onAuthStateChanged(auth, (user) => {
+  let stopEntry = () => {}
+  const stopAuth = onAuthStateChanged(auth, (user) => {
+    stopEntry()
+    stopEntry = () => {}
     if (!isGoogleUser(user)) return onChange({ state: 'signed-out' })
     onChange({ state: 'checking' })
-    getDoc(doc(db, 'experts', user.uid)).then((entry) => {
-      // Another account may have signed in meanwhile.
-      if (auth.currentUser?.uid !== user.uid) return
-      const name: unknown = entry.data()?.name
-      onChange(
-        typeof name === 'string' && name.trim()
-          ? { state: 'expert', userId: user.uid, name }
-          : { state: 'not-expert', userId: user.uid },
-      )
-    }, onError)
+    stopEntry = onSnapshot(
+      doc(db, 'experts', user.uid),
+      (entry) => {
+        const name: unknown = entry.data()?.name
+        onChange(
+          typeof name === 'string' && name.trim()
+            ? { state: 'expert', userId: user.uid, name }
+            : { state: 'not-expert', userId: user.uid },
+        )
+      },
+      onError,
+    )
   })
+  return () => {
+    stopAuth()
+    stopEntry()
+  }
 }
 
 // Opens Google's sign in popup. Resolves false when the expert closed it.

@@ -58,11 +58,67 @@ service cloud.firestore {
     }
 
     // Ask an Expert (#17). The shape is in the Contracts section of the build plan.
-    // A learner asks only as themselves and reads only their own questions. Nobody
-    // edits or deletes a question; experts get access in plan issue 9.
+    // A learner asks only as themselves and reads only their own questions. An expert
+    // (#20) reads every question and answers an open one once. Nobody deletes a question.
     match /questions/{questionId} {
-      allow read: if request.auth != null && resource.data.learnerId == request.auth.uid;
-      allow create: if request.auth != null && isNewQuestion(request.resource.data);
+      allow read: if signedIn() && (resource.data.learnerId == request.auth.uid || isExpert());
+      allow create: if signedIn() && isNewQuestion(request.resource.data);
+      allow update: if isExpert() && resource.data.status == 'open' && isReply(questionId);
+    }
+
+    // Experts (#20): a Google account Tino lists here by hand, as experts/{userId} with
+    // the name learners see. A user can only check their own entry.
+    match /experts/{userId} {
+      allow read: if signedIn() && request.auth.uid == userId;
+    }
+
+    // Saved expert answers (#20), reused by plan issue 10. The answer's id is its
+    // question's id, and it is written in one batch with the reply on the question.
+    match /skills/{skillId}/steps/{stepId}/answers/{answerId} {
+      allow read: if signedIn();
+      allow create: if isExpert() && isSavedAnswer(skillId, stepId, answerId, request.resource.data);
+    }
+
+    function isExpert() {
+      return signedIn()
+        && request.auth.token.firebase.sign_in_provider == 'google.com'
+        && exists(/databases/$(database)/documents/experts/$(request.auth.uid));
+    }
+
+    function expertName() {
+      return get(/databases/$(database)/documents/experts/$(request.auth.uid)).data.name;
+    }
+
+    // Only the status and the reply change, and the saved answer exists after the batch.
+    function isReply(questionId) {
+      let after = request.resource.data;
+      let reply = after.reply;
+      let fields = ['text', 'expertId', 'expertName', 'answeredAt'];
+      return after.diff(resource.data).affectedKeys().hasOnly(['status', 'reply'])
+        && after.status == 'answered'
+        && reply is map && reply.keys().hasOnly(fields) && reply.keys().hasAll(fields)
+        && isText(reply.text, 2000)
+        && reply.expertId == request.auth.uid
+        && reply.expertName == expertName()
+        && reply.answeredAt == request.time
+        && existsAfter(/databases/$(database)/documents/skills/$(resource.data.skillId)/steps/$(resource.data.stepId)/answers/$(questionId));
+    }
+
+    // The answer sits under its question's skill and step, and repeats its question and reply.
+    function isSavedAnswer(skillId, stepId, answerId, a) {
+      let question = getAfter(/databases/$(database)/documents/questions/$(answerId)).data;
+      let fields = ['questionId', 'question', 'answer', 'expertId', 'expertName', 'createdAt'];
+      return a.keys().hasOnly(fields) && a.keys().hasAll(fields)
+        && a.questionId == answerId
+        && question.skillId == skillId
+        && question.stepId == stepId
+        && question.status == 'answered'
+        && question.reply.expertId == request.auth.uid
+        && a.question == question.question
+        && a.answer == question.reply.text
+        && a.expertId == request.auth.uid
+        && a.expertName == expertName()
+        && a.createdAt == request.time;
     }
 
     // Uses isText from the skills rules above: trimmed, non empty, at most max characters.

@@ -57,9 +57,10 @@ internals.
     anything else that is not the wiring judgment.
   * Why (measured Nov 15, #5): on the Nov 12 wiring photo, hydrogen caught the
     mistake with the right fix 4 of 4 times in 3.3 to 5.5 s; flash-lite took 1.2
-    to 2.0 s but was fully right only 3 of 5. The free tier allows 20 hydrogen
-    requests per day, counted per model, so hydrogen is kept for the one job
-    that needs it.
+    to 2.0 s but was fully right only 3 of 5. On the free tier hydrogen was
+    limited to 20 requests per day, counted per model; on Blaze (since Nov 15)
+    its limits are not published, so hydrogen is still kept for the one job that
+    needs it.
 * Expert escalation: when the cloud model is unsure or the user taps Ask an Expert,
   write a question to Firestore with the frame, step and question. Expert dashboard
   (Google sign in) lists open questions; the expert replies; the answer is saved to
@@ -231,10 +232,16 @@ reported, and left for Tino to merge.
   API, Cloud Run (App Hosting) and Cloud Run Functions. When a cap is reached, that
   service pauses for the rest of the month. A 403 from AI Logic, or AI Logic
   paused, may mean the cap was hit: check billing before debugging code.
-* Gemini API billing is Prepay by default. A 429 saying "Your prepayment credits
-  are depleted" means there are no prepaid credits; a 429 naming
-  `generate_content_free_tier_requests` means the free tier daily limit. Neither
-  is a code problem.
+* Gemini API billing is Prepay by default (per Google's billing docs). Errors
+  seen or documented so far:
+  * 429 "Your prepayment credits are depleted": no prepaid Gemini credits (seen
+    Nov 15).
+  * 429 naming `generate_content_free_tier_requests`: a free tier limit (seen Nov
+    15 as 20 hydrogen requests per day).
+  * 429 `RESOURCE_EXHAUSTED` from the Tier 1 spend limit, $10 per rolling 10
+    minutes (documented, not seen yet).
+  These are usually billing or quota stops, but a bug that sends too many cloud
+  calls causes the same errors, so check the call count too.
 * Buying credits and changing billing, budgets or caps are Tino's to do. Report
   the exact error and log it under Needs Tino.
 

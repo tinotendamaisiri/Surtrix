@@ -61,13 +61,17 @@ internals.
 * Firestore (draft): `skills`, `skills/{id}/steps`, `questions`, `answers`,
   `experts`.
 
-## Proven facts (tested Nov 12)
+## Proven facts (tested Nov 12 and 15)
 
 * Cloud Gemini caught a real breadboard wiring mistake in about 7 s with low
   thinking.
 * Gemini Nano in Chrome on Tino's Mac: image input available, about 3.3 s per
   answer, 8.5 s model load. Correct on parts and LED state, missed the wiring
   mistake. So: device watches, cloud judges.
+* Nov 15, staging: Gemini Nano described an LED that was not in the frame when the
+  question assumed one; the cloud model rejected the same false premise. Every
+  question sent to the device model must be neutral and must not assume what is
+  in the frame.
 
 ## How work starts
 

@@ -13,7 +13,9 @@ import {
 // Longest side of the frame sent to the model, in pixels.
 const FRAME_MAX_SIDE = 768
 
-type Capture = FrameAnswer & { frameUrl: string; question: string }
+type Frame = { url: string; width: number; height: number; bytes: number }
+
+type Capture = FrameAnswer & { frame: Frame; question: string }
 
 const deviceStatusText: Record<DeviceModelStatus, string> = {
   available: 'Ready',
@@ -33,13 +35,20 @@ const sourceText: Record<string, string> = {
   [InferenceSource.IN_CLOUD]: 'Cloud',
 }
 
-function grabFrame(video: HTMLVideoElement): string {
+function grabFrame(video: HTMLVideoElement): Frame {
   const scale = Math.min(1, FRAME_MAX_SIDE / Math.max(video.videoWidth, video.videoHeight))
   const canvas = document.createElement('canvas')
   canvas.width = Math.round(video.videoWidth * scale)
   canvas.height = Math.round(video.videoHeight * scale)
   canvas.getContext('2d')!.drawImage(video, 0, 0, canvas.width, canvas.height)
-  return canvas.toDataURL('image/jpeg', 0.85)
+  const url = canvas.toDataURL('image/jpeg', 0.85)
+  const base64 = url.split(',')[1]
+  const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0
+  return { url, width: canvas.width, height: canvas.height, bytes: (base64.length * 3) / 4 - padding }
+}
+
+function formatMs(ms: number): string {
+  return `${ms.toLocaleString('en-US')} ms`
 }
 
 export default function App() {
@@ -48,7 +57,8 @@ export default function App() {
   const [cameraOn, setCameraOn] = useState(false)
   const [videoReady, setVideoReady] = useState(false)
   const [path, setPath] = useState<Path>(InferenceMode.PREFER_ON_DEVICE)
-  const [question, setQuestion] = useState('Which parts are visible, and is the LED lit?')
+  // Neutral: Gemini Nano tends to describe whatever a question assumes is there.
+  const [question, setQuestion] = useState('Which parts are visible? If there is an LED, is it lit?')
   const [deviceStatus, setDeviceStatus] = useState<DeviceModelStatus | null>(null)
   const [downloadPercent, setDownloadPercent] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
@@ -99,10 +109,10 @@ export default function App() {
     if (!video || !videoReady || !question.trim()) return
     setBusy(true)
     setError(null)
-    const frameUrl = grabFrame(video)
+    const frame = grabFrame(video)
     try {
-      const result = await askAboutFrame(path, question.trim(), frameUrl.split(',')[1])
-      setCapture({ ...result, frameUrl, question: question.trim() })
+      const result = await askAboutFrame(path, question.trim(), frame.url.split(',')[1])
+      setCapture({ ...result, frame, question: question.trim() })
     } catch (e) {
       console.error('Capture failed', e)
       if (e instanceof DeviceModelUnavailableError) {
@@ -185,7 +195,7 @@ export default function App() {
 
       {capture && (
         <section className="result">
-          <img src={capture.frameUrl} alt="Captured frame" />
+          <img src={capture.frame.url} alt="Captured frame" />
           <div>
             <p className="muted">{capture.question}</p>
             <p>{capture.answer}</p>
@@ -193,8 +203,38 @@ export default function App() {
               <dt>Answered</dt>
               <dd>{sourceText[capture.source] ?? capture.source}</dd>
               <dt>Response time</dt>
-              <dd>{capture.ms.toLocaleString('en-US')} ms</dd>
+              <dd>{formatMs(capture.ms)}</dd>
             </dl>
+            <details>
+              <summary>Details</summary>
+              <dl>
+                <dt>App Check token</dt>
+                <dd>{capture.appCheckMs === null ? 'Not needed' : formatMs(capture.appCheckMs)}</dd>
+                <dt>Model call</dt>
+                <dd>{formatMs(capture.modelMs)}</dd>
+                <dt>Total</dt>
+                <dd>{formatMs(capture.ms)}</dd>
+                <dt>Frame sent</dt>
+                <dd>
+                  {capture.frame.width} x {capture.frame.height}, JPEG{' '}
+                  {(capture.frame.bytes / 1024).toLocaleString('en-US', { maximumFractionDigits: 1 })} KB
+                </dd>
+                {capture.tokens && (
+                  <>
+                    <dt>Tokens</dt>
+                    <dd>
+                      {capture.tokens.prompt} prompt, {capture.tokens.output} output, {capture.tokens.thinking} thinking
+                    </dd>
+                  </>
+                )}
+                {capture.modelVersion && (
+                  <>
+                    <dt>Model</dt>
+                    <dd>{capture.modelVersion}</dd>
+                  </>
+                )}
+              </dl>
+            </details>
           </div>
         </section>
       )}

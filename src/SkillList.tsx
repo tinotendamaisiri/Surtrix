@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react'
 import { coachHash } from './screenAddress.ts'
-import { listMySkills, type SkillSummary } from './skills.ts'
+import { listSkills, type SkillSummary } from './skills.ts'
 
 type State = { kind: 'loading' } | { kind: 'loaded'; skills: SkillSummary[] } | { kind: 'failed' }
 
-// The skills this learner saved, newest first, listed on home below the built in ones.
-export default function MySkills() {
+// The skills on home: the demo skill first, then the ones this learner saved, newest first.
+export default function SkillList() {
   const [state, setState] = useState<State>({ kind: 'loading' })
 
   useEffect(() => {
     let onScreen = true
-    listMySkills().then(
+    listSkills().then(
       (skills) => onScreen && setState({ kind: 'loaded', skills }),
       (e) => {
-        console.error('Loading saved skills failed', e)
+        console.error('Loading the skills failed', e)
         if (onScreen) setState({ kind: 'failed' })
       },
     )
@@ -22,8 +22,8 @@ export default function MySkills() {
     }
   }, [])
 
-  if (state.kind === 'loading') return <p className="muted">Loading your skills</p>
-  if (state.kind === 'failed') return <p className="error">Could not load your skills. Reload the page to try again.</p>
+  if (state.kind === 'loading') return <p className="muted">Loading skills</p>
+  if (state.kind === 'failed') return <p className="error">Could not load the skills. Reload the page to try again.</p>
   if (state.skills.length === 0) return null
   return (
     <ul>

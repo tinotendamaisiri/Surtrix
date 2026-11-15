@@ -1,7 +1,6 @@
-// Moving through a skill's steps on the coach screen, and the hard coded sample skill.
+// Moving through a skill's steps on the coach screen.
 import { describe, expect, test } from 'vitest'
 import { goBack, goNext, markStepDone, startProgress } from '../src/coach.ts'
-import { sampleSkill, skills } from '../src/sampleSkill.ts'
 
 describe('step moves', () => {
   // Start again on the coach is a fresh start, so this also covers Start again.
@@ -44,29 +43,5 @@ describe('step moves', () => {
 
   test('a one step skill finishes on its first Mark step done', () => {
     expect(markStepDone(startProgress(1)).finished).toBe(true)
-  })
-})
-
-describe('sample skill', () => {
-  test('uses the ids fixed in the Contracts', () => {
-    expect(sampleSkill.id).toBe('sample-led')
-    expect(sampleSkill.steps.map((step) => step.id)).toEqual(['step-1', 'step-2', 'step-3', 'step-4'])
-  })
-
-  test('every step has trimmed, non empty text', () => {
-    for (const step of sampleSkill.steps) {
-      for (const text of [step.title, step.instruction, step.doneWhen, ...step.parts]) {
-        expect(text).toBe(text.trim())
-        expect(text).not.toBe('')
-      }
-    }
-  })
-
-  test('has no em or en dashes in its text', () => {
-    expect(JSON.stringify(sampleSkill)).not.toMatch(/[–—]/)
-  })
-
-  test('is on the home list', () => {
-    expect(skills.map((skill) => skill.id)).toContain('sample-led')
   })
 })

@@ -9,8 +9,9 @@ Built for the Google #BuildHybridAI 2026 hackathon.
 
 The app today has these screens:
 
-* Home lists the skills: one built in sample (lighting an LED with a resistor on a
-  breadboard), then the skills you saved, newest first.
+* Home lists the skills: the demo skill (lighting an LED with a resistor on a
+  breadboard), then the skills you saved, newest first. The demo skill is stored in
+  Firestore like any saved skill.
 * The coach (`#coach/{skill id}`) walks you through a skill one step at a time, next
   to a live camera preview. You move with Back and Next, and Mark step done moves on
   to the next step. While the camera is on, Gemini Nano in Chrome on a computer
@@ -18,11 +19,15 @@ The app today has these screens:
   parts it sees and whether an LED is lit. It never calls the cloud and never moves
   the step. Elsewhere the coach says watching needs Chrome on a computer. Ask an Expert sends the current camera
   frame and your question about the step to a human expert, and lists your questions
-  for the step with the expert's reply as soon as it arrives. The expert's screen
-  comes next, so for now nobody answers.
+  for the step with the expert's reply as soon as it arrives.
+* The expert dashboard (`#expert`): an expert signs in with Google and sees every
+  open question with the learner's photo and step, oldest first, and replies. The
+  reply reaches the learner live and is saved under the skill's step. Only Google
+  accounts the Surtrix team lists in Firestore's `experts` collection are experts.
 * New skill (`#new-skill`): upload a PDF (up to 10 MB) or paste a procedure (up to
   50,000 characters), and Gemini (`gemini-3.5-flash-lite`, in the cloud) turns it into
-  a list of steps to review. Save skill stores the skill and its steps in Firestore
+  a list of steps to review. Try a sample fills in the demo skill's procedure as
+  text, to try it without a document of your own. Save skill stores the skill and its steps in Firestore
   and opens its coach. Saved skills cannot be edited or deleted yet.
 * The capture test page (`#capture-test`): a live camera preview, a question box and
   a Capture button. Each capture sends the frame and your question to Gemini and
@@ -40,8 +45,8 @@ npm install
 npm run dev:local
 ```
 
-`npm run dev:local` starts the Firestore and Auth emulators and the dev server
-together; Ctrl+C stops both. To run them separately, use `npm run emulators` in one
+`npm run dev:local` starts the Firestore and Auth emulators, writes the demo skill
+into the Firestore emulator, and starts the dev server; Ctrl+C stops both. To run them separately, use `npm run emulators` in one
 terminal and `npm run dev` in another. Open http://localhost:5173 in Chrome. The
 Emulator UI is at http://localhost:4000.
 
@@ -72,6 +77,28 @@ only accepts requests from localhost 5173 to 5175.
 
 To try a capture, open http://localhost:5173/#capture-test, click Start camera,
 allow camera access, type a question and click Capture.
+
+### The demo skill
+
+`scripts/seedDemoSkill.ts` writes the demo skill (`src/demoSkill.ts`) as
+`skills/sample-led` with steps `step-1` to `step-4`. `npm run dev:local` runs it
+against the emulator. With `npm run emulators` and `npm run dev` in separate
+terminals, run it once the emulators are up, with `.env.local` so it finds this
+worktree's emulator:
+
+```
+node --env-file-if-exists=.env.local scripts/seedDemoSkill.ts emulator
+```
+
+To write it to the real Firestore (shared by staging and the
+live site), run it with an access token of a project owner:
+
+```
+GOOGLE_ACCESS_TOKEN="$(gcloud auth print-access-token --account <owner account>)" node scripts/seedDemoSkill.ts real
+```
+
+Running it again rewrites only those 5 documents and keeps what is stored under the
+steps. Questions and expert answers point at these ids, so they never change.
 
 ### Checks
 

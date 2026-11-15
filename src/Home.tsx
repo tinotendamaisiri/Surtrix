@@ -1,8 +1,6 @@
-import type { CoachSkill } from './coach.ts'
-import MySkills from './MySkills.tsx'
-import { coachHash } from './screenAddress.ts'
+import SkillList from './SkillList.tsx'
 
-export default function Home({ skills }: { skills: CoachSkill[] }) {
+export default function Home() {
   return (
     <main>
       <header>
@@ -15,19 +13,7 @@ export default function Home({ skills }: { skills: CoachSkill[] }) {
 
       <section className="skills">
         <h2>Skills</h2>
-        <ul>
-          {skills.map((skill) => (
-            <li key={skill.id}>
-              <a href={coachHash(skill.id)}>
-                <span className="skill-title">{skill.title}</span>
-                <span className="muted">
-                  {skill.steps.length} {skill.steps.length === 1 ? 'step' : 'steps'}
-                </span>
-              </a>
-            </li>
-          ))}
-        </ul>
-        <MySkills />
+        <SkillList />
         <a href="#new-skill">New skill</a>
       </section>
     </main>

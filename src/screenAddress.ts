@@ -5,10 +5,12 @@ export type ScreenAddress =
   | { screen: 'new-skill' }
   | { screen: 'coach'; skillId: string }
   | { screen: 'capture-test' }
+  | { screen: 'expert' }
 
 export function screenFromHash(hash: string): ScreenAddress {
   if (hash === '#new-skill') return { screen: 'new-skill' }
   if (hash === '#capture-test') return { screen: 'capture-test' }
+  if (hash === '#expert') return { screen: 'expert' }
   const coach = /^#coach\/([^/]+)$/.exec(hash)
   if (coach) return { screen: 'coach', skillId: coach[1] }
   return { screen: 'home' }

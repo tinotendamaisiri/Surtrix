@@ -56,7 +56,8 @@ if (import.meta.env.DEV) {
 let learnerSignIn: Promise<void> | null = null
 
 // Signs the learner in anonymously, once per page. The session is kept in the
-// browser, so a reload keeps the same learner.
+// browser, so a reload keeps the same learner. After a sign out (an expert leaving
+// #expert), the next call signs a learner in again.
 export function signInLearner(): Promise<void> {
   // A failed sign in is forgotten, so the next call tries again.
   learnerSignIn ??= (async () => {
@@ -66,7 +67,13 @@ export function signInLearner(): Promise<void> {
     learnerSignIn = null
     throw e
   })
-  return learnerSignIn
+  const current = learnerSignIn
+  return current.then(() => {
+    if (auth.currentUser) return
+    // Only the first caller after a sign out starts a new sign in; the others wait for it.
+    if (learnerSignIn === current) learnerSignIn = null
+    return signInLearner()
+  })
 }
 
 export const CLOUD_MODEL = 'gemini-4-hydrogen'

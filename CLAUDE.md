@@ -67,8 +67,9 @@ internals.
   the skill.
 * Offline: on-device Nano gets saved expert answers for the current step and picks
   the one that applies.
-* Firestore (draft): `skills`, `skills/{id}/steps`, `questions`, `answers`,
-  `experts`.
+* Firestore: `skills`, `skills/{id}/steps`, `questions`,
+  `skills/{id}/steps/{stepId}/answers` (saved expert answers) and `experts`. The
+  shapes are in the Contracts section of the build plan.
 
 ## Proven facts (tested Nov 12 and 15)
 

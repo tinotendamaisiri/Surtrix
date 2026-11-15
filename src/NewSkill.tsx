@@ -92,7 +92,7 @@ export default function NewSkill() {
         <h1>Surtrix</h1>
         <p className="muted">New skill</p>
         <p>
-          <a href="#">Capture test</a>
+          <a href="#">Back to skills</a>
         </p>
       </header>
 

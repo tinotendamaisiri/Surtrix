@@ -52,7 +52,7 @@ function formatMs(ms: number): string {
   return `${ms.toLocaleString('en-US')} ms`
 }
 
-export default function App() {
+export default function CaptureTest() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const [cameraOn, setCameraOn] = useState(false)

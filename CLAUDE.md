@@ -49,9 +49,17 @@ internals.
   staging site).
 * On-device Nano: every 2 to 3 seconds, check a camera frame: which parts are
   visible, is the LED lit, did the board change.
-* Cloud Gemini (fast Flash model, low thinking): when a step is marked done, judge
-  the wiring against the step and say exactly what to move. Also converts an
-  uploaded procedure into a JSON step list (structured output).
+* Cloud Gemini, low thinking, with one model per job:
+  * `gemini-4-hydrogen` is used ONLY for the wiring judgment: when a step is
+    marked done, judge the wiring against the step and say exactly what to move.
+  * Every other cloud task uses `gemini-3.5-flash-lite`: converting an uploaded
+    procedure into a JSON step list (structured output), simple questions, and
+    anything else that is not the wiring judgment.
+  * Why (measured Nov 15, #5): on the Nov 12 wiring photo, hydrogen caught the
+    mistake with the right fix 4 of 4 times in 3.3 to 5.5 s; flash-lite took 1.2
+    to 2.0 s but was fully right only 3 of 5. The free tier allows 20 hydrogen
+    requests per day, counted per model, so hydrogen is kept for the one job
+    that needs it.
 * Expert escalation: when the cloud model is unsure or the user taps Ask an Expert,
   write a question to Firestore with the frame, step and question. Expert dashboard
   (Google sign in) lists open questions; the expert replies; the answer is saved to

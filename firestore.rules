@@ -7,5 +7,37 @@ service cloud.firestore {
     match /{document=**} {
       allow read, write: if false;
     }
+
+    // Ask an Expert (#17). The shape is in the Contracts section of the build plan.
+    // A learner asks only as themselves and reads only their own questions. Nobody
+    // edits or deletes a question; experts get access in plan issue 9.
+    match /questions/{questionId} {
+      allow read: if request.auth != null && resource.data.learnerId == request.auth.uid;
+      allow create: if request.auth != null && isNewQuestion(request.resource.data);
+    }
+
+    function isText(value, max) {
+      return value is string && value.trim().size() > 0 && value.size() <= max;
+    }
+
+    function isNewQuestion(q) {
+      let fields = ['learnerId', 'skillId', 'skillTitle', 'stepId', 'stepNumber', 'stepTitle',
+        'stepInstruction', 'question', 'frame', 'origin', 'judgeSaid', 'status', 'createdAt'];
+      return q.keys().hasOnly(fields) && q.keys().hasAll(fields)
+        && q.learnerId == request.auth.uid
+        && isText(q.skillId, 128)
+        && isText(q.skillTitle, 200)
+        && isText(q.stepId, 128)
+        && q.stepNumber is int && q.stepNumber >= 1 && q.stepNumber <= 40
+        && isText(q.stepTitle, 200)
+        && isText(q.stepInstruction, 5000)
+        && isText(q.question, 500)
+        // A JPEG under 900 KB keeps the document under Firestore's 1 MiB limit.
+        && q.frame is bytes && q.frame.size() > 0 && q.frame.size() < 900 * 1024
+        && ((q.origin == 'learner' && q.judgeSaid == null)
+          || (q.origin == 'judge' && isText(q.judgeSaid, 2000)))
+        && q.status == 'open'
+        && q.createdAt == request.time;
+    }
   }
 }

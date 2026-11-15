@@ -14,6 +14,9 @@ export type Skill = { title: string; steps: Step[] }
 
 export const MAX_STEPS = 40
 
+// Longest text, in characters, for each field. Firestore rules check the same limits.
+export const LIMITS = { title: 200, instruction: 2000, doneWhen: 1000, part: 200, parts: 30 } as const
+
 // The model's answer was not a usable skill.
 export class SkillAnswerError extends Error {
   constructor(reason: string) {
@@ -22,20 +25,23 @@ export class SkillAnswerError extends Error {
   }
 }
 
-function text(value: unknown, field: string): string {
+function text(value: unknown, field: string, max: number): string {
   if (typeof value !== 'string') throw new SkillAnswerError(`${field} is not text`)
-  return value.trim()
+  const trimmed = value.trim()
+  if (trimmed.length > max) throw new SkillAnswerError(`${field} is longer than ${max} characters`)
+  return trimmed
 }
 
 function step(value: unknown, index: number): Step | null {
   if (typeof value !== 'object' || value === null) throw new SkillAnswerError(`step ${index + 1} is not an object`)
   const raw = value as Record<string, unknown>
-  const field = (name: string) => text(raw[name], `step ${index + 1} ${name}`)
+  const field = (name: 'title' | 'instruction' | 'doneWhen') => text(raw[name], `step ${index + 1} ${name}`, LIMITS[name])
   const title = field('title')
   const instruction = field('instruction')
   const doneWhen = field('doneWhen')
   if (!Array.isArray(raw.parts)) throw new SkillAnswerError(`step ${index + 1} parts is not a list`)
-  const parts = raw.parts.map((part) => text(part, `step ${index + 1} part`)).filter(Boolean)
+  const parts = raw.parts.map((part) => text(part, `step ${index + 1} part`, LIMITS.part)).filter(Boolean)
+  if (parts.length > LIMITS.parts) throw new SkillAnswerError(`step ${index + 1} has more than ${LIMITS.parts} parts`)
   // A step with no text at all is dropped; a step missing only some of it is refused,
   // so a half written step never reaches the learner.
   if (!title && !instruction && !doneWhen) return null
@@ -58,7 +64,7 @@ export function parseSkill(json: string): Skill | null {
   const kept = steps.map(step).filter((s): s is Step => s !== null)
   if (kept.length === 0) return null
   if (kept.length > MAX_STEPS) throw new SkillAnswerError(`more than ${MAX_STEPS} steps`)
-  const skillTitle = text(title, 'title')
+  const skillTitle = text(title, 'title', LIMITS.title)
   if (!skillTitle) throw new SkillAnswerError('title is empty')
   return { title: skillTitle, steps: kept }
 }

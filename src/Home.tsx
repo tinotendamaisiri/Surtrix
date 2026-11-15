@@ -1,4 +1,5 @@
 import type { CoachSkill } from './coach.ts'
+import MySkills from './MySkills.tsx'
 import { coachHash } from './screenAddress.ts'
 
 export default function Home({ skills }: { skills: CoachSkill[] }) {
@@ -26,6 +27,7 @@ export default function Home({ skills }: { skills: CoachSkill[] }) {
             </li>
           ))}
         </ul>
+        <MySkills />
         <a href="#new-skill">New skill</a>
       </section>
     </main>

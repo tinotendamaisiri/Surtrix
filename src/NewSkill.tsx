@@ -31,8 +31,8 @@ async function isPdf(file: File): Promise<boolean> {
   return (await file.slice(0, 5).text()) === '%PDF-'
 }
 
-// Upload a PDF or paste a procedure, then review the steps the model made from it.
-// Nothing is saved yet.
+// Upload a PDF or paste a procedure, review the steps the model made from it, and save
+// them as a skill.
 export default function NewSkill() {
   const [input, setInput] = useState<Input>('pdf')
   const [file, setFile] = useState<File | null>(null)

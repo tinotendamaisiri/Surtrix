@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { InferenceSource } from 'firebase/ai'
+import { demoProcedureText } from './demoSkill'
 import {
   MAX_PDF_BYTES,
   MAX_TEXT_CHARACTERS,
@@ -52,6 +53,12 @@ export default function NewSkill() {
     setFile(null)
     setFileError(null)
     setError(null)
+  }
+
+  // Fills the text box with the demo procedure. Nothing is sent until Make steps.
+  function trySample() {
+    chooseInput('text')
+    setText(demoProcedureText)
   }
 
   async function chooseFile(chosen: File | undefined) {
@@ -126,6 +133,11 @@ export default function NewSkill() {
               Paste text
             </label>
           </fieldset>
+          <p>
+            <button type="button" className="secondary" onClick={trySample} disabled={busy}>
+              Try a sample
+            </button>
+          </p>
 
           {input === 'pdf' ? (
             <label className="question">

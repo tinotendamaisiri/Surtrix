@@ -15,6 +15,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  orderBy,
   query,
   serverTimestamp,
   setDoc,
@@ -24,9 +25,11 @@ import {
   writeBatch,
   type DocumentData,
 } from 'firebase/firestore'
-import { afterAll, beforeAll, beforeEach, describe, test } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest'
+import { seedDemoSkill } from '../scripts/seedDemoSkill.ts'
+import { DEMO_SKILL_ID, demoSkill } from '../src/demoSkill.ts'
 import type { Skill } from '../src/skill.ts'
-import { skillDocuments } from '../src/skillDocuments.ts'
+import { coachSkillFromDocuments, skillDocuments, type StepDocument } from '../src/skillDocuments.ts'
 
 let testEnv: RulesTestEnvironment
 
@@ -63,6 +66,7 @@ const skill: Skill = { title: 'Light an LED', steps: [step, { ...step, title: 'A
 function saveSkill(
   context: RulesTestContext,
   options: {
+    skillId?: string
     skill?: Skill
     creatorId?: string
     skillChanges?: DocumentData
@@ -72,10 +76,11 @@ function saveSkill(
 ) {
   const db = context.firestore()
   const documents = skillDocuments(options.skill ?? skill, options.creatorId ?? 'learner-1')
+  const skillId = options.skillId ?? 'skill-1'
   const batch = writeBatch(db)
-  batch.set(doc(db, 'skills/skill-1'), { ...documents.skill, ...options.skillChanges })
+  batch.set(doc(db, `skills/${skillId}`), { ...documents.skill, ...options.skillChanges })
   documents.steps.forEach((s, i) =>
-    batch.set(doc(db, `skills/skill-1/steps/${options.stepIds?.[i] ?? s.id}`), { ...s.data, ...options.stepChanges }),
+    batch.set(doc(db, `skills/${skillId}/steps/${options.stepIds?.[i] ?? s.id}`), { ...s.data, ...options.stepChanges }),
   )
   return batch.commit()
 }
@@ -235,6 +240,69 @@ describe('skills and steps', () => {
     await assertFails(updateDoc(doc(db, 'skills/skill-1/steps/step-1'), { title: 'Changed' }))
     await assertFails(deleteDoc(doc(db, 'skills/skill-1/steps/step-1')))
     await assertFails(setDoc(doc(db, 'skills/skill-1'), { ...skillDocuments(skill, 'learner-1').skill, createdAt: serverTimestamp() }))
+  })
+})
+
+// The demo skill, written by the seed script as the owner (rules off), then read and
+// written by learners through the rules (#25).
+describe('demo skill', () => {
+  const seed = () =>
+    seedDemoSkill({ baseUrl: `http://${process.env.FIRESTORE_EMULATOR_HOST}`, projectId: 'demo-surtrix', token: 'owner' })
+
+  test('a learner cannot create a skill with the demo skill id', async () => {
+    await assertFails(saveSkill(learner(), { skillId: DEMO_SKILL_ID }))
+  })
+
+  test('a learner can still create a skill with any other id', async () => {
+    await assertSucceeds(saveSkill(learner(), { skillId: 'sample-led-2' }))
+  })
+
+  test('the seeded demo skill loads for a learner as its 4 steps, with ids step-1 to step-4', async () => {
+    await seed()
+    const db = learner().firestore()
+    const skillSnapshot = await assertSucceeds(getDoc(doc(db, `skills/${DEMO_SKILL_ID}`)))
+    const data = skillSnapshot.data()!
+    if (data.creatorId !== 'surtrix' || !(data.createdAt instanceof Timestamp)) {
+      throw new Error(`unexpected demo skill ${JSON.stringify(data)}`)
+    }
+    const steps = await assertSucceeds(getDocs(query(collection(db, `skills/${DEMO_SKILL_ID}/steps`), orderBy('number'))))
+    const loaded = coachSkillFromDocuments(
+      DEMO_SKILL_ID,
+      { title: data.title, stepCount: data.stepCount },
+      steps.docs.map((d) => ({ id: d.id, data: d.data() as Partial<StepDocument> })),
+    )
+    expect(loaded).toEqual({
+      id: DEMO_SKILL_ID,
+      title: demoSkill.title,
+      steps: demoSkill.steps.map((s, i) => ({ id: `step-${i + 1}`, ...s })),
+    })
+  })
+
+  test('the seeded demo skill is in no learner\'s own list', async () => {
+    await seed()
+    const db = learner().firestore()
+    const mine = await assertSucceeds(getDocs(query(collection(db, 'skills'), where('creatorId', '==', 'learner-1'))))
+    expect(mine.size).toBe(0)
+  })
+
+  test('no learner can change the demo skill or add a step to it', async () => {
+    await seed()
+    const db = learner().firestore()
+    await assertFails(updateDoc(doc(db, `skills/${DEMO_SKILL_ID}`), { title: 'Changed' }))
+    await assertFails(updateDoc(doc(db, `skills/${DEMO_SKILL_ID}/steps/step-1`), { title: 'Changed' }))
+    await assertFails(setDoc(doc(db, `skills/${DEMO_SKILL_ID}/steps/step-5`), { number: 5, ...step }))
+  })
+
+  test('seeding again leaves what is under a step alone', async () => {
+    await seed()
+    await testEnv.withSecurityRulesDisabled((context) =>
+      setDoc(doc(context.firestore(), `skills/${DEMO_SKILL_ID}/steps/step-2/answers/answer-1`), { answer: 'Kept' }),
+    )
+    await seed()
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const answer = await getDoc(doc(context.firestore(), `skills/${DEMO_SKILL_ID}/steps/step-2/answers/answer-1`))
+      expect(answer.get('answer')).toBe('Kept')
+    })
   })
 })
 

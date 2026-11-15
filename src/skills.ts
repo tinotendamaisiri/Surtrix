@@ -1,6 +1,7 @@
 import { collection, doc, getDoc, getDocs, orderBy, query, where, writeBatch, type Timestamp } from 'firebase/firestore'
 import { auth, db, signInLearner } from './firebase'
 import type { CoachSkill } from './coach'
+import { DEMO_SKILL_ID } from './demoSkill'
 import type { Skill } from './skill'
 import { coachSkillFromDocuments, isDocumentId, skillDocuments, type StepDocument } from './skillDocuments'
 
@@ -24,8 +25,25 @@ export async function saveSkill(skill: Skill): Promise<string> {
   return skillRef.id
 }
 
+// The skills on home: the demo skill first, then the ones this learner saved, newest
+// first. A missing demo skill is left out.
+export async function listSkills(): Promise<SkillSummary[]> {
+  const [demo, mine] = await Promise.all([loadDemoSkillSummary(), listMySkills()])
+  return demo ? [demo, ...mine] : mine
+}
+
+async function loadDemoSkillSummary(): Promise<SkillSummary | null> {
+  await learnerId()
+  const snapshot = await getDoc(doc(db, 'skills', DEMO_SKILL_ID))
+  if (!snapshot.exists()) {
+    console.error(`The demo skill skills/${DEMO_SKILL_ID} is missing. Run scripts/seedDemoSkill.ts.`)
+    return null
+  }
+  return { id: snapshot.id, title: snapshot.get('title'), stepCount: snapshot.get('stepCount') }
+}
+
 // The skills this learner saved, newest first. Sorted here, so no composite index.
-export async function listMySkills(): Promise<SkillSummary[]> {
+async function listMySkills(): Promise<SkillSummary[]> {
   const snapshot = await getDocs(query(collection(db, 'skills'), where('creatorId', '==', await learnerId())))
   return snapshot.docs
     .map((d) => ({ id: d.id, title: d.get('title') as string, stepCount: d.get('stepCount') as number, createdAt: d.get('createdAt') as Timestamp | null }))

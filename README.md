@@ -7,9 +7,14 @@ Expert answers are saved to the skill and reused, including offline.
 
 Built for the Google #BuildHybridAI 2026 hackathon.
 
-The app today is a capture test page: a live camera preview, a question box and a
-Capture button. Each capture sends the frame and your question to Gemini and shows
-the answer, whether it came from the device or the cloud, and how long it took.
+The app today has two screens:
+
+* The capture test page: a live camera preview, a question box and a Capture button.
+  Each capture sends the frame and your question to Gemini and shows the answer,
+  whether it came from the device or the cloud, and how long it took.
+* New skill (`#new-skill`): upload a PDF (up to 10 MB) or paste a procedure (up to
+  50,000 characters), and Gemini (`gemini-3.5-flash-lite`, in the cloud) turns it into
+  a list of steps to review. Nothing is saved yet.
 
 ## Run it locally
 

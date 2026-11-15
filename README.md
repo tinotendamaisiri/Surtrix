@@ -20,7 +20,9 @@ npm install
 npm run dev
 ```
 
-Open the address Vite prints (usually http://localhost:5173) in Chrome.
+Open http://localhost:5173 in Chrome. The dev server always uses port 5173 and
+stops with an error if the port is busy, because the Firebase web key only accepts
+requests from that address.
 
 The first time, Chrome prints an App Check debug token in the DevTools console. A
 project owner registers it in the Firebase console (Security, App Check, Apps tab,
@@ -48,6 +50,14 @@ Gemini Developer API, protected by Firebase App Check with reCAPTCHA Enterprise.
 In the full app the device watches and the cloud judges: Gemini Nano checks camera
 frames every few seconds (which parts are visible, is the LED lit, did the board
 change), and the cloud model checks the wiring when a step is marked done.
+
+## The Firebase web key
+
+`src/firebase-config.ts` contains the Firebase web API key. It is public by design:
+every visitor's browser receives it, and it is not a secret. It is protected by
+key restrictions (it only works from the Surtrix sites and localhost:5173, and only
+for Firebase App Check and Firebase AI Logic) and by App Check, which refuses AI
+requests that do not come from the real app.
 
 ## License
 

@@ -193,6 +193,24 @@ reported, and left for Tino to merge.
   real model responses, not just local output or tests. Read the record, not the
   rendered screen.
 
+## Firebase web key
+
+* The Firebase web key in `src/firebase-config.ts` is public by design. It is
+  limited to the Surtrix sites (surtrix.com, the live and staging `web.app` and
+  `firebaseapp.com` addresses, and `http://localhost:5173`) and to the APIs the app
+  calls, and the APIs behind it are protected by App Check. Never rotate or delete
+  it without Tino.
+* Any issue that adds a Firebase product adds that product's APIs to the key's API
+  restrictions in the same issue, and verifies them locally. For example Firestore:
+  `firestore.googleapis.com`; Auth: `identitytoolkit.googleapis.com` and
+  `securetoken.googleapis.com`. Check the Firebase API keys docs table for the full
+  list at the time. Otherwise the new product fails with a blocked key error.
+* Never add the Generative Language API (Gemini Developer API) to this key.
+* A new site or domain that serves the app goes on both this key's referrers and
+  the reCAPTCHA key's domains.
+* Change the key with gcloud as the account that owns `surtrix-50d22`, never the
+  Cosynced account, with `--account` and `--project surtrix-50d22` on every command.
+
 ## No dead weight
 
 * Only files the app needs to build and run go in the repo: no scratch files,

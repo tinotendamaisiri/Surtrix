@@ -14,10 +14,6 @@ export type SavedAnswer = {
 // The pick when no saved answer fits the learner's question.
 export const NONE_FITS = 'none'
 
-// At most this many answers, the newest, go to the model, so the prompt stays well inside
-// what Gemini Nano takes. The plain list still shows them all.
-export const MAX_PICK_ANSWERS = 8
-
 function isText(value: unknown): value is string {
   return typeof value === 'string' && value.trim() !== ''
 }
@@ -41,9 +37,19 @@ export function sortAnswers(answers: SavedAnswer[]): SavedAnswer[] {
   )
 }
 
-// The answers the model chooses from: the newest MAX_PICK_ANSWERS.
-export function answersToPick(answers: SavedAnswer[]): SavedAnswer[] {
-  return sortAnswers(answers).slice(-MAX_PICK_ANSWERS)
+// Every step's saved answers, by step id: each step gets only its own answers, oldest first,
+// and a step without answers gets an empty list.
+export function stepAnswersFromDocuments(
+  steps: { stepId: string; documents: { id: string; data: Record<string, unknown> }[] }[],
+): Record<string, SavedAnswer[]> {
+  return Object.fromEntries(
+    steps.map(({ stepId, documents }) => [
+      stepId,
+      sortAnswers(
+        documents.map((d) => savedAnswerFromDocument(d.id, d.data)).filter((a): a is SavedAnswer => a !== null),
+      ),
+    ]),
+  )
 }
 
 // The values the model may answer with: one of the answers' ids, or none.
@@ -89,4 +95,17 @@ export function parsePick(text: string, answers: SavedAnswer[]): SavedAnswer | n
   const picked = answers.find((a) => a.id === value)
   if (!picked) throw new PickAnswerError(text)
   return picked
+}
+
+// What Check saved answers shows: the picked answer, that none fits, or, when no model could
+// pick or its pick was refused, every saved answer of the step as it is.
+export type CheckResult<P> = { kind: 'picked'; pick: P } | { kind: 'list' }
+
+export async function checkSavedAnswers<P>(pick: () => Promise<P>): Promise<CheckResult<P>> {
+  try {
+    return { kind: 'picked', pick: await pick() }
+  } catch (e) {
+    console.error('Picking a saved answer failed', e)
+    return { kind: 'list' }
+  }
 }

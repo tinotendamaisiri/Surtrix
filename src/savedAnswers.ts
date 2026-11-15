@@ -8,13 +8,11 @@ import { collection, getDocs } from 'firebase/firestore'
 import { ai, db, signInLearner } from './firebase'
 import type { CoachSkill } from './coach'
 import {
-  answersToPick,
   parsePick,
   PICK_INSTRUCTION,
   pickPrompt,
   pickValues,
-  savedAnswerFromDocument,
-  sortAnswers,
+  stepAnswersFromDocuments,
   type SavedAnswer,
 } from './savedAnswerPick'
 
@@ -28,16 +26,13 @@ export type StepAnswers = Record<string, SavedAnswer[]>
 // offered, so an answer filed under a skill or step that does not exist is never used.
 export async function loadSavedAnswers(skill: CoachSkill): Promise<StepAnswers> {
   await signInLearner()
-  const entries = await Promise.all(
+  const steps = await Promise.all(
     skill.steps.map(async (step) => {
       const snapshot = await getDocs(collection(db, 'skills', skill.id, 'steps', step.id, 'answers'))
-      const answers = snapshot.docs
-        .map((d) => savedAnswerFromDocument(d.id, d.data()))
-        .filter((a): a is SavedAnswer => a !== null)
-      return [step.id, sortAnswers(answers)] as const
+      return { stepId: step.id, documents: snapshot.docs.map((d) => ({ id: d.id, data: d.data() })) }
     }),
   )
-  return Object.fromEntries(entries)
+  return stepAnswersFromDocuments(steps)
 }
 
 export type SavedAnswersState = { kind: 'loading' } | { kind: 'loaded'; byStep: StepAnswers } | { kind: 'failed' }
@@ -78,11 +73,11 @@ export type Pick = {
 }
 
 // Picks the saved answer that fits the learner's question, on device first (also offline)
-// and in the cloud when Nano cannot answer here. Throws when no model can answer or the
-// pick is not one of the answers; the caller then lists the answers as they are.
+// and in the cloud when Nano cannot answer here (for example a prompt too long for it).
+// Every answer of the step goes to the model. Throws when no model can answer or the pick
+// is not one of the answers; the caller then lists the answers as they are.
 export async function pickSavedAnswer(stepTitle: string, question: string, answers: SavedAnswer[]): Promise<Pick> {
-  const choices = answersToPick(answers)
-  const values = pickValues(choices)
+  const values = pickValues(answers)
   const model = getGenerativeModel(ai, {
     mode: InferenceMode.PREFER_ON_DEVICE,
     onDeviceParams: { createOptions, promptOptions: { responseConstraint: { type: 'string', enum: values } } },
@@ -92,13 +87,14 @@ export async function pickSavedAnswer(stepTitle: string, question: string, answe
       generationConfig: {
         responseMimeType: 'text/x.enum',
         responseSchema: Schema.enumString({ enum: values }),
-        maxOutputTokens: 1024,
+        // Thinking counts toward this limit, so leave it plenty of room.
+        maxOutputTokens: 4096,
         thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
       },
     },
   })
   const started = performance.now()
-  const result = await model.generateContent(pickPrompt(stepTitle, question, choices))
+  const result = await model.generateContent(pickPrompt(stepTitle, question, answers))
   const ms = Math.round(performance.now() - started)
-  return { answer: parsePick(result.response.text(), choices), source: result.response.inferenceSource ?? 'unknown', ms }
+  return { answer: parsePick(result.response.text(), answers), source: result.response.inferenceSource ?? 'unknown', ms }
 }

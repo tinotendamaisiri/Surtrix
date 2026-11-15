@@ -30,6 +30,7 @@ import { seedDemoSkill } from '../scripts/seedDemoSkill.ts'
 import { DEMO_SKILL_ID, demoAnswers, demoSkill } from '../src/demoSkill.ts'
 import type { Skill } from '../src/skill.ts'
 import { coachSkillFromDocuments, skillDocuments, type StepDocument } from '../src/skillDocuments.ts'
+import { stepAnswersFromDocuments } from '../src/savedAnswerPick.ts'
 
 let testEnv: RulesTestEnvironment
 
@@ -320,6 +321,25 @@ describe('demo skill', () => {
     }
     const onStep4 = await assertSucceeds(getDocs(collection(db, `skills/${DEMO_SKILL_ID}/steps/step-4/answers`)))
     expect(onStep4.docs.map((d) => d.id).sort()).toEqual(['demo-led-backwards', 'demo-no-power'])
+  })
+
+  test("the coach's loading reads each step's seeded answers as a learner (#31)", async () => {
+    await seed()
+    const db = learner().firestore()
+    const steps = await Promise.all(
+      ['step-1', 'step-2', 'step-3', 'step-4'].map(async (stepId) => {
+        const snapshot = await assertSucceeds(getDocs(collection(db, `skills/${DEMO_SKILL_ID}/steps/${stepId}/answers`)))
+        return { stepId, documents: snapshot.docs.map((d) => ({ id: d.id, data: d.data() })) }
+      }),
+    )
+    const byStep = stepAnswersFromDocuments(steps)
+    expect(Object.fromEntries(Object.entries(byStep).map(([stepId, answers]) => [stepId, answers.map((a) => a.id).sort()]))).toEqual({
+      'step-1': [],
+      'step-2': ['demo-led-in-rail'],
+      'step-3': [],
+      'step-4': ['demo-led-backwards', 'demo-no-power'],
+    })
+    expect(byStep['step-2'][0].expertName).toBe('Surtrix team')
   })
 
   test('neither a learner nor an expert can change or replace a seeded answer', async () => {

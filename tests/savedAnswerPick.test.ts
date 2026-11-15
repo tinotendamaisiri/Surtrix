@@ -3,8 +3,7 @@
 import { describe, expect, test } from 'vitest'
 import { demoAnswers } from '../src/demoSkill.ts'
 import {
-  answersToPick,
-  MAX_PICK_ANSWERS,
+  checkSavedAnswers,
   NONE_FITS,
   parsePick,
   PickAnswerError,
@@ -12,6 +11,7 @@ import {
   pickValues,
   savedAnswerFromDocument,
   sortAnswers,
+  stepAnswersFromDocuments,
   type SavedAnswer,
 } from '../src/savedAnswerPick.ts'
 
@@ -50,26 +50,41 @@ describe('reading a saved answer', () => {
   })
 })
 
-describe('choosing what the model sees', () => {
-  const many: SavedAnswer[] = Array.from({ length: MAX_PICK_ANSWERS + 3 }, (_, i) => ({
-    id: `a${i}`,
-    question: `Question ${i}`,
-    answer: `Answer ${i}`,
-    expertName: 'Ada',
-    createdAt: new Date(1000 - i),
-  }))
-
-  test('answers read oldest first', () => {
-    expect(sortAnswers(many)[0].id).toBe(`a${MAX_PICK_ANSWERS + 2}`)
+describe("loading a skill's saved answers", () => {
+  const doc = (id: string, ms: number) => ({
+    id,
+    data: { questionId: id, question: `Question ${id}`, answer: `Answer ${id}`, expertName: 'Ada', createdAt: at(ms) },
   })
 
-  test(`only the newest ${MAX_PICK_ANSWERS} answers go to the model`, () => {
-    const picked = answersToPick(many)
-    expect(picked).toHaveLength(MAX_PICK_ANSWERS)
-    expect(picked.map((a) => a.id)).toContain('a0')
-    expect(picked.map((a) => a.id)).not.toContain(`a${MAX_PICK_ANSWERS + 2}`)
+  test('each step gets only its own answers, oldest first, and a step without answers an empty list', () => {
+    const byStep = stepAnswersFromDocuments([
+      { stepId: 'step-1', documents: [] },
+      { stepId: 'step-2', documents: [doc('b', 20), doc('a', 10)] },
+      { stepId: 'step-3', documents: [doc('c', 5)] },
+    ])
+    expect(Object.keys(byStep)).toEqual(['step-1', 'step-2', 'step-3'])
+    expect(byStep['step-1']).toEqual([])
+    expect(byStep['step-2'].map((a) => a.id)).toEqual(['a', 'b'])
+    expect(byStep['step-3'].map((a) => a.id)).toEqual(['c'])
   })
 
+  test('a document that is not a whole answer is left out of its step', () => {
+    const byStep = stepAnswersFromDocuments([
+      { stepId: 'step-2', documents: [doc('a', 1), { id: 'broken', data: { question: 'Why?' } }] },
+    ])
+    expect(byStep['step-2'].map((a) => a.id)).toEqual(['a'])
+  })
+
+  test('answers with the same time read in id order', () => {
+    const answers = sortAnswers([
+      { id: 'b', question: 'Q', answer: 'A', expertName: 'Ada', createdAt: null },
+      { id: 'a', question: 'Q', answer: 'A', expertName: 'Ada', createdAt: null },
+    ])
+    expect(answers.map((a) => a.id)).toEqual(['a', 'b'])
+  })
+})
+
+describe('what the model sees', () => {
   test('the model may answer with an answer id or none, nothing else', () => {
     expect(pickValues(stepFour)).toEqual(['demo-led-backwards', 'demo-no-power', 'none'])
   })
@@ -108,5 +123,24 @@ describe("checking the model's pick", () => {
     expect(() => parsePick('"demo-no-power', stepFour)).toThrow(PickAnswerError)
     expect(() => parsePick('{"id":"demo-no-power"}', stepFour)).toThrow(PickAnswerError)
     expect(() => parsePick('"7"', stepFour)).toThrow(PickAnswerError)
+  })
+})
+
+describe('what Check saved answers shows', () => {
+  test('a pick, or none fits, is shown as the model gave it', async () => {
+    expect(await checkSavedAnswers(async () => ({ answer: stepFour[0] }))).toEqual({
+      kind: 'picked',
+      pick: { answer: stepFour[0] },
+    })
+    expect(await checkSavedAnswers(async () => ({ answer: null }))).toEqual({ kind: 'picked', pick: { answer: null } })
+  })
+
+  test('when no model can answer, every saved answer is listed, never "none fits"', async () => {
+    expect(await checkSavedAnswers(() => Promise.reject(new Error('Failed to fetch')))).toEqual({ kind: 'list' })
+  })
+
+  test('a refused pick lists every saved answer too', async () => {
+    const result = await checkSavedAnswers(async () => ({ answer: parsePick('demo-led-in-rail', stepFour) }))
+    expect(result).toEqual({ kind: 'list' })
   })
 })

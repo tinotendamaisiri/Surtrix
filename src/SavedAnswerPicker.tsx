@@ -1,10 +1,11 @@
-// Check saved answers (#31), in the Ask an Expert panel: picks the saved expert answer for
-// this step that fits the learner's question, and says which path picked it. When no model
-// can pick here, it lists the step's saved answers as they are.
+// Check saved answers (#31), in the Ask an Expert panel's row of buttons: picks the saved
+// expert answer for this step that fits the learner's question, and says which path picked
+// it. When no model can pick here, it lists the step's saved answers as they are.
 import { useState } from 'react'
 import { InferenceSource } from 'firebase/ai'
-import type { SavedAnswer } from './savedAnswerPick'
+import { checkSavedAnswers, type CheckResult, type SavedAnswer } from './savedAnswerPick'
 import { pickSavedAnswer, type Pick } from './savedAnswers'
+import './SavedAnswerPicker.css'
 
 // This step's saved answers, as the coach loaded them.
 export type StepSavedAnswers = { kind: 'loading' } | { kind: 'failed' } | { kind: 'loaded'; answers: SavedAnswer[] }
@@ -14,31 +15,37 @@ const sourceText: Record<string, string> = {
   [InferenceSource.IN_CLOUD]: 'Cloud',
 }
 
-type Result = { kind: 'picked'; pick: Pick } | { kind: 'list' }
-
 type Props = { stepTitle: string; question: string; saved: StepSavedAnswers }
 
 export default function SavedAnswerPicker({ stepTitle, question, saved }: Props) {
   const [checking, setChecking] = useState(false)
-  const [result, setResult] = useState<Result | null>(null)
+  // The result and the question it was for: an edited question hides an old result.
+  const [checked, setChecked] = useState<{ question: string; result: CheckResult<Pick> } | null>(null)
 
-  if (saved.kind === 'loading') return <p className="muted">Loading saved answers</p>
-  if (saved.kind === 'failed') return <p className="muted">Saved answers could not be loaded.</p>
+  if (saved.kind !== 'loaded' || saved.answers.length === 0) {
+    return (
+      <div className="saved-answers">
+        <p className="muted">
+          {saved.kind === 'loading'
+            ? 'Loading saved answers'
+            : saved.kind === 'failed'
+              ? 'Saved answers could not be loaded.'
+              : 'There are no saved answers for this step yet.'}
+        </p>
+      </div>
+    )
+  }
   const { answers } = saved
-  if (answers.length === 0) return <p className="muted">There are no saved answers for this step yet.</p>
+  const result = checked?.question === question ? checked.result : null
 
   async function check() {
     if (checking || question.trim() === '') return
+    const asked = question
     setChecking(true)
-    setResult(null)
-    try {
-      setResult({ kind: 'picked', pick: await pickSavedAnswer(stepTitle, question, answers) })
-    } catch (e) {
-      console.error('Picking a saved answer failed', e)
-      setResult({ kind: 'list' })
-    } finally {
-      setChecking(false)
-    }
+    setChecked(null)
+    const outcome = await checkSavedAnswers(() => pickSavedAnswer(stepTitle, asked, answers))
+    setChecked({ question: asked, result: outcome })
+    setChecking(false)
   }
 
   return (

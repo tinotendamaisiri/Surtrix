@@ -191,14 +191,6 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null, saved
               disabled={sending}
             />
           </label>
-          {savedAnswers && (
-            <SavedAnswerPicker
-              key={draft.id}
-              stepTitle={step.stepTitle}
-              question={draft.question}
-              saved={savedAnswers}
-            />
-          )}
           <p className="muted">An expert will see this photo and your question.</p>
           <div className="ask-actions">
             <button
@@ -211,6 +203,14 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null, saved
             <button type="button" className="secondary" onClick={() => setDraft(null)} disabled={sending}>
               Cancel
             </button>
+            {savedAnswers && (
+              <SavedAnswerPicker
+                key={draft.id}
+                stepTitle={step.stepTitle}
+                question={draft.question}
+                saved={savedAnswers}
+              />
+            )}
           </div>
           {error && <p className="error">{error}</p>}
         </div>

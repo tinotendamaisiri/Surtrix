@@ -1,6 +1,6 @@
 // Checks of the model's answer before a skill is shown (src/skill.ts).
 import { describe, expect, test } from 'vitest'
-import { MAX_STEPS, parseSkill, SkillAnswerError } from '../src/skill.ts'
+import { LIMITS, MAX_STEPS, parseSkill, SkillAnswerError } from '../src/skill.ts'
 
 const goodStep = {
   title: 'Place the LED',
@@ -83,6 +83,34 @@ describe('parseSkill', () => {
 
   test('refuses a skill with steps but no title', () => {
     expect(() => parseSkill(answer({ title: ' ', steps: [goodStep] }))).toThrow(SkillAnswerError)
+  })
+
+  test.each([
+    ['title', LIMITS.title],
+    ['instruction', LIMITS.instruction],
+    ['doneWhen', LIMITS.doneWhen],
+  ] as const)('accepts a step %s at its limit of %i characters and refuses one more', (field, limit) => {
+    const withLength = (n: number) => answer({ title: 'Light an LED', steps: [{ ...goodStep, [field]: 'a'.repeat(n) }] })
+    expect(parseSkill(withLength(limit))?.steps[0][field]).toHaveLength(limit)
+    expect(() => parseSkill(withLength(limit + 1))).toThrow(SkillAnswerError)
+  })
+
+  test('refuses a skill title over its limit', () => {
+    expect(() => parseSkill(answer({ title: 'a'.repeat(LIMITS.title + 1), steps: [goodStep] }))).toThrow(SkillAnswerError)
+    expect(parseSkill(answer({ title: 'a'.repeat(LIMITS.title), steps: [goodStep] }))?.title).toHaveLength(LIMITS.title)
+  })
+
+  test('limits parts by count and length, after dropping blank ones', () => {
+    const withParts = (parts: string[]) => answer({ title: 'Light an LED', steps: [{ ...goodStep, parts }] })
+    const many = (n: number) => Array.from({ length: n }, () => 'LED')
+    expect(parseSkill(withParts([...many(LIMITS.parts), ' ']))?.steps[0].parts).toHaveLength(LIMITS.parts)
+    expect(() => parseSkill(withParts(many(LIMITS.parts + 1)))).toThrow(SkillAnswerError)
+    expect(() => parseSkill(withParts(['a'.repeat(LIMITS.part + 1)]))).toThrow(SkillAnswerError)
+  })
+
+  test('measures a limit after trimming', () => {
+    const padded = ` ${'a'.repeat(LIMITS.title)} `
+    expect(parseSkill(answer({ title: padded, steps: [goodStep] }))?.title).toHaveLength(LIMITS.title)
   })
 
   test(`accepts ${MAX_STEPS} steps and refuses ${MAX_STEPS + 1}`, () => {

@@ -3,6 +3,7 @@ import CaptureTest from './CaptureTest.tsx'
 import Coach from './Coach.tsx'
 import Home from './Home.tsx'
 import NewSkill from './NewSkill.tsx'
+import SavedSkillCoach from './SavedSkillCoach.tsx'
 import { skills } from './sampleSkill.ts'
 import { screenFromHash } from './screenAddress.ts'
 
@@ -21,9 +22,16 @@ export default function Screen() {
       return <NewSkill />
     case 'capture-test':
       return <CaptureTest />
-    case 'coach':
-      // A new key per skill, so another skill starts at its own step 1.
-      return <Coach key={address.skillId} skill={skills.find((skill) => skill.id === address.skillId)} />
+    case 'coach': {
+      // A new key per skill, so another skill starts at its own step 1. A skill that is
+      // not built in is loaded from the learner's saved skills.
+      const builtIn = skills.find((skill) => skill.id === address.skillId)
+      return builtIn ? (
+        <Coach key={address.skillId} skill={builtIn} />
+      ) : (
+        <SavedSkillCoach key={address.skillId} skillId={address.skillId} />
+      )
+    }
     case 'home':
       return <Home skills={skills} />
   }

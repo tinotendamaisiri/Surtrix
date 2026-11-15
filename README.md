@@ -9,8 +9,8 @@ Built for the Google #BuildHybridAI 2026 hackathon.
 
 The app today has these screens:
 
-* Home lists the skills. For now that is one built in sample: lighting an LED with a
-  resistor on a breadboard.
+* Home lists the skills: one built in sample (lighting an LED with a resistor on a
+  breadboard), then the skills you saved, newest first.
 * The coach (`#coach/{skill id}`) walks you through a skill one step at a time, next
   to a live camera preview. You move with Back and Next, and Mark step done moves on
   to the next step. It does not use AI yet. Ask an Expert sends the current camera
@@ -19,7 +19,8 @@ The app today has these screens:
   comes next, so for now nobody answers.
 * New skill (`#new-skill`): upload a PDF (up to 10 MB) or paste a procedure (up to
   50,000 characters), and Gemini (`gemini-3.5-flash-lite`, in the cloud) turns it into
-  a list of steps to review. Nothing is saved yet.
+  a list of steps to review. Save skill stores the skill and its steps in Firestore
+  and opens its coach. Saved skills cannot be edited or deleted yet.
 * The capture test page (`#capture-test`): a live camera preview, a question box and
   a Capture button. Each capture sends the frame and your question to Gemini and
   shows the answer, whether it came from the device or the cloud, and how long it

@@ -7,6 +7,8 @@ import {
   procedureToSteps,
   type ProcedureSteps,
 } from './procedure'
+import { coachHash } from './screenAddress'
+import { saveSkill } from './skills'
 
 type Input = 'pdf' | 'text'
 
@@ -29,8 +31,8 @@ async function isPdf(file: File): Promise<boolean> {
   return (await file.slice(0, 5).text()) === '%PDF-'
 }
 
-// Upload a PDF or paste a procedure, then review the steps the model made from it.
-// Nothing is saved yet.
+// Upload a PDF or paste a procedure, review the steps the model made from it, and save
+// them as a skill.
 export default function NewSkill() {
   const [input, setInput] = useState<Input>('pdf')
   const [file, setFile] = useState<File | null>(null)
@@ -39,6 +41,7 @@ export default function NewSkill() {
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<ProcedureSteps | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
 
   const textTooLong = text.length > MAX_TEXT_CHARACTERS
   const ready = input === 'pdf' ? file !== null : text.trim() !== '' && !textTooLong
@@ -75,6 +78,20 @@ export default function NewSkill() {
       setError('Could not turn this into steps. Please try again.')
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function save() {
+    if (!result?.skill || saving) return
+    setSaving(true)
+    setError(null)
+    try {
+      const skillId = await saveSkill(result.skill)
+      location.hash = coachHash(skillId)
+    } catch (e) {
+      console.error('Saving the skill failed', e)
+      setError('Could not save the skill. Please try again.')
+      setSaving(false)
     }
   }
 
@@ -170,9 +187,16 @@ export default function NewSkill() {
             <dt>Time</dt>
             <dd>{result.ms.toLocaleString('en-US')} ms</dd>
           </dl>
-          <button type="button" onClick={startOver}>
-            Start over
-          </button>
+          <div className="actions">
+            {result.skill && (
+              <button type="button" onClick={save} disabled={saving}>
+                {saving ? 'Saving' : 'Save skill'}
+              </button>
+            )}
+            <button type="button" className="secondary" onClick={startOver} disabled={saving}>
+              Start over
+            </button>
+          </div>
         </section>
       )}
     </main>

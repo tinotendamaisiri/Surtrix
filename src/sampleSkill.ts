@@ -41,5 +41,6 @@ export const sampleSkill: CoachSkill = {
   ],
 }
 
-// The skills on the home screen. Plan issue 3 adds the saved skills.
+// The built in skills on the home screen. Saved skills are loaded from Firestore
+// (src/skills.ts) and listed below them.
 export const skills: CoachSkill[] = [sampleSkill]

@@ -83,7 +83,7 @@ allow camera access, type a question and click Capture.
 
 `scripts/seedDemoSkill.ts` writes the demo skill (`src/demoSkill.ts`) as
 `skills/sample-led` with steps `step-1` to `step-4`, and 3 saved expert answers from
-the Surtrix team on the steps where beginners most often get stuck. `npm run dev:local` runs it
+the Surtrix team for common beginner mistakes on steps 2 and 4. `npm run dev:local` runs it
 against the emulator. With `npm run emulators` and `npm run dev` in separate
 terminals, run it once the emulators are up, with `.env.local` so it finds this
 worktree's emulator:

@@ -207,6 +207,18 @@ input[type='file'] {
   margin: 0 0 4px;
 }
 
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+button.secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
 .step-title {
   font-weight: 600;
 }

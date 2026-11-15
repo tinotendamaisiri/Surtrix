@@ -19,5 +19,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts", "scripts", "tests", "src/worktree.ts", "src/skill.ts"]
+  "include": ["vite.config.ts", "scripts", "tests", "src/worktree.ts", "src/skill.ts", "src/skillDocuments.ts"]
 }

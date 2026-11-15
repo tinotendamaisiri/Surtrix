@@ -1,9 +1,58 @@
 rules_version = '2';
 
-// Closed: nothing can be read or written. Each issue that needs data opens exactly
-// the paths it uses, with tests in tests/firestore.rules.test.ts.
+// Everything is closed except what an issue opens, with tests in
+// tests/firestore.rules.test.ts. Track A owns skills and steps.
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Trimmed, non empty text of at most max characters.
+    function isText(value, max) {
+      return value is string && value.size() > 0 && value.size() <= max && value.trim() == value;
+    }
+
+    // Every signed in learner can read every skill. A learner creates a skill only as
+    // its creator. Nobody updates or deletes skills yet.
+    match /skills/{skillId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['title', 'creatorId', 'stepCount', 'createdAt'])
+        && request.resource.data.keys().hasAll(['title', 'creatorId', 'stepCount', 'createdAt'])
+        && isText(request.resource.data.title, 200)
+        && request.resource.data.creatorId == request.auth.uid
+        && request.resource.data.stepCount is int
+        && request.resource.data.stepCount >= 1
+        && request.resource.data.stepCount <= 40
+        && request.resource.data.createdAt == request.time;
+
+      // Only the skill's creator creates its steps (the app writes them in one batch with
+      // the skill).
+      // Their ids are step-1, step-2 and so on, matching their number.
+      match /steps/{stepId} {
+        allow read: if signedIn();
+        allow create: if signedIn()
+          && skillAfter().creatorId == request.auth.uid
+          && request.resource.data.keys().hasOnly(['number', 'title', 'instruction', 'parts', 'doneWhen'])
+          && request.resource.data.keys().hasAll(['number', 'title', 'instruction', 'parts', 'doneWhen'])
+          && request.resource.data.number is int
+          && request.resource.data.number >= 1
+          && request.resource.data.number <= skillAfter().stepCount
+          && stepId == 'step-' + string(request.resource.data.number)
+          && isText(request.resource.data.title, 200)
+          && isText(request.resource.data.instruction, 2000)
+          && isText(request.resource.data.doneWhen, 1000)
+          // Rules cannot check each part; the app checks their length (src/skill.ts).
+          && request.resource.data.parts is list
+          && request.resource.data.parts.size() <= 30;
+
+        function skillAfter() {
+          return getAfter(/databases/$(database)/documents/skills/$(skillId)).data;
+        }
+      }
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

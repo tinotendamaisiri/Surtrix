@@ -4,6 +4,7 @@ import { describe, expect, test } from 'vitest'
 import { demoAnswers } from '../src/demoSkill.ts'
 import {
   checkSavedAnswers,
+  hybridThenCloud,
   NONE_FITS,
   parsePick,
   PickAnswerError,
@@ -142,5 +143,36 @@ describe('what Check saved answers shows', () => {
   test('a refused pick lists every saved answer too', async () => {
     const result = await checkSavedAnswers(async () => ({ answer: parsePick('demo-led-in-rail', stepFour) }))
     expect(result).toEqual({ kind: 'list' })
+  })
+})
+
+describe('trying the cloud when the device fails', () => {
+  const calls: string[] = []
+  const hybrid = (ok: boolean) => async () => {
+    calls.push('hybrid')
+    if (!ok) throw new Error('device failed')
+    return 'hybrid answer'
+  }
+  const cloud = async () => {
+    calls.push('cloud')
+    return 'cloud answer'
+  }
+
+  test('a Hybrid answer is used without asking the cloud again', async () => {
+    calls.length = 0
+    expect(await hybridThenCloud(hybrid(true), cloud, true)).toBe('hybrid answer')
+    expect(calls).toEqual(['hybrid'])
+  })
+
+  test('with Nano in Chrome, a failed Hybrid call is tried once in the cloud', async () => {
+    calls.length = 0
+    expect(await hybridThenCloud(hybrid(false), cloud, true)).toBe('cloud answer')
+    expect(calls).toEqual(['hybrid', 'cloud'])
+  })
+
+  test('without Nano, Hybrid already asked the cloud, so its failure stands', async () => {
+    calls.length = 0
+    await expect(hybridThenCloud(hybrid(false), cloud, false)).rejects.toThrow('device failed')
+    expect(calls).toEqual(['hybrid'])
   })
 })

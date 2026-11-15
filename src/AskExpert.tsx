@@ -209,6 +209,7 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null, saved
                 stepTitle={step.stepTitle}
                 question={draft.question}
                 saved={savedAnswers}
+                disabled={sending}
               />
             )}
           </div>

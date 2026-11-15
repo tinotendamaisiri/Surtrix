@@ -8,6 +8,7 @@ import { collection, getDocs } from 'firebase/firestore'
 import { ai, db, signInLearner } from './firebase'
 import type { CoachSkill } from './coach'
 import {
+  hybridThenCloud,
   parsePick,
   PICK_INSTRUCTION,
   pickPrompt,
@@ -72,14 +73,9 @@ export type Pick = {
   ms: number
 }
 
-// Picks the saved answer that fits the learner's question, on device first (also offline)
-// and in the cloud when Nano cannot answer here (for example a prompt too long for it).
-// Every answer of the step goes to the model. Throws when no model can answer or the pick
-// is not one of the answers; the caller then lists the answers as they are.
-export async function pickSavedAnswer(stepTitle: string, question: string, answers: SavedAnswer[]): Promise<Pick> {
-  const values = pickValues(answers)
-  const model = getGenerativeModel(ai, {
-    mode: InferenceMode.PREFER_ON_DEVICE,
+function pickModel(mode: typeof InferenceMode.PREFER_ON_DEVICE | typeof InferenceMode.ONLY_IN_CLOUD, values: string[]) {
+  return getGenerativeModel(ai, {
+    mode,
     onDeviceParams: { createOptions, promptOptions: { responseConstraint: { type: 'string', enum: values } } },
     inCloudParams: {
       model: PICK_CLOUD_MODEL,
@@ -93,8 +89,23 @@ export async function pickSavedAnswer(stepTitle: string, question: string, answe
       },
     },
   })
+}
+
+// Picks the saved answer that fits the learner's question. Hybrid answers on device when
+// Nano is ready (also offline) and in the cloud when it is not. The SDK does not move a
+// failed device call to the cloud, so where Chrome has Nano a failed call is tried once in
+// the cloud (offline that fails at once). Every answer of the step goes to the model.
+// Throws when no model can answer or the pick is not one of the answers; the caller then
+// lists the answers as they are.
+export async function pickSavedAnswer(stepTitle: string, question: string, answers: SavedAnswer[]): Promise<Pick> {
+  const values = pickValues(answers)
+  const prompt = pickPrompt(stepTitle, question, answers)
   const started = performance.now()
-  const result = await model.generateContent(pickPrompt(stepTitle, question, answers))
+  const result = await hybridThenCloud(
+    () => pickModel(InferenceMode.PREFER_ON_DEVICE, values).generateContent(prompt),
+    () => pickModel(InferenceMode.ONLY_IN_CLOUD, values).generateContent(prompt),
+    'LanguageModel' in globalThis,
+  )
   const ms = Math.round(performance.now() - started)
   return { answer: parsePick(result.response.text(), answers), source: result.response.inferenceSource ?? 'unknown', ms }
 }

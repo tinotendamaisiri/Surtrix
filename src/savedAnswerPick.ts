@@ -109,3 +109,16 @@ export async function checkSavedAnswers<P>(pick: () => Promise<P>): Promise<Chec
     return { kind: 'list' }
   }
 }
+
+// The SDK's Hybrid mode does not move a failed device call to the cloud. Where Chrome has
+// Nano, Hybrid may have tried the device, so a failure is tried once in the cloud. Without
+// Nano, Hybrid already asked the cloud, so its failure stands.
+export async function hybridThenCloud<R>(hybrid: () => Promise<R>, cloud: () => Promise<R>, hasNano: boolean): Promise<R> {
+  try {
+    return await hybrid()
+  } catch (e) {
+    if (!hasNano) throw e
+    console.warn('Picking on device failed, trying the cloud', e)
+    return cloud()
+  }
+}

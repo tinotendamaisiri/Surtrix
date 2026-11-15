@@ -15,9 +15,10 @@ const sourceText: Record<string, string> = {
   [InferenceSource.IN_CLOUD]: 'Cloud',
 }
 
-type Props = { stepTitle: string; question: string; saved: StepSavedAnswers }
+// disabled while the panel sends the question to an expert.
+type Props = { stepTitle: string; question: string; saved: StepSavedAnswers; disabled?: boolean }
 
-export default function SavedAnswerPicker({ stepTitle, question, saved }: Props) {
+export default function SavedAnswerPicker({ stepTitle, question, saved, disabled = false }: Props) {
   const [checking, setChecking] = useState(false)
   // The result and the question it was for: an edited question hides an old result.
   const [checked, setChecked] = useState<{ question: string; result: CheckResult<Pick> } | null>(null)
@@ -27,7 +28,7 @@ export default function SavedAnswerPicker({ stepTitle, question, saved }: Props)
       <div className="saved-answers">
         <p className="muted">
           {saved.kind === 'loading'
-            ? 'Loading saved answers'
+            ? 'Loading saved answers.'
             : saved.kind === 'failed'
               ? 'Saved answers could not be loaded.'
               : 'There are no saved answers for this step yet.'}
@@ -50,7 +51,12 @@ export default function SavedAnswerPicker({ stepTitle, question, saved }: Props)
 
   return (
     <div className="saved-answers">
-      <button type="button" className="secondary" onClick={check} disabled={checking || question.trim() === ''}>
+      <button
+        type="button"
+        className="secondary"
+        onClick={check}
+        disabled={disabled || checking || question.trim() === ''}
+      >
         {checking ? 'Checking saved answers' : 'Check saved answers'}
       </button>
       {result?.kind === 'picked' && (
@@ -73,9 +79,8 @@ export default function SavedAnswerPicker({ stepTitle, question, saved }: Props)
           <p className="muted">Could not check here, so these are all the saved answers for this step.</p>
           {answers.map((a) => (
             <div key={a.id}>
-              <p className="muted">
-                Asked: {a.question} Answer from {a.expertName}:
-              </p>
+              <p className="muted">Asked: {a.question}</p>
+              <p className="muted">Answer from {a.expertName}:</p>
               <p>{a.answer}</p>
             </div>
           ))}

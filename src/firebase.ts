@@ -86,12 +86,12 @@ export type FrameAnswer = {
   source: string
   // Total time: App Check token plus model call.
   ms: number
-  // Time to get the App Check token; null when no cloud call can happen.
-  appCheckMs: number | null
+  // Getting the App Check token on its own; null when it was not fetched first
+  // (the call was expected to stay on the device).
+  appCheck: { ms: number; ok: boolean } | null
   modelMs: number
-  // Cloud answers only.
-  tokens: { prompt: number; output: number; thinking: number } | null
-  modelVersion: string | null
+  // Cloud answers only. thinking is null when the API does not report it.
+  tokens: { prompt: number; output: number; thinking: number | null } | null
 }
 
 // Sends one camera frame (base64 JPEG) and a question through the hybrid model.
@@ -101,12 +101,27 @@ export async function askAboutFrame(path: Path, question: string, jpegBase64: st
   // from the cloud, so refuse here instead.
   if (deviceOnly && !getLanguageModelApi()) throw new DeviceModelUnavailableError()
   const started = performance.now()
+  // Only a call that may go to the cloud needs App Check. Hybrid stays on the device
+  // when its model is ready, so it does not wait for a token then (and still works
+  // offline).
+  const mayUseCloud =
+    path === InferenceMode.ONLY_IN_CLOUD ||
+    (path === InferenceMode.PREFER_ON_DEVICE &&
+      (await getDeviceModelStatus().catch(() => 'unavailable')) !== 'available')
   // Timed on its own so App Check time and model time can be told apart. The model
-  // call below reuses this cached token.
-  let appCheckMs: number | null = null
-  if (!deviceOnly) {
-    await getToken(appCheck)
-    appCheckMs = Math.round(performance.now() - started)
+  // call below reuses the cached token. A failure here is only recorded: the model
+  // call reports it the usual way.
+  let appCheckResult: FrameAnswer['appCheck'] = null
+  if (mayUseCloud) {
+    const tokenStarted = performance.now()
+    let ok = true
+    try {
+      await getToken(appCheck)
+    } catch (e) {
+      ok = false
+      console.warn('App Check token failed', e)
+    }
+    appCheckResult = { ms: Math.round(performance.now() - tokenStarted), ok }
   }
   const modelStarted = performance.now()
   let result
@@ -127,13 +142,11 @@ export async function askAboutFrame(path: Path, question: string, jpegBase64: st
     answer: result.response.text(),
     source: result.response.inferenceSource ?? 'unknown',
     ms: Math.round(finished - started),
-    appCheckMs,
+    appCheck: appCheckResult,
     modelMs: Math.round(finished - modelStarted),
     tokens: usage
-      ? { prompt: usage.promptTokenCount, output: usage.candidatesTokenCount, thinking: usage.thoughtsTokenCount ?? 0 }
+      ? { prompt: usage.promptTokenCount, output: usage.candidatesTokenCount, thinking: usage.thoughtsTokenCount ?? null }
       : null,
-    // Sent by the cloud API and kept on the response, but not in the SDK's types.
-    modelVersion: (result.response as { modelVersion?: string }).modelVersion ?? null,
   }
 }
 

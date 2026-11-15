@@ -209,7 +209,13 @@ export default function App() {
               <summary>Details</summary>
               <dl>
                 <dt>App Check token</dt>
-                <dd>{capture.appCheckMs === null ? 'Not needed' : formatMs(capture.appCheckMs)}</dd>
+                <dd>
+                  {capture.appCheck
+                    ? `${formatMs(capture.appCheck.ms)}${capture.appCheck.ok ? '' : ', failed'}`
+                    : capture.source === InferenceSource.IN_CLOUD
+                      ? 'Included in the model call'
+                      : 'Not needed'}
+                </dd>
                 <dt>Model call</dt>
                 <dd>{formatMs(capture.modelMs)}</dd>
                 <dt>Total</dt>
@@ -223,14 +229,9 @@ export default function App() {
                   <>
                     <dt>Tokens</dt>
                     <dd>
-                      {capture.tokens.prompt} prompt, {capture.tokens.output} output, {capture.tokens.thinking} thinking
+                      {capture.tokens.prompt} prompt, {capture.tokens.output} output,{' '}
+                      {capture.tokens.thinking === null ? 'thinking not reported' : `${capture.tokens.thinking} thinking`}
                     </dd>
-                  </>
-                )}
-                {capture.modelVersion && (
-                  <>
-                    <dt>Model</dt>
-                    <dd>{capture.modelVersion}</dd>
                   </>
                 )}
               </dl>

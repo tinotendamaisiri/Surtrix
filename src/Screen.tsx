@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import CaptureTest from './CaptureTest.tsx'
 import Coach from './Coach.tsx'
+import ExpertDashboard from './ExpertDashboard.tsx'
 import Home from './Home.tsx'
 import NewSkill from './NewSkill.tsx'
 import SavedSkillCoach from './SavedSkillCoach.tsx'
@@ -22,6 +23,8 @@ export default function Screen() {
       return <NewSkill />
     case 'capture-test':
       return <CaptureTest />
+    case 'expert':
+      return <ExpertDashboard />
     case 'coach': {
       // A new key per skill, so another skill starts at its own step 1. A skill that is
       // not built in is loaded from the learner's saved skills.

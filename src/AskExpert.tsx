@@ -26,8 +26,14 @@ type Props = {
   judgeOffer?: JudgeOffer | null
 }
 
-// What the open panel holds.
-type Draft = { frame: string | null; question: string; judgeSaid: string | null }
+// What the open panel holds. id tells one opened question from the next.
+type Draft = { id: number; frame: string | null; question: string; judgeSaid: string | null }
+
+let lastDraftId = 0
+function newDraftId(): number {
+  lastDraftId += 1
+  return lastDraftId
+}
 
 type MyQuestions = { stepKey: string; questions: Question[]; failed: boolean }
 
@@ -49,10 +55,10 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null }: Pro
   const { skillId, stepId } = step
   const stepKey = JSON.stringify([skillId, stepId])
   const [draft, setDraft] = useState<Draft | null>(null)
-  // The step a question is being sent from. The learner may move on while it sends.
-  const [sendingFor, setSendingFor] = useState<string | null>(null)
-  const sending = sendingFor === stepKey
-  const stepKeyRef = useRef(stepKey)
+  // The draft being sent. The learner may move on, and open another, while it sends.
+  const [sendingId, setSendingId] = useState<number | null>(null)
+  const sending = draft !== null && sendingId === draft.id
+  const draftIdRef = useRef<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   // A question that was still sending when the panel closed, and then failed.
   const [lateError, setLateError] = useState(false)
@@ -72,15 +78,21 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null }: Pro
   if (judgeOffer !== seenOffer) {
     setSeenOffer(judgeOffer)
     if (judgeOffer) {
-      setDraft({ frame: judgeOffer.frame, question: JUDGE_QUESTION, judgeSaid: judgeOffer.said })
+      setDraft({
+        id: newDraftId(),
+        frame: judgeOffer.frame,
+        question: JUDGE_QUESTION,
+        judgeSaid: judgeOffer.said.trim() || null,
+      })
       setError(null)
       setLateError(false)
     }
   }
 
+  const draftId = draft?.id ?? null
   useEffect(() => {
-    stepKeyRef.current = stepKey
-  }, [stepKey])
+    draftIdRef.current = draftId
+  }, [draftId])
 
   useEffect(() => {
     const key = JSON.stringify([skillId, stepId])
@@ -99,17 +111,17 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null }: Pro
   const listFailed = mine?.stepKey === stepKey && mine.failed
 
   function openPanel() {
-    setDraft({ frame: captureFrame(), question: '', judgeSaid: null })
+    setDraft({ id: newDraftId(), frame: captureFrame(), question: '', judgeSaid: null })
     setError(null)
     setLateError(false)
   }
 
   async function send() {
     if (!draft?.frame || questionProblem(draft.question) || sending) return
-    const sentFrom = stepKey
-    // False once the learner has moved to another step: this panel is gone then.
-    const stillOnStep = () => stepKeyRef.current === sentFrom
-    setSendingFor(sentFrom)
+    const sentId = draft.id
+    // False once this panel is gone: closed by a step change, or another one opened.
+    const stillOpen = () => draftIdRef.current === sentId
+    setSendingId(sentId)
     setError(null)
     try {
       const { saved } = await askExpert({
@@ -125,10 +137,10 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null }: Pro
           setLateError(true)
         })
       }
-      if (stillOnStep()) setDraft(null)
+      if (stillOpen()) setDraft(null)
     } catch (e) {
       console.error('Could not send the question', e)
-      if (!stillOnStep()) setLateError(true)
+      if (!stillOpen()) setLateError(true)
       else
         setError(
           e instanceof FrameTooLargeError
@@ -136,7 +148,7 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null }: Pro
             : 'Could not send your question. Please try again.',
         )
     } finally {
-      setSendingFor((current) => (current === sentFrom ? null : current))
+      setSendingId((current) => (current === sentId ? null : current))
     }
   }
 

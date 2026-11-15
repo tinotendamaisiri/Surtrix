@@ -115,6 +115,10 @@ export default function ExpertDashboard() {
 function OpenQuestions({ expert }: { expert: Expert }) {
   const [questions, setQuestions] = useState<OpenQuestion[] | null>(null)
   const [listFailed, setListFailed] = useState(false)
+  // Cards with a reply typed or sending stay on screen when their question stops being
+  // open: Firestore drops it from the list as soon as Send is pressed, and another
+  // expert may answer first. The card then shows what happened.
+  const [held, setHeld] = useState<Record<string, OpenQuestion>>({})
 
   useEffect(
     () =>
@@ -131,36 +135,74 @@ function OpenQuestions({ expert }: { expert: Expert }) {
     [],
   )
 
+  function hold(question: OpenQuestion, keep: boolean) {
+    setHeld((current) => {
+      if (keep === question.id in current) return current
+      const next = { ...current }
+      if (keep) next[question.id] = question
+      else delete next[question.id]
+      return next
+    })
+  }
+
   if (listFailed) return <p className="error">Could not load the questions. Reload the page to try again.</p>
   if (questions === null) return <p className="muted">Loading questions</p>
-  if (questions.length === 0) return <p className="muted">No open questions.</p>
+  const openIds = new Set(questions.map((question) => question.id))
+  const shown = [...questions, ...Object.values(held).filter((question) => !openIds.has(question.id))].sort(
+    (a, b) => (a.createdAt?.getTime() ?? 0) - (b.createdAt?.getTime() ?? 0),
+  )
+  if (shown.length === 0) return <p className="muted">No open questions.</p>
   return (
     <section className="open-questions">
       <h2>Open questions ({questions.length})</h2>
-      {questions.map((question) => (
-        <QuestionCard key={question.id} question={question} expert={expert} />
+      {shown.map((question) => (
+        <QuestionCard
+          key={question.id}
+          question={question}
+          expert={expert}
+          stillOpen={openIds.has(question.id)}
+          hold={(keep) => hold(question, keep)}
+        />
       ))}
     </section>
   )
 }
 
-function QuestionCard({ question, expert }: { question: OpenQuestion; expert: Expert }) {
+type CardProps = {
+  question: OpenQuestion
+  expert: Expert
+  // False once the question is no longer in the open list.
+  stillOpen: boolean
+  // Keeps the card on screen (true) or lets it go (false).
+  hold: (keep: boolean) => void
+}
+
+function QuestionCard({ question, expert, stillOpen, hold }: CardProps) {
   const [reply, setReply] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Answered by someone else while this card was held (not by this card's own send).
+  const answeredElsewhere = !stillOpen && !sending && error === null
+
+  function changeReply(value: string) {
+    setReply(value)
+    hold(value.trim() !== '')
+  }
 
   async function send() {
     if (replyProblem(reply)) return
+    hold(true)
     setSending(true)
     setError(null)
     try {
-      // On success the question is no longer open and leaves the list.
       await replyToQuestion(question, reply, expert)
+      // Answered: the question has left the open list, so the card goes too.
+      hold(false)
     } catch (e) {
       console.error('Could not send the reply', e)
       setError(
         e instanceof AlreadyAnsweredError
-          ? 'This question was already answered.'
+          ? 'This question was already answered. Your reply was not sent.'
           : 'Could not send your reply. Please try again.',
       )
       setSending(false)
@@ -184,13 +226,25 @@ function QuestionCard({ question, expert }: { question: OpenQuestion; expert: Ex
             rows={3}
             maxLength={REPLY_MAX_LENGTH}
             value={reply}
-            onChange={(e) => setReply(e.target.value)}
+            onChange={(e) => changeReply(e.target.value)}
             disabled={sending}
           />
         </label>
-        <button type="button" onClick={send} disabled={sending || replyProblem(reply) !== null}>
-          {sending ? 'Sending' : 'Send reply'}
-        </button>
+        {answeredElsewhere && <p className="error">This question was already answered. Your reply was not sent.</p>}
+        <div className="reply-actions">
+          <button
+            type="button"
+            onClick={send}
+            disabled={sending || !stillOpen || replyProblem(reply) !== null}
+          >
+            {sending ? 'Sending' : 'Send reply'}
+          </button>
+          {!stillOpen && !sending && (
+            <button type="button" className="secondary" onClick={() => hold(false)}>
+              Remove
+            </button>
+          )}
+        </div>
         {error && <p className="error">{error}</p>}
       </div>
     </article>

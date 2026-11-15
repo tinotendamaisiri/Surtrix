@@ -67,9 +67,11 @@ export function signInLearner(): Promise<void> {
     learnerSignIn = null
     throw e
   })
-  return learnerSignIn.then(() => {
+  const current = learnerSignIn
+  return current.then(() => {
     if (auth.currentUser) return
-    learnerSignIn = null
+    // Only the first caller after a sign out starts a new sign in; the others wait for it.
+    if (learnerSignIn === current) learnerSignIn = null
     return signInLearner()
   })
 }

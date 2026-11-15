@@ -147,6 +147,17 @@ button:disabled {
   margin: 0 0 8px;
 }
 
+details {
+  margin-top: 12px;
+  font-size: 0.875rem;
+}
+
+summary {
+  cursor: pointer;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
 dl {
   display: grid;
   grid-template-columns: auto 1fr;

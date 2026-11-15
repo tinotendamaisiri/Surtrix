@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import AskExpert from './AskExpert.tsx'
+import { grabFrameBase64 } from './cameraFrame.ts'
 import { goBack, goNext, markStepDone, startProgress, type CoachSkill } from './coach.ts'
 
 function Header() {
@@ -137,6 +139,17 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
                 Mark step done
               </button>
             </div>
+            <AskExpert
+              step={{
+                skillId: skill.id,
+                skillTitle: skill.title,
+                stepId: step.id,
+                stepNumber: progress.stepIndex + 1,
+                stepTitle: step.title,
+                stepInstruction: step.instruction,
+              }}
+              captureFrame={() => (cameraOn ? grabFrameBase64(videoRef.current) : null)}
+            />
           </section>
         )}
       </div>

@@ -14,6 +14,5 @@ export default defineConfig(({ mode }) => {
     // one value is passed on, not every SURTRIX_ setting.
     define: { 'import.meta.env.SURTRIX_WORKTREE': JSON.stringify(String(worktree)) },
     server: { port, strictPort: true },
-    preview: { port, strictPort: true },
   }
 })

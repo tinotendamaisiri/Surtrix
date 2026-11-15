@@ -3,6 +3,8 @@ import { InferenceSource } from 'firebase/ai'
 import AskExpert from './AskExpert.tsx'
 import { useBenchWatch, type BenchWatch } from './benchWatch.ts'
 import { grabFrameBase64 } from './cameraFrame.ts'
+import type { StepSavedAnswers } from './SavedAnswerPicker.tsx'
+import { useSavedAnswers } from './savedAnswers.ts'
 import { goBack, goNext, markStepDone, startProgress, type CoachSkill } from './coach.ts'
 import { describeBenchAnswer } from './watch.ts'
 
@@ -47,6 +49,10 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const [progress, setProgress] = useState(() => startProgress(skill.steps.length))
   const step = skill.steps[progress.stepIndex]
   const watch = useBenchWatch(videoRef, cameraOn && !progress.finished, step.id, step.parts)
+  // Every step's saved expert answers, loaded once (#31), so they still help offline.
+  const saved = useSavedAnswers(skill)
+  const stepSaved: StepSavedAnswers =
+    saved.kind === 'loaded' ? { kind: 'loaded', answers: saved.byStep[step.id] ?? [] } : saved
 
   // The camera turns off when the learner leaves the coach.
   useEffect(() => {
@@ -168,6 +174,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
                 stepInstruction: step.instruction,
               }}
               captureFrame={() => (cameraOn ? grabFrameBase64(videoRef.current) : null)}
+              savedAnswers={stepSaved}
             />
           </section>
         )}

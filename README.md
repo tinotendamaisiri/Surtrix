@@ -21,6 +21,12 @@ The app today has these screens:
   Expert sends the current camera frame and your question about the step to a human
   expert, and lists your questions for the step with the expert's reply as soon as
   it arrives.
+  In the same panel, Check saved answers picks the saved expert answer for the step
+  that fits your question, or says none fits: on device with Gemini Nano first, also
+  offline, and with `gemini-3.5-flash-lite` in the cloud when Nano is not available.
+  It shows which path answered. Saved answers load when the coach opens, so they
+  still help if the network drops. When no model can answer, it lists the step's
+  saved answers.
 * The expert dashboard (`#expert`): an expert signs in with Google and sees every
   open question with the learner's photo and step, oldest first, and replies. The
   reply reaches the learner live and is saved under the skill's step. Only Google

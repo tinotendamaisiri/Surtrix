@@ -1,0 +1,104 @@
+// Saved expert answers in the coach (#31). When the coach opens a skill (online), it loads
+// the saved answers of every step once and keeps them in memory, so they still help if the
+// network drops. A learner's question picks one with Gemini Nano on device first, and
+// gemini-3.5-flash-lite in the cloud when Nano cannot answer.
+import { useEffect, useState } from 'react'
+import { getGenerativeModel, InferenceMode, Schema, ThinkingLevel, type LanguageModelCreateOptions } from 'firebase/ai'
+import { collection, getDocs } from 'firebase/firestore'
+import { ai, db, signInLearner } from './firebase'
+import type { CoachSkill } from './coach'
+import {
+  answersToPick,
+  parsePick,
+  PICK_INSTRUCTION,
+  pickPrompt,
+  pickValues,
+  savedAnswerFromDocument,
+  sortAnswers,
+  type SavedAnswer,
+} from './savedAnswerPick'
+
+// Cloud picking uses the fast model, never the one kept for the wiring judgment.
+export const PICK_CLOUD_MODEL = 'gemini-3.5-flash-lite'
+
+// Every step's saved answers, by step id.
+export type StepAnswers = Record<string, SavedAnswer[]>
+
+// Loads the saved answers of every step of a skill the coach loaded. Only these are ever
+// offered, so an answer filed under a skill or step that does not exist is never used.
+export async function loadSavedAnswers(skill: CoachSkill): Promise<StepAnswers> {
+  await signInLearner()
+  const entries = await Promise.all(
+    skill.steps.map(async (step) => {
+      const snapshot = await getDocs(collection(db, 'skills', skill.id, 'steps', step.id, 'answers'))
+      const answers = snapshot.docs
+        .map((d) => savedAnswerFromDocument(d.id, d.data()))
+        .filter((a): a is SavedAnswer => a !== null)
+      return [step.id, sortAnswers(answers)] as const
+    }),
+  )
+  return Object.fromEntries(entries)
+}
+
+export type SavedAnswersState = { kind: 'loading' } | { kind: 'loaded'; byStep: StepAnswers } | { kind: 'failed' }
+
+// The coach's saved answers, loaded once per skill.
+export function useSavedAnswers(skill: CoachSkill): SavedAnswersState {
+  const [state, setState] = useState<{ skillId: string; value: SavedAnswersState }>({
+    skillId: skill.id,
+    value: { kind: 'loading' },
+  })
+  useEffect(() => {
+    let onScreen = true
+    loadSavedAnswers(skill).then(
+      (byStep) => onScreen && setState({ skillId: skill.id, value: { kind: 'loaded', byStep } }),
+      (e) => {
+        console.error('Loading saved answers failed', e)
+        if (onScreen) setState({ skillId: skill.id, value: { kind: 'failed' } })
+      },
+    )
+    return () => {
+      onScreen = false
+    }
+  }, [skill])
+  return state.skillId === skill.id ? state.value : { kind: 'loading' }
+}
+
+const createOptions: LanguageModelCreateOptions = {
+  expectedInputs: [{ type: 'text', languages: ['en'] }],
+  expectedOutputs: [{ type: 'text', languages: ['en'] }],
+  initialPrompts: [{ role: 'system', content: [{ type: 'text', value: PICK_INSTRUCTION }] }],
+}
+
+export type Pick = {
+  // null when no saved answer fits the question.
+  answer: SavedAnswer | null
+  source: string
+  ms: number
+}
+
+// Picks the saved answer that fits the learner's question, on device first (also offline)
+// and in the cloud when Nano cannot answer here. Throws when no model can answer or the
+// pick is not one of the answers; the caller then lists the answers as they are.
+export async function pickSavedAnswer(stepTitle: string, question: string, answers: SavedAnswer[]): Promise<Pick> {
+  const choices = answersToPick(answers)
+  const values = pickValues(choices)
+  const model = getGenerativeModel(ai, {
+    mode: InferenceMode.PREFER_ON_DEVICE,
+    onDeviceParams: { createOptions, promptOptions: { responseConstraint: { type: 'string', enum: values } } },
+    inCloudParams: {
+      model: PICK_CLOUD_MODEL,
+      systemInstruction: PICK_INSTRUCTION,
+      generationConfig: {
+        responseMimeType: 'text/x.enum',
+        responseSchema: Schema.enumString({ enum: values }),
+        maxOutputTokens: 1024,
+        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+      },
+    },
+  })
+  const started = performance.now()
+  const result = await model.generateContent(pickPrompt(stepTitle, question, choices))
+  const ms = Math.round(performance.now() - started)
+  return { answer: parsePick(result.response.text(), choices), source: result.response.inferenceSource ?? 'unknown', ms }
+}

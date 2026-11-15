@@ -223,6 +223,21 @@ reported, and left for Tino to merge.
 * Change the key with gcloud as the account that owns `surtrix-50d22`, never the
   Cosynced account, with `--account` and `--project surtrix-50d22` on every command.
 
+## Billing and quotas
+
+* `surtrix-50d22` is on the Blaze plan (since Nov 15). Budget: $5 per month, with
+  alerts at 50, 90 and 100 percent.
+* Spend caps of $5 each on the Gemini Developer API (AI Logic), Agent Platform
+  API, Cloud Run (App Hosting) and Cloud Run Functions. When a cap is reached, that
+  service pauses for the rest of the month. A 403 from AI Logic, or AI Logic
+  paused, may mean the cap was hit: check billing before debugging code.
+* Gemini API billing is Prepay by default. A 429 saying "Your prepayment credits
+  are depleted" means there are no prepaid credits; a 429 naming
+  `generate_content_free_tier_requests` means the free tier daily limit. Neither
+  is a code problem.
+* Buying credits and changing billing, budgets or caps are Tino's to do. Report
+  the exact error and log it under Needs Tino.
+
 ## No dead weight
 
 * Only files the app needs to build and run go in the repo: no scratch files,

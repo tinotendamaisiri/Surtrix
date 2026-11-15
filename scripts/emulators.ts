@@ -23,7 +23,8 @@ function fail(message: string): never {
 function java21Home(): string | undefined {
   if (process.platform !== 'darwin') return process.env.JAVA_HOME
   try {
-    return execFileSync('/usr/libexec/java_home', ['-v', '21'], { encoding: 'utf8', stdio: 'pipe' }).trim()
+    // Without --failfast, java_home quietly returns the default Java when 21 is missing.
+    return execFileSync('/usr/libexec/java_home', ['-v', '21', '--failfast'], { encoding: 'utf8', stdio: 'pipe' }).trim()
   } catch {
     fail('Java 21 is not installed. Install it with: brew install --cask temurin@21')
   }

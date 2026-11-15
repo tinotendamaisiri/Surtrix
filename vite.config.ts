@@ -10,8 +10,9 @@ export default defineConfig(({ mode }) => {
   const port = worktreePorts(worktree).dev
   return {
     plugins: [react()],
-    // The app reads SURTRIX_WORKTREE to find this worktree's emulators.
-    envPrefix: ['VITE_', 'SURTRIX_'],
+    // The app reads the worktree number to find this worktree's emulators. Only this
+    // one value is passed on, not every SURTRIX_ setting.
+    define: { 'import.meta.env.SURTRIX_WORKTREE': JSON.stringify(String(worktree)) },
     server: { port, strictPort: true },
     preview: { port, strictPort: true },
   }

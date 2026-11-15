@@ -56,12 +56,16 @@ if (import.meta.env.DEV) {
 let learnerSignIn: Promise<void> | null = null
 
 // Signs the learner in anonymously, once per page. The session is kept in the
-// browser, so a reload keeps the same learner.
+// browser, so a reload keeps the same learner. A failed sign in is tried again on the
+// next call.
 export function signInLearner(): Promise<void> {
   learnerSignIn ??= (async () => {
     await auth.authStateReady()
     if (!auth.currentUser) await signInAnonymously(auth)
-  })()
+  })().catch((e: unknown) => {
+    learnerSignIn = null
+    throw e
+  })
   return learnerSignIn
 }
 

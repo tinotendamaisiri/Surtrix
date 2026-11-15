@@ -26,12 +26,20 @@ type Props = {
   judgeOffer?: JudgeOffer | null
 }
 
-// What the open panel holds. It belongs to the step it was opened on.
-type Draft = { stepKey: string; frame: string | null; question: string; judgeSaid: string | null }
+// What the open panel holds.
+type Draft = { frame: string | null; question: string; judgeSaid: string | null }
 
 type MyQuestions = { stepKey: string; questions: Question[]; failed: boolean }
 
 const JUDGE_QUESTION = 'Is my wiring right for this step?'
+
+// How long Send waits for the server before closing the panel. Offline, the question
+// stays in the list as sending and goes once the network is back.
+const SEND_WAIT_MS = 8000
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 
 function formatTime(date: Date | null): string {
   return date ? date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''
@@ -43,16 +51,26 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null }: Pro
   const [draft, setDraft] = useState<Draft | null>(null)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // A question that was still sending when the panel closed, and then failed.
+  const [lateError, setLateError] = useState(false)
   const [mine, setMine] = useState<MyQuestions | null>(null)
+  const [shownStepKey, setShownStepKey] = useState(stepKey)
   const [seenOffer, setSeenOffer] = useState<JudgeOffer | null>(null)
 
-  // A new judge offer opens the panel (adjusting state while rendering, as React
-  // recommends over an effect).
+  // State is adjusted while rendering, as React recommends over an effect.
+  // A different step drops an unsent question: it would be about the wrong step.
+  if (stepKey !== shownStepKey) {
+    setShownStepKey(stepKey)
+    setDraft(null)
+    setError(null)
+  }
+  // A new judge offer opens the panel.
   if (judgeOffer !== seenOffer) {
     setSeenOffer(judgeOffer)
     if (judgeOffer) {
-      setDraft({ stepKey, frame: judgeOffer.frame, question: JUDGE_QUESTION, judgeSaid: judgeOffer.said })
+      setDraft({ frame: judgeOffer.frame, question: JUDGE_QUESTION, judgeSaid: judgeOffer.said })
       setError(null)
+      setLateError(false)
     }
   }
 
@@ -68,14 +86,14 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null }: Pro
     )
   }, [skillId, stepId])
 
-  // A panel opened on another step is closed: its question would be about the wrong step.
-  const open = draft !== null && draft.stepKey === stepKey
+  const open = draft !== null
   const questions = mine?.stepKey === stepKey ? mine.questions : []
   const listFailed = mine?.stepKey === stepKey && mine.failed
 
   function openPanel() {
-    setDraft({ stepKey, frame: captureFrame(), question: '', judgeSaid: null })
+    setDraft({ frame: captureFrame(), question: '', judgeSaid: null })
     setError(null)
+    setLateError(false)
   }
 
   async function send() {
@@ -83,7 +101,19 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null }: Pro
     setSending(true)
     setError(null)
     try {
-      await askExpert({ step, question: draft.question, frameBase64: draft.frame, judgeSaid: draft.judgeSaid })
+      const { saved } = await askExpert({
+        step,
+        question: draft.question,
+        frameBase64: draft.frame,
+        judgeSaid: draft.judgeSaid,
+      })
+      const sentInTime = await Promise.race([saved.then(() => true), wait(SEND_WAIT_MS).then(() => false)])
+      if (!sentInTime) {
+        saved.catch((e: unknown) => {
+          console.error('Could not send the question', e)
+          setLateError(true)
+        })
+      }
       setDraft(null)
     } catch (e) {
       console.error('Could not send the question', e)
@@ -149,6 +179,8 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null }: Pro
         </div>
       )}
 
+      {lateError && <p className="error">Your last question could not be sent. Please ask again.</p>}
+
       {listFailed && <p className="error">Could not load your questions. Reload the page to try again.</p>}
 
       {questions.length > 0 && (
@@ -160,7 +192,7 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null }: Pro
                 <p>{q.question}</p>
                 <p className="muted">
                   Asked {formatTime(q.createdAt)}
-                  {q.status === 'open' && ', waiting for an expert'}
+                  {!q.sent ? ', sending' : q.status === 'open' && ', waiting for an expert'}
                 </p>
                 {q.reply && (
                   <div className="reply">

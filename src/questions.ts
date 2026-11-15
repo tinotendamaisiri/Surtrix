@@ -19,6 +19,11 @@ export const QUESTION_MAX_LENGTH = 500
 // A frame this size keeps the question under Firestore's 1 MiB document limit.
 export const FRAME_MAX_BYTES = 900 * 1024
 
+// The longest copies of the skill and step that firestore.rules accepts. Skills have no
+// length limit, so longer text is cut: the copy is only there to show the expert.
+const TITLE_MAX_LENGTH = 200
+const INSTRUCTION_MAX_LENGTH = 5000
+
 // The step a question is about. It is copied into the question, so an expert can
 // answer without reading the skill.
 export type QuestionStep = {
@@ -45,6 +50,8 @@ export type Question = {
   origin: QuestionOrigin
   judgeSaid: string | null
   status: 'open' | 'answered'
+  // False until the server has the question, for example while offline.
+  sent: boolean
   createdAt: Date | null
   reply: Reply | null
 }
@@ -73,8 +80,14 @@ export type NewQuestion = {
   judgeSaid: string | null
 }
 
-// Saves the question for an expert. Resolves once Firestore has accepted it.
-export async function askExpert({ step, question, frameBase64, judgeSaid }: NewQuestion): Promise<void> {
+function clip(text: string, max: number): string {
+  return text.trim().slice(0, max)
+}
+
+// Saves the question for an expert. Resolves as soon as the question is saved in the
+// page (it then shows in the learner's list); saved resolves once the server has it,
+// which waits for the network when offline.
+export async function askExpert({ step, question, frameBase64, judgeSaid }: NewQuestion): Promise<{ saved: Promise<void> }> {
   const problem = questionProblem(question)
   if (problem) throw new Error(problem)
   const frame = Bytes.fromBase64String(frameBase64)
@@ -82,21 +95,22 @@ export async function askExpert({ step, question, frameBase64, judgeSaid }: NewQ
   await signInLearner()
   const learnerId = auth.currentUser?.uid
   if (!learnerId) throw new Error('The learner is not signed in.')
-  await addDoc(collection(db, 'questions'), {
+  const saved = addDoc(collection(db, 'questions'), {
     learnerId,
     skillId: step.skillId,
-    skillTitle: step.skillTitle,
+    skillTitle: clip(step.skillTitle, TITLE_MAX_LENGTH),
     stepId: step.stepId,
     stepNumber: step.stepNumber,
-    stepTitle: step.stepTitle,
-    stepInstruction: step.stepInstruction,
+    stepTitle: clip(step.stepTitle, TITLE_MAX_LENGTH),
+    stepInstruction: clip(step.stepInstruction, INSTRUCTION_MAX_LENGTH),
     question: question.trim(),
     frame,
     origin: judgeSaid === null ? 'learner' : 'judge',
     judgeSaid,
     status: 'open',
     createdAt: serverTimestamp(),
-  })
+  }).then(() => undefined)
+  return { saved }
 }
 
 function toDate(value: unknown): Date | null {
@@ -126,6 +140,7 @@ function toQuestion(snapshot: DocumentSnapshot): Question {
     origin: data.origin === 'judge' ? 'judge' : 'learner',
     judgeSaid: typeof data.judgeSaid === 'string' ? data.judgeSaid : null,
     status: data.status === 'answered' || reply ? 'answered' : 'open',
+    sent: !snapshot.metadata.hasPendingWrites,
     createdAt: toDate(data.createdAt),
     reply,
   }
@@ -156,8 +171,10 @@ export function watchMyQuestions(
       where('skillId', '==', step.skillId),
       where('stepId', '==', step.stepId),
     )
+    // Metadata changes too, so a question sent while offline shows as sent once it is.
     stopListening = onSnapshot(
       mine,
+      { includeMetadataChanges: true },
       (snapshot) =>
         onChange(
           snapshot.docs

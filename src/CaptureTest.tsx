@@ -10,11 +10,7 @@ import {
   type FrameAnswer,
   type Path,
 } from './firebase'
-
-// Longest side of the frame sent to the model, in pixels.
-const FRAME_MAX_SIDE = 768
-
-type Frame = { url: string; width: number; height: number; bytes: number }
+import { grabFrame, type Frame } from './cameraFrame.ts'
 
 type Capture = FrameAnswer & { frame: Frame; question: string }
 
@@ -34,18 +30,6 @@ const pathOptions: { path: Path; label: string }[] = [
 const sourceText: Record<string, string> = {
   [InferenceSource.ON_DEVICE]: 'On device',
   [InferenceSource.IN_CLOUD]: 'Cloud',
-}
-
-function grabFrame(video: HTMLVideoElement): Frame {
-  const scale = Math.min(1, FRAME_MAX_SIDE / Math.max(video.videoWidth, video.videoHeight))
-  const canvas = document.createElement('canvas')
-  canvas.width = Math.round(video.videoWidth * scale)
-  canvas.height = Math.round(video.videoHeight * scale)
-  canvas.getContext('2d')!.drawImage(video, 0, 0, canvas.width, canvas.height)
-  const url = canvas.toDataURL('image/jpeg', 0.85)
-  const base64 = url.split(',')[1]
-  const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0
-  return { url, width: canvas.width, height: canvas.height, bytes: (base64.length * 3) / 4 - padding }
 }
 
 function formatMs(ms: number): string {
@@ -114,13 +98,13 @@ export default function CaptureTest() {
   }
 
   async function captureAndAsk() {
-    const video = videoRef.current
-    if (!video || !videoReady || !question.trim()) return
+    if (!videoReady || !question.trim()) return
+    const frame = grabFrame(videoRef.current)
+    if (!frame) return
     setBusy(true)
     setError(null)
-    const frame = grabFrame(video)
     try {
-      const result = await askAboutFrame(path, question.trim(), frame.url.split(',')[1])
+      const result = await askAboutFrame(path, question.trim(), frame.base64)
       setCapture({ ...result, frame, question: question.trim() })
     } catch (e) {
       console.error('Capture failed', e)

@@ -285,12 +285,22 @@ describe('demo skill', () => {
     expect(mine.size).toBe(0)
   })
 
-  test('no learner can change the demo skill or add a step to it', async () => {
+  test('no learner can change the demo skill or its steps', async () => {
     await seed()
     const db = learner().firestore()
     await assertFails(updateDoc(doc(db, `skills/${DEMO_SKILL_ID}`), { title: 'Changed' }))
     await assertFails(updateDoc(doc(db, `skills/${DEMO_SKILL_ID}/steps/step-1`), { title: 'Changed' }))
-    await assertFails(setDoc(doc(db, `skills/${DEMO_SKILL_ID}/steps/step-5`), { number: 5, ...step }))
+  })
+
+  test('no learner can add a missing step to the demo skill, since it is not theirs', async () => {
+    await seed()
+    // With step-4 gone, creating it fits every other step rule, so only the creator check
+    // refuses it.
+    await testEnv.withSecurityRulesDisabled((context) =>
+      deleteDoc(doc(context.firestore(), `skills/${DEMO_SKILL_ID}/steps/step-4`)),
+    )
+    const db = learner().firestore()
+    await assertFails(setDoc(doc(db, `skills/${DEMO_SKILL_ID}/steps/step-4`), { number: 4, ...step }))
   })
 
   test('seeding again leaves what is under a step alone', async () => {

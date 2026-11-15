@@ -26,20 +26,29 @@ export async function saveSkill(skill: Skill): Promise<string> {
 }
 
 // The skills on home: the demo skill first, then the ones this learner saved, newest
-// first. A missing demo skill is left out.
+// first. A demo skill that is missing or cannot be read is left out, so the learner's own
+// skills still show.
 export async function listSkills(): Promise<SkillSummary[]> {
-  const [demo, mine] = await Promise.all([loadDemoSkillSummary(), listMySkills()])
+  const [demo, mine] = await Promise.all([
+    loadDemoSkillSummary().catch((e) => {
+      console.error('Loading the demo skill failed', e)
+      return null
+    }),
+    listMySkills(),
+  ])
   return demo ? [demo, ...mine] : mine
 }
 
 async function loadDemoSkillSummary(): Promise<SkillSummary | null> {
   await learnerId()
   const snapshot = await getDoc(doc(db, 'skills', DEMO_SKILL_ID))
-  if (!snapshot.exists()) {
-    console.error(`The demo skill skills/${DEMO_SKILL_ID} is missing. Run scripts/seedDemoSkill.ts.`)
+  const title: unknown = snapshot.get('title')
+  const stepCount: unknown = snapshot.get('stepCount')
+  if (!snapshot.exists() || typeof title !== 'string' || typeof stepCount !== 'number') {
+    console.error(`The demo skill skills/${DEMO_SKILL_ID} is missing or not whole. Run scripts/seedDemoSkill.ts.`)
     return null
   }
-  return { id: snapshot.id, title: snapshot.get('title'), stepCount: snapshot.get('stepCount') }
+  return { id: snapshot.id, title, stepCount }
 }
 
 // The skills this learner saved, newest first. Sorted here, so no composite index.

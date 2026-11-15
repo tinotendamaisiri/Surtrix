@@ -1,10 +1,8 @@
 import { collection, doc, getDoc, getDocs, orderBy, query, where, writeBatch, type Timestamp } from 'firebase/firestore'
 import { auth, db, signInLearner } from './firebase'
-import type { Skill, Step } from './skill'
+import type { CoachSkill } from './coach'
+import type { Skill } from './skill'
 import { skillDocuments, type StepDocument } from './skillDocuments'
-
-// A saved skill as the coach gets it: each step carries its id.
-export type SavedSkill = { id: string; title: string; steps: (Step & { id: string })[] }
 
 export type SkillSummary = { id: string; title: string; stepCount: number }
 
@@ -36,7 +34,7 @@ export async function listMySkills(): Promise<SkillSummary[]> {
 }
 
 // Loads one saved skill with its steps in order, or null when there is no such skill.
-export async function loadSkill(skillId: string): Promise<SavedSkill | null> {
+export async function loadSkill(skillId: string): Promise<CoachSkill | null> {
   await learnerId()
   const skillRef = doc(db, 'skills', skillId)
   const skillSnapshot = await getDoc(skillRef)

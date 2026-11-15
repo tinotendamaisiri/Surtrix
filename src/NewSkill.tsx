@@ -7,6 +7,7 @@ import {
   procedureToSteps,
   type ProcedureSteps,
 } from './procedure'
+import { coachHash } from './screenAddress'
 import { saveSkill } from './skills'
 
 type Input = 'pdf' | 'text'
@@ -86,7 +87,7 @@ export default function NewSkill() {
     setError(null)
     try {
       const skillId = await saveSkill(result.skill)
-      location.hash = `#coach/${skillId}`
+      location.hash = coachHash(skillId)
     } catch (e) {
       console.error('Saving the skill failed', e)
       setError('Could not save the skill. Please try again.')
@@ -108,7 +109,7 @@ export default function NewSkill() {
         <h1>Surtrix</h1>
         <p className="muted">New skill</p>
         <p>
-          <a href="#">Capture test</a>
+          <a href="#">Back to skills</a>
         </p>
       </header>
 

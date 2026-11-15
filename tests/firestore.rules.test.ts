@@ -27,7 +27,7 @@ import {
 } from 'firebase/firestore'
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest'
 import { seedDemoSkill } from '../scripts/seedDemoSkill.ts'
-import { DEMO_SKILL_ID, demoSkill } from '../src/demoSkill.ts'
+import { DEMO_SKILL_ID, demoAnswers, demoSkill } from '../src/demoSkill.ts'
 import type { Skill } from '../src/skill.ts'
 import { coachSkillFromDocuments, skillDocuments, type StepDocument } from '../src/skillDocuments.ts'
 
@@ -301,6 +301,50 @@ describe('demo skill', () => {
     )
     const db = learner().firestore()
     await assertFails(setDoc(doc(db, `skills/${DEMO_SKILL_ID}/steps/step-4`), { number: 4, ...step }))
+  })
+
+  test('a learner reads the seeded answers on their steps, in the Contracts shape', async () => {
+    await seed()
+    const db = learner().firestore()
+    for (const a of demoAnswers) {
+      const snapshot = await assertSucceeds(getDoc(doc(db, `skills/${DEMO_SKILL_ID}/steps/${a.stepId}/answers/${a.id}`)))
+      const { createdAt, ...rest } = snapshot.data()!
+      expect(createdAt).toBeInstanceOf(Timestamp)
+      expect(rest).toEqual({
+        questionId: a.id,
+        question: a.question,
+        answer: a.answer,
+        expertId: 'surtrix',
+        expertName: 'Surtrix team',
+      })
+    }
+    const onStep4 = await assertSucceeds(getDocs(collection(db, `skills/${DEMO_SKILL_ID}/steps/step-4/answers`)))
+    expect(onStep4.docs.map((d) => d.id).sort()).toEqual(['demo-led-backwards', 'demo-no-power'])
+  })
+
+  test('neither a learner nor an expert can change or replace a seeded answer', async () => {
+    await seed()
+    await testEnv.withSecurityRulesDisabled((context) =>
+      setDoc(doc(context.firestore(), 'experts/expert-1'), { name: 'Ada Expert' }),
+    )
+    const expert = testEnv.authenticatedContext('expert-1', { firebase: { sign_in_provider: 'google.com' } }).firestore()
+    const path = `skills/${DEMO_SKILL_ID}/steps/step-2/answers/demo-led-in-rail`
+    for (const db of [learner().firestore(), expert]) {
+      await assertFails(updateDoc(doc(db, path), { answer: 'Changed' }))
+      await assertFails(setDoc(doc(db, path), { answer: 'Replaced' }))
+      await assertFails(deleteDoc(doc(db, path)))
+    }
+  })
+
+  test('seeding again keeps the seeded answers', async () => {
+    await seed()
+    await seed()
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      for (const a of demoAnswers) {
+        const snapshot = await getDoc(doc(context.firestore(), `skills/${DEMO_SKILL_ID}/steps/${a.stepId}/answers/${a.id}`))
+        expect(snapshot.get('answer')).toBe(a.answer)
+      }
+    })
   })
 
   test('seeding again leaves what is under a step alone', async () => {

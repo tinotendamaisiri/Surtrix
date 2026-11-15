@@ -1,4 +1,7 @@
 {
+  "firestore": {
+    "rules": "firestore.rules"
+  },
   "hosting": [
     {
       "target": "live",
@@ -10,5 +13,8 @@
       "public": "dist",
       "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
     }
-  ]
+  ],
+  "emulators": {
+    "singleProjectMode": true
+  }
 }

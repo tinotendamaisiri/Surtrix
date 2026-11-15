@@ -1,0 +1,11 @@
+rules_version = '2';
+
+// Closed: nothing can be read or written. Each issue that needs data opens exactly
+// the paths it uses, with tests in tests/firestore.rules.test.ts.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

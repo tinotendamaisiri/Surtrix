@@ -11,7 +11,10 @@ import {
   type GenerativeModel,
   type LanguageModelCreateOptions,
 } from 'firebase/ai'
+import { connectAuthEmulator, getAuth, signInAnonymously } from 'firebase/auth'
+import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore'
 import { firebaseConfig, recaptchaEnterpriseSiteKey } from './firebase-config'
+import { parseWorktree, worktreePorts } from './worktree'
 
 declare global {
   var FIREBASE_APPCHECK_DEBUG_TOKEN: boolean | string | undefined
@@ -19,10 +22,17 @@ declare global {
 
 const app = initializeApp(firebaseConfig)
 
-// Local dev only: App Check prints a debug token to the browser console.
-// Register it in the Firebase console so localhost requests pass App Check.
+// Local dev only: App Check uses the registered debug token from .env.local, so every
+// local port and worktree shares one token. Without it, App Check prints a new token
+// to the browser console, which a project owner would have to register.
 if (import.meta.env.DEV) {
-  globalThis.FIREBASE_APPCHECK_DEBUG_TOKEN = true
+  const debugToken: string | undefined = import.meta.env.VITE_APPCHECK_DEBUG_TOKEN
+  if (debugToken) {
+    globalThis.FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken
+  } else {
+    globalThis.FIREBASE_APPCHECK_DEBUG_TOKEN = true
+    console.info('Put the registered App Check debug token in .env.local as VITE_APPCHECK_DEBUG_TOKEN.')
+  }
 }
 
 const appCheck = initializeAppCheck(app, {
@@ -31,6 +41,29 @@ const appCheck = initializeAppCheck(app, {
 })
 
 const ai = getAI(app, { backend: new GoogleAIBackend() })
+
+export const auth = getAuth(app)
+export const db = getFirestore(app)
+
+// Local dev never touches the real database or user accounts: Firestore and Auth go
+// to this worktree's emulators. AI Logic and App Check still use the real project.
+if (import.meta.env.DEV) {
+  const ports = worktreePorts(parseWorktree(import.meta.env.SURTRIX_WORKTREE))
+  connectAuthEmulator(auth, `http://127.0.0.1:${ports.auth}`, { disableWarnings: true })
+  connectFirestoreEmulator(db, '127.0.0.1', ports.firestore)
+}
+
+let learnerSignIn: Promise<void> | null = null
+
+// Signs the learner in anonymously, once per page. The session is kept in the
+// browser, so a reload keeps the same learner.
+export function signInLearner(): Promise<void> {
+  learnerSignIn ??= (async () => {
+    await auth.authStateReady()
+    if (!auth.currentUser) await signInAnonymously(auth)
+  })()
+  return learnerSignIn
+}
 
 export const CLOUD_MODEL = 'gemini-4-hydrogen'
 

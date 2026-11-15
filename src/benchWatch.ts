@@ -97,9 +97,10 @@ export function useBenchWatch(
 
   useEffect(() => {
     let current = true
+    // Only the first status: a Start camera click may already have started the download.
     getDeviceModelStatus().then(
-      (status) => current && setDeviceStatus(status),
-      () => current && setDeviceStatus('unavailable'),
+      (status) => current && setDeviceStatus((known) => known ?? status),
+      () => current && setDeviceStatus((known) => known ?? 'unavailable'),
     )
     return () => {
       current = false
@@ -144,6 +145,9 @@ export function useBenchWatch(
     return () => {
       stopped = true
       clearTimeout(timer)
+      // An answer belongs to this round of watching: after the camera restarts, the tab
+      // comes back or the step changes, the coach waits for a fresh one.
+      setLatest(null)
     }
   }, [watching, model, parts, stepId, videoRef])
 

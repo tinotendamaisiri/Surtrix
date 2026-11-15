@@ -128,7 +128,7 @@ export function replyProblem(textValue: string): string | null {
 
 export class AlreadyAnsweredError extends Error {
   constructor() {
-    super('Another expert already answered this question.')
+    super('This question was already answered.')
     this.name = 'AlreadyAnsweredError'
   }
 }

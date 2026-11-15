@@ -76,6 +76,10 @@ export default function ExpertDashboard() {
           <button type="button" onClick={signIn} disabled={busy}>
             Sign in with Google
           </button>
+          <p className="muted">
+            Signing in here replaces the learner on this browser, and with it their skills and questions. To learn and
+            answer on one computer, use a separate browser profile for each.
+          </p>
         </section>
       )}
 
@@ -156,7 +160,7 @@ function QuestionCard({ question, expert }: { question: OpenQuestion; expert: Ex
       console.error('Could not send the reply', e)
       setError(
         e instanceof AlreadyAnsweredError
-          ? 'Another expert already answered this question.'
+          ? 'This question was already answered.'
           : 'Could not send your reply. Please try again.',
       )
       setSending(false)

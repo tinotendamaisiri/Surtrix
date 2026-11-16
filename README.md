@@ -13,8 +13,12 @@ The app today has these screens:
   breadboard), then the skills you saved, newest first. The demo skill is stored in
   Firestore like any saved skill.
 * The coach (`#coach/{skill id}`) walks you through a skill one step at a time, next
-  to a live camera preview. You move with Back and Next, and Mark step done moves on
-  to the next step. While the camera is on, Gemini Nano in Chrome on a computer
+  to a live camera preview. You move with Back and Next. With the camera on, Mark
+  step done first has `gemini-4-hydrogen` in the cloud check the wiring against the
+  step: if it is right the coach moves on; if not, it says what is wrong and what to
+  move; if it cannot tell, Ask an Expert opens with its words. After any of those, or
+  a failed check, Mark done anyway moves on. With the camera off, Mark step done
+  moves on unchecked. While the camera is on, Gemini Nano in Chrome on a computer
   watches the bench on device, about every 5 seconds: it says which of the step's
   parts it sees and whether an LED is lit. It never calls the cloud and never moves
   the step. Elsewhere the coach says watching needs Chrome on a computer. Ask an

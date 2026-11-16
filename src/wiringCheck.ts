@@ -1,9 +1,16 @@
 // The wiring check: when the learner marks a step done, gemini-4-hydrogen judges the camera
 // frame against the step, cloud only, through firebase/ai (App Check is applied by the SDK).
 import { getGenerativeModel, InferenceMode, Schema, ThinkingLevel } from 'firebase/ai'
-import { ai, CLOUD_MODEL } from './firebase'
+import { ai } from './firebase'
 import type { Step } from './skill.ts'
-import { parseWiringCheck, WIRING_SYSTEM_PROMPT, WIRING_VERDICTS, wiringPrompt, type WiringCheck } from './wiring.ts'
+import {
+  parseWiringCheck,
+  WIRING_MODEL,
+  WIRING_SYSTEM_PROMPT,
+  WIRING_VERDICTS,
+  wiringPrompt,
+  type WiringCheck,
+} from './wiring.ts'
 
 const verdictSchema = Schema.object({
   properties: {
@@ -17,7 +24,7 @@ const verdictSchema = Schema.object({
 const wiringModel = getGenerativeModel(ai, {
   mode: InferenceMode.ONLY_IN_CLOUD,
   inCloudParams: {
-    model: CLOUD_MODEL,
+    model: WIRING_MODEL,
     systemInstruction: WIRING_SYSTEM_PROMPT,
     generationConfig: {
       responseMimeType: 'application/json',

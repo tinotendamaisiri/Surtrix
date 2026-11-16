@@ -3,6 +3,7 @@ import type { Step } from '../src/skill.ts'
 import {
   describeWiringCheck,
   parseWiringCheck,
+  WIRING_MODEL,
   WIRING_SYSTEM_PROMPT,
   WIRING_TEXT_MAX_LENGTH,
   WiringCheckError,
@@ -15,6 +16,12 @@ const step: Step = {
   parts: ['breadboard', 'LED', 'resistor'],
   doneWhen: "The resistor joins the top rail to the LED's long leg.",
 }
+
+describe('WIRING_MODEL', () => {
+  it('is gemini-4-hydrogen, kept for the wiring check alone', () => {
+    expect(WIRING_MODEL).toBe('gemini-4-hydrogen')
+  })
+})
 
 describe('wiringPrompt', () => {
   it('carries the current step and the three verdicts', () => {

@@ -2,6 +2,10 @@
 // the code checks on its verdict. No model calls here.
 import type { Step } from './skill.ts'
 
+// The wiring check's own model, kept apart from every other cloud job (CLAUDE.md): it is the
+// one that caught the wiring mistake 4 of 4 times in #5.
+export const WIRING_MODEL = 'gemini-4-hydrogen'
+
 export const WIRING_VERDICTS = ['correct', 'not yet', 'unsure'] as const
 export type WiringVerdict = (typeof WIRING_VERDICTS)[number]
 

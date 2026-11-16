@@ -7,14 +7,15 @@ import type { StepSavedAnswers } from './SavedAnswerPicker.tsx'
 import { useSavedAnswers } from './savedAnswers.ts'
 import { goBack, goNext, markStepDone, startProgress, type CoachProgress, type CoachSkill } from './coach.ts'
 import { describeBenchAnswer } from './watch.ts'
-import { describeWiringCheck } from './wiring.ts'
+import { describeWiringCheck, WIRING_DEADLINE_MS, WIRING_GIVE_UP_MS } from './wiring.ts'
 import { checkWiring, type WiringResult } from './wiringCheck.ts'
 
 // Where a wiring check result shows: under a step (by id), or on the All steps done screen.
 const FINISHED = 'finished'
 
 type Wiring =
-  | { kind: 'checking'; stepId: string }
+  // slow: past the deadline, so the learner may carry on while the check runs.
+  | { kind: 'checking'; stepId: string; slow: boolean }
   // showOn is the next step (or FINISHED) for a correct verdict, else the checked step.
   // offer is made once per result: Ask an Expert opens again for every new offer object.
   | { kind: 'result'; stepId: string; showOn: string; stepNumber: number; result: WiringResult; offer: JudgeOffer | null }
@@ -63,6 +64,11 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const [wiring, setWiring] = useState<Wiring | null>(null)
   const step = skill.steps[progress.stepIndex]
   const checking = wiring?.kind === 'checking'
+  // Held only until the deadline: then Back, Next and Mark done anyway work again.
+  const holding = checking && !wiring.slow
+  // The running wiring check: its number, its cancel switch and its two timers (#9).
+  const attemptRef = useRef(0)
+  const runningRef = useRef<{ controller: AbortController; timers: ReturnType<typeof setTimeout>[] } | null>(null)
   const watch = useBenchWatch(videoRef, cameraOn && !progress.finished, step.id, step.parts)
   // Every step's saved expert answers, loaded once (#31), so they still help offline.
   const saved = useSavedAnswers(skill)
@@ -76,6 +82,10 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       onScreenRef.current = false
       streamRef.current?.getTracks().forEach((track) => track.stop())
       streamRef.current = null
+      // A wiring check still running is cancelled with the coach.
+      runningRef.current?.timers.forEach(clearTimeout)
+      runningRef.current?.controller.abort()
+      runningRef.current = null
     }
   }, [])
 
@@ -114,8 +124,19 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     }
   }
 
+  // Ends the running wiring check, if any: a later answer belongs to a step the learner left,
+  // so the call is cancelled and its answer, if it still comes, is dropped.
+  function endWiringCheck() {
+    attemptRef.current++
+    const running = runningRef.current
+    runningRef.current = null
+    running?.timers.forEach(clearTimeout)
+    running?.controller.abort()
+  }
+
   // Every step change ends the last wiring check: its result belongs to that step.
   function move(change: (p: CoachProgress) => CoachProgress) {
+    endWiringCheck()
     setWiring(null)
     setProgress(change)
   }
@@ -134,10 +155,22 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       return
     }
     const index = progress.stepIndex
-    setWiring({ kind: 'checking', stepId: step.id })
+    endWiringCheck()
+    const attempt = attemptRef.current
+    const controller = new AbortController()
+    const stillCurrent = () => onScreenRef.current && attemptRef.current === attempt
+    runningRef.current = {
+      controller,
+      timers: [
+        setTimeout(() => stillCurrent() && setWiring({ kind: 'checking', stepId: step.id, slow: true }), WIRING_DEADLINE_MS),
+        setTimeout(() => controller.abort(), WIRING_GIVE_UP_MS),
+      ],
+    }
+    setWiring({ kind: 'checking', stepId: step.id, slow: false })
     try {
-      const result = await checkWiring(step, frame)
-      if (!onScreenRef.current) return
+      const result = await checkWiring(step, frame, controller.signal)
+      if (!stillCurrent()) return
+      endWiringCheck()
       const checked = { stepId: step.id, stepNumber: index + 1, result }
       if (result.check.verdict === 'correct') {
         const next = index === skill.steps.length - 1 ? FINISHED : skill.steps[index + 1].id
@@ -148,8 +181,10 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
         setWiring({ kind: 'result', ...checked, showOn: step.id, offer })
       }
     } catch (e) {
+      if (!stillCurrent()) return
+      endWiringCheck()
       console.error('Wiring check failed', e)
-      if (onScreenRef.current) setWiring({ kind: 'failed', stepId: step.id })
+      setWiring({ kind: 'failed', stepId: step.id })
     }
   }
 
@@ -211,20 +246,33 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
               <span className="label">Done when:</span> {step.doneWhen}
             </p>
             <BenchLine watch={watch} cameraOn={cameraOn} />
-            {checking && <p className="muted wiring">Checking the wiring.</p>}
+            {checking && (
+              <p className="muted wiring">
+                {wiring.slow
+                  ? 'Still checking the wiring. You can carry on; the answer will show here if you stay on this step.'
+                  : 'Checking the wiring.'}
+              </p>
+            )}
             {shownResult && <WiringLine wiring={shownResult} />}
-            {wiring?.kind === 'failed' && <p className="wiring error">Could not check the wiring right now.</p>}
+            {wiring?.kind === 'failed' && (
+              <p className="wiring error">
+                The wiring check is not available right now. Check saved answers or Ask an Expert below, or Mark done
+                anyway.
+              </p>
+            )}
             <div className="step-buttons">
-              <button type="button" className="secondary" onClick={() => move(goBack)} disabled={isFirst || checking}>
+              <button type="button" className="secondary" onClick={() => move(goBack)} disabled={isFirst || holding}>
                 Back
               </button>
-              <button type="button" className="secondary" onClick={() => move(goNext)} disabled={isLast || checking}>
+              <button type="button" className="secondary" onClick={() => move(goNext)} disabled={isLast || holding}>
                 Next
               </button>
               <button type="button" onClick={markDone} disabled={checking}>
                 Mark step done
               </button>
-              {(wiring?.kind === 'failed' || (shownResult && shownResult.showOn === shownResult.stepId)) && (
+              {(wiring?.kind === 'failed' ||
+                (checking && wiring.slow) ||
+                (shownResult && shownResult.showOn === shownResult.stepId)) && (
                 <button type="button" className="secondary" onClick={() => move(markStepDone)}>
                   Mark done anyway
                 </button>

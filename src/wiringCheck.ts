@@ -36,13 +36,24 @@ const wiringModel = getGenerativeModel(ai, {
 
 export type WiringResult = { check: WiringCheck; source: string; at: Date; ms: number }
 
-// One cloud call per Mark step done click. Throws when the call fails or the answer does
-// not pass the checks in src/wiring.ts.
-export async function checkWiring(step: Step, jpegBase64: string): Promise<WiringResult> {
+// One cloud call per Mark step done click. Throws when the call fails, is cancelled through
+// signal, or the answer does not pass the checks in src/wiring.ts. Cancelling does not stop
+// Google from charging for the call.
+export async function checkWiring(step: Step, jpegBase64: string, signal: AbortSignal): Promise<WiringResult> {
   const started = performance.now()
-  const result = await wiringModel.generateContent([
-    wiringPrompt(step),
-    { type: 'inlineData', inlineData: { mimeType: 'image/jpeg', data: jpegBase64 } },
+  // The SDK ignores the signal while it gets the App Check token, so the coach also stops
+  // waiting by itself the moment the signal fires.
+  const cancelled = new Promise<never>((_, reject) => {
+    const stop = () => reject(new DOMException('The wiring check was cancelled.', 'AbortError'))
+    if (signal.aborted) stop()
+    else signal.addEventListener('abort', stop, { once: true })
+  })
+  const result = await Promise.race([
+    wiringModel.generateContent(
+      [wiringPrompt(step), { type: 'inlineData', inlineData: { mimeType: 'image/jpeg', data: jpegBase64 } }],
+      { signal },
+    ),
+    cancelled,
   ])
   const ms = Math.round(performance.now() - started)
   return {

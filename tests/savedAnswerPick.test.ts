@@ -4,6 +4,7 @@ import { describe, expect, test } from 'vitest'
 import { demoAnswers } from '../src/demoSkill.ts'
 import {
   checkSavedAnswers,
+  hasSavedAnswers,
   hybridThenCloud,
   NONE_FITS,
   parsePick,
@@ -180,7 +181,7 @@ describe('trying the cloud when the device fails', () => {
   })
 })
 
-describe('warming up the picker', () => {
+describe('warming up Nano', () => {
   function steps(hasNano: boolean, availability: string, warmFails = false) {
     const calls: string[] = []
     return {
@@ -231,13 +232,13 @@ describe('warming up the picker', () => {
   })
 })
 
-describe('warming up once per list of answers', () => {
+describe('warming up once per visit', () => {
   function counted(outcome: WarmUpOutcome) {
     const run = { count: 0, fn: async (): Promise<WarmUpOutcome> => (run.count++, outcome) }
     return run
   }
 
-  test('opening the panel again on the same step does not warm up again', async () => {
+  test('opening a skill again does not warm up again', async () => {
     const holder = {}
     const run = counted('warmed')
     expect(await warmUpOnce(holder, run.fn)).toBe('warmed')
@@ -252,7 +253,7 @@ describe('warming up once per list of answers', () => {
     expect([a, b, run.count]).toEqual(['warmed', 'warmed', 1])
   })
 
-  test('another list of answers warms up on its own', async () => {
+  test('each holder warms up on its own', async () => {
     const run = counted('warmed')
     await warmUpOnce({}, run.fn)
     await warmUpOnce({}, run.fn)
@@ -272,5 +273,16 @@ describe('warming up once per list of answers', () => {
 
   test('a warm up that throws counts as failed', async () => {
     expect(await warmUpOnce({}, () => Promise.reject(new Error('no')))).toBe('failed')
+  })
+})
+
+describe('which skills warm up Nano', () => {
+  test('a skill with a saved answer on any step does', () => {
+    expect(hasSavedAnswers({ 'step-1': [], 'step-4': stepFour })).toBe(true)
+  })
+
+  test('a skill without saved answers does not', () => {
+    expect(hasSavedAnswers({ 'step-1': [], 'step-2': [] })).toBe(false)
+    expect(hasSavedAnswers({})).toBe(false)
   })
 })

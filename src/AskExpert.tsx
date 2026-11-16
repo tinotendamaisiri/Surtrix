@@ -11,6 +11,7 @@ import {
   type Question,
   type QuestionStep,
 } from './questions'
+import SavedAnswerPicker, { type StepSavedAnswers } from './SavedAnswerPicker.tsx'
 import './AskExpert.css'
 
 // Made by the judge (plan issue 6) when it is unsure about the step: its words and the
@@ -24,6 +25,9 @@ type Props = {
   // A new offer object opens the panel with the judge's words and frame. Keep the same
   // object between renders (for example in state), or it opens again.
   judgeOffer?: JudgeOffer | null
+  // This step's saved expert answers (#31), for Check saved answers. Left out, the panel
+  // has no Check saved answers.
+  savedAnswers?: StepSavedAnswers
 }
 
 // What the open panel holds. id tells one opened question from the next.
@@ -51,7 +55,7 @@ function formatTime(date: Date | null): string {
   return date ? date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''
 }
 
-export default function AskExpert({ step, captureFrame, judgeOffer = null }: Props) {
+export default function AskExpert({ step, captureFrame, judgeOffer = null, savedAnswers }: Props) {
   const { skillId, stepId } = step
   const stepKey = JSON.stringify([skillId, stepId])
   const [draft, setDraft] = useState<Draft | null>(null)
@@ -199,6 +203,15 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null }: Pro
             <button type="button" className="secondary" onClick={() => setDraft(null)} disabled={sending}>
               Cancel
             </button>
+            {savedAnswers && (
+              <SavedAnswerPicker
+                key={draft.id}
+                stepTitle={step.stepTitle}
+                question={draft.question}
+                saved={savedAnswers}
+                disabled={sending}
+              />
+            )}
           </div>
           {error && <p className="error">{error}</p>}
         </div>

@@ -321,6 +321,10 @@ button.secondary {
   border-top: 1px solid var(--border);
 }
 
+.step-card p.wiring.not-yet .label {
+  color: var(--error);
+}
+
 @media (max-width: 760px) {
   .coach-body {
     grid-template-columns: minmax(0, 1fr);

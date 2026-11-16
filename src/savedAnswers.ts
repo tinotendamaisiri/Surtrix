@@ -3,7 +3,14 @@
 // network drops. A learner's question picks one with Gemini Nano on device first, and
 // gemini-3.5-flash-lite in the cloud when Nano cannot answer.
 import { useEffect, useState } from 'react'
-import { getGenerativeModel, InferenceMode, Schema, ThinkingLevel, type LanguageModelCreateOptions } from 'firebase/ai'
+import {
+  getGenerativeModel,
+  InferenceMode,
+  Schema,
+  ThinkingLevel,
+  type GenerativeModel,
+  type LanguageModelCreateOptions,
+} from 'firebase/ai'
 import { collection, getDocs } from 'firebase/firestore'
 import { ai, db, signInLearner } from './firebase'
 import type { CoachSkill } from './coach'
@@ -91,6 +98,22 @@ function pickModel(mode: typeof InferenceMode.PREFER_ON_DEVICE | typeof Inferenc
   })
 }
 
+// The models for the last list of answers. Each model keeps its own Nano session, so
+// asking again on the same step reuses it instead of opening another one.
+let lastModels: { key: string; hybrid: GenerativeModel; cloud: GenerativeModel } | null = null
+
+function pickModels(values: string[]) {
+  const key = JSON.stringify(values)
+  if (lastModels?.key !== key) {
+    lastModels = {
+      key,
+      hybrid: pickModel(InferenceMode.PREFER_ON_DEVICE, values),
+      cloud: pickModel(InferenceMode.ONLY_IN_CLOUD, values),
+    }
+  }
+  return lastModels
+}
+
 // Picks the saved answer that fits the learner's question. Hybrid answers on device when
 // Nano is ready (also offline) and in the cloud when it is not. The SDK does not move a
 // failed device call to the cloud, so where Chrome has Nano a failed call is tried once in
@@ -101,9 +124,10 @@ export async function pickSavedAnswer(stepTitle: string, question: string, answe
   const values = pickValues(answers)
   const prompt = pickPrompt(stepTitle, question, answers)
   const started = performance.now()
+  const models = pickModels(values)
   const result = await hybridThenCloud(
-    () => pickModel(InferenceMode.PREFER_ON_DEVICE, values).generateContent(prompt),
-    () => pickModel(InferenceMode.ONLY_IN_CLOUD, values).generateContent(prompt),
+    () => models.hybrid.generateContent(prompt),
+    () => models.cloud.generateContent(prompt),
     'LanguageModel' in globalThis,
   )
   const ms = Math.round(performance.now() - started)

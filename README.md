@@ -20,8 +20,9 @@ The app today has these screens:
   a failed check, Mark done anyway moves on. With the camera off, Mark step done
   moves on unchecked. While the camera is on, Gemini Nano in Chrome on a computer
   watches the bench on device: it says which of the step's parts it sees and whether
-  an LED is lit. After each answer it waits 3 seconds; on staging an answer took
-  about 4 seconds, so it answered about every 7 seconds. It never calls the cloud and never moves
+  an LED is lit. An answer takes about 2 to 4 seconds and the next look starts 3
+  seconds later, so it answers about every 5 to 7 seconds. The first answer takes
+  longer while Chrome loads the model. It never calls the cloud and never moves
   the step. Elsewhere the coach says watching needs Chrome on a computer. Ask an
   Expert sends the current camera frame and your question about the step to a human
   expert, and lists your questions for the step with the expert's reply as soon as

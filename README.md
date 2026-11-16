@@ -120,13 +120,14 @@ Staging and the live site share one database, so staging checks leave test skill
 questions, saved answers and anonymous learners behind. `scripts/cleanupTestData.ts`
 lists them and, only with `--delete`, deletes them. It keeps the demo skill with its
 seeded answers, every experts entry and every Google account, and never touches
-anything created after the `--before` time:
+anything created after its cutoff time:
 
 ```
-GOOGLE_ACCESS_TOKEN="$(gcloud auth print-access-token --account <owner account>)" node scripts/cleanupTestData.ts real --before 2026-11-20T18:00:00Z
+GOOGLE_ACCESS_TOKEN="$(gcloud auth print-access-token --account <owner account>)" node scripts/cleanupTestData.ts real
 ```
 
-Check the list, then run the same command with `--delete` added.
+The dry run uses now as the cutoff and prints the command that deletes exactly its list,
+with that cutoff as `--before`. Check the list before running it.
 
 ### Checks
 

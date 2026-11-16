@@ -7,7 +7,7 @@ import {
   deleteDocuments,
   findDocuments,
   groupDocuments,
-  parseBefore,
+  cutoffFrom,
   planCleanup,
   type FoundAccount,
   type FoundDocument,
@@ -53,7 +53,7 @@ function account(userId: string, anonymous: boolean, createdAt = EARLY): FoundAc
 describe('the cleanup plan', () => {
   const plan = planCleanup(
     [...kept, ...testData, 'logs/l1'].map((path) => found(path)),
-    [account('learner-1', true), account('tino', false), account('learner-late', true, LATE)],
+    [account('learner-1', true), account('tino', false), account('learner-late', true, LATE), account('no-time', true, '')],
     CUTOFF,
   )
 
@@ -69,9 +69,9 @@ describe('the cleanup plan', () => {
     expect(plan.leftAlone.map((d) => d.path)).toEqual(['logs/l1'])
   })
 
-  test('deletes only anonymous accounts created before the cutoff, never a Google account', () => {
+  test('deletes only anonymous accounts created before the cutoff, never a Google account or one without a time', () => {
     expect(plan.deleteAccounts.map((a) => a.userId)).toEqual(['learner-1'])
-    expect(plan.keepAccounts.map((a) => a.userId)).toEqual(['tino', 'learner-late'])
+    expect(plan.keepAccounts.map((a) => a.userId)).toEqual(['tino', 'learner-late', 'no-time'])
   })
 
   test('keeps test data created at or after the cutoff', () => {
@@ -86,11 +86,27 @@ describe('the cleanup plan', () => {
 })
 
 describe('the cutoff time', () => {
+  const now = new Date('2026-11-20T18:00:00Z')
+
+  test('is now for a dry run without --before', () => {
+    expect(cutoffFrom({ delete: false }, now)).toEqual(now)
+  })
+
+  test('must be given to delete', () => {
+    expect(() => cutoffFrom({ delete: true }, now)).toThrow('--delete needs --before')
+  })
+
   test('needs a time zone, so it never means local time', () => {
-    expect(parseBefore('2026-11-20T18:00:00Z').toISOString()).toBe('2026-11-20T18:00:00.000Z')
-    expect(parseBefore('2026-11-20T13:00:00-05:00').toISOString()).toBe('2026-11-20T18:00:00.000Z')
-    expect(() => parseBefore('2026-11-20T18:00:00')).toThrow()
-    expect(() => parseBefore('soon')).toThrow()
+    expect(cutoffFrom({ before: '2026-11-20T17:00:00Z', delete: true }, now).toISOString()).toBe('2026-11-20T17:00:00.000Z')
+    expect(cutoffFrom({ before: '2026-11-20T12:00:00-05:00', delete: true }, now).toISOString()).toBe('2026-11-20T17:00:00.000Z')
+    expect(() => cutoffFrom({ before: '2026-11-20T17:00:00', delete: true }, now)).toThrow('time with its zone')
+    expect(() => cutoffFrom({ before: 'soon', delete: true }, now)).toThrow('time with its zone')
+  })
+
+  test('cannot be later than now, which would take in things made after the dry run', () => {
+    expect(() => cutoffFrom({ before: '2026-11-20T18:00:01Z', delete: true }, now)).toThrow('later than now')
+    expect(() => cutoffFrom({ before: '2026-11-20T18:00:01Z', delete: false }, now)).toThrow('later than now')
+    expect(cutoffFrom({ before: '2026-11-20T18:00:00Z', delete: true }, now)).toEqual(now)
   })
 })
 

@@ -3,9 +3,11 @@
 // answers and anonymous learners where live learners would see them. It works with the
 // owner's credentials, so the rules do not apply to it.
 //   node scripts/cleanupTestData.ts emulator|real [--before <UTC time>] [--delete]
-// Without --delete it only lists what it would delete. --delete needs --before, so it
-// deletes exactly what a dry run with the same --before listed: anything created later is
-// never touched (real learners, once the site is live).
+// Without --delete it only lists what it would delete, with a cutoff of now unless --before
+// says otherwise. --delete needs --before, the cutoff the dry run printed, so it deletes
+// exactly what that dry run listed: anything created later is never touched (real learners,
+// once the site is live). A cutoff later than now is refused, since things created after the
+// dry run would then fall before it.
 // Test data, when created before the cutoff: every skill other than the demo skill with
 // everything under it, every question, every saved answer except the demo skill's seeded
 // ones, anything under the demo skill that src/demoSkill.ts does not define, and every
@@ -167,7 +169,8 @@ export async function findAccounts(target: AuthTarget): Promise<FoundAccount[]> 
       found.push({
         userId: user.localId,
         anonymous: (user.providerUserInfo ?? []).length === 0,
-        createdAt: new Date(Number(user.createdAt ?? 0)).toISOString(),
+        // An account without a creation time is never before the cutoff, so it is kept.
+        createdAt: user.createdAt ? new Date(Number(user.createdAt)).toISOString() : '',
       })
     }
     pageToken = page.nextPageToken
@@ -215,7 +218,8 @@ export function groupDocuments(documents: FoundDocument[]): string[] {
 }
 
 export function describePlan(plan: CleanupPlan): string[] {
-  const accountLine = (a: FoundAccount) => `  ${a.userId} ${a.anonymous ? 'anonymous' : 'signed in with a provider'}, created ${a.createdAt.slice(0, 19)}Z`
+  const accountLine = (a: FoundAccount) =>
+    `  ${a.userId} ${a.anonymous ? 'anonymous' : 'signed in with a provider'}, ${a.createdAt ? `created ${a.createdAt.slice(0, 19)}Z` : 'no creation time'}`
   return [
     `Delete ${plan.deleteDocuments.length} documents:`,
     ...groupDocuments(plan.deleteDocuments),
@@ -252,12 +256,18 @@ function targetsFrom(where: string | undefined): { firestore: Target; auth: Auth
   throw new Error('Usage: node scripts/cleanupTestData.ts emulator|real [--before <UTC time>] [--delete]')
 }
 
-// A time with its zone, for example 2026-11-20T18:00:00Z, so it never means local time.
-export function parseBefore(value: string): Date {
-  const time = new Date(value)
-  if (!/(Z|[+-]\d\d:\d\d)$/.test(value) || Number.isNaN(time.getTime())) {
-    throw new Error(`--before needs a time with its zone, for example 2026-11-20T18:00:00Z, not "${value}".`)
+// The cutoff: now for a dry run without --before. --before is a time with its zone, for
+// example 2026-11-16T02:18:03.069Z, so it never means local time, and not later than now.
+export function cutoffFrom(options: { before?: string; delete: boolean }, now = new Date()): Date {
+  if (options.before === undefined) {
+    if (options.delete) throw new Error('--delete needs --before, the cutoff of the dry run you checked.')
+    return now
   }
+  const time = new Date(options.before)
+  if (!/(Z|[+-]\d\d:\d\d)$/.test(options.before) || Number.isNaN(time.getTime())) {
+    throw new Error(`--before needs a time with its zone, for example 2026-11-16T02:18:03.069Z, not "${options.before}".`)
+  }
+  if (time.getTime() > now.getTime()) throw new Error(`--before ${options.before} is later than now.`)
   return time
 }
 
@@ -269,8 +279,7 @@ if (import.meta.main) {
     })
     const where = positionals[0]
     const targets = targetsFrom(where)
-    if (values.delete && !values.before) throw new Error('--delete needs --before, the same time as the dry run you checked.')
-    const before = values.before ? parseBefore(values.before) : new Date()
+    const before = cutoffFrom(values)
     const plan = planCleanup(await findDocuments(targets.firestore), await findAccounts(targets.auth), before)
     console.log(`${where}, project ${targets.firestore.projectId}, cutoff ${before.toISOString()}`)
     console.log(describePlan(plan).join('\n'))

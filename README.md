@@ -19,8 +19,10 @@ The app today has these screens:
   move; if it cannot tell, Ask an Expert opens with its words. After any of those, or
   a failed check, Mark done anyway moves on. With the camera off, Mark step done
   moves on unchecked. While the camera is on, Gemini Nano in Chrome on a computer
-  watches the bench on device, about every 5 seconds: it says which of the step's
-  parts it sees and whether an LED is lit. It never calls the cloud and never moves
+  watches the bench on device: it says which of the step's parts it sees and whether
+  an LED is lit. An answer takes about 2 to 4 seconds and the next look starts 3
+  seconds later, so it answers about every 5 to 7 seconds. The first answer takes
+  longer while Chrome loads the model. It never calls the cloud and never moves
   the step. Elsewhere the coach says watching needs Chrome on a computer. Ask an
   Expert sends the current camera frame and your question about the step to a human
   expert, and lists your questions for the step with the expert's reply as soon as
@@ -135,9 +137,9 @@ Gemini Developer API, protected by Firebase App Check with reCAPTCHA Enterprise.
 * Every answer shows which path produced it, read from the response's
   `inferenceSource`, and the response time in milliseconds.
 
-In the full app the device watches and the cloud judges: Gemini Nano checks camera
-frames every few seconds (which parts are visible, is the LED lit, did the board
-change), and the cloud model checks the wiring when a step is marked done.
+In the coach the device watches and the cloud judges: Gemini Nano checks camera
+frames on device (which of the step's parts are visible, is the LED lit), and the
+cloud model checks the wiring when a step is marked done.
 
 ## The Firebase web key
 

@@ -16,7 +16,9 @@ import { collection, getDocs } from 'firebase/firestore'
 import { ai, db, signInLearner } from './firebase'
 import type { CoachSkill } from './coach'
 import {
+  hasSavedAnswers,
   hybridThenCloud,
+  NONE_FITS,
   parsePick,
   PICK_INSTRUCTION,
   pickPrompt,
@@ -58,7 +60,12 @@ export function useSavedAnswers(skill: CoachSkill): SavedAnswersState {
   useEffect(() => {
     let onScreen = true
     loadSavedAnswers(skill).then(
-      (byStep) => onScreen && setState({ skillId: skill.id, value: { kind: 'loaded', byStep } }),
+      (byStep) => {
+        if (!onScreen) return
+        setState({ skillId: skill.id, value: { kind: 'loaded', byStep } })
+        // Get Nano ready while the learner works, so the first pick is quick (#43).
+        if (hasSavedAnswers(byStep)) void warmUpNano()
+      },
       (e) => {
         console.error('Loading saved answers failed', e)
         if (onScreen) setState({ skillId: skill.id, value: { kind: 'failed' } })
@@ -103,16 +110,8 @@ function pickModel(mode: InferenceMode, values: string[]) {
 }
 
 // The models for the last list of answers. Each model keeps its own Nano session, so
-// asking again on the same step reuses it instead of opening another one. device is used
-// only to warm up, and its session keeps Nano loaded.
-type PickModels = {
-  key: string
-  hybrid: GenerativeModel
-  cloud: GenerativeModel
-  device: GenerativeModel
-  warmUp?: Promise<WarmUpOutcome>
-}
-let lastModels: PickModels | null = null
+// asking again on the same step reuses it instead of opening another one.
+let lastModels: { key: string; hybrid: GenerativeModel; cloud: GenerativeModel } | null = null
 
 function pickModels(values: string[]) {
   const key = JSON.stringify(values)
@@ -121,7 +120,6 @@ function pickModels(values: string[]) {
       key,
       hybrid: pickModel(InferenceMode.PREFER_ON_DEVICE, values),
       cloud: pickModel(InferenceMode.ONLY_IN_CLOUD, values),
-      device: pickModel(InferenceMode.ONLY_ON_DEVICE, values),
     }
   }
   return lastModels
@@ -147,24 +145,31 @@ export async function pickSavedAnswer(stepTitle: string, question: string, answe
   return { answer: parsePick(result.response.text(), answers), source: result.response.inferenceSource ?? 'unknown', ms }
 }
 
-// What a warm up asks. Any pick will do: the answer is thrown away.
-const WARM_UP_QUESTION = 'Which saved answer fits?'
+// Warming up (#43): a tiny device only call loads Nano into memory, and this model keeps its
+// session for the rest of the visit, so Nano stays loaded and each pick only opens its own
+// session. It may only answer "none", and that answer is thrown away.
+const WARM_UP_PROMPT = 'Answer none.'
+let warmUpModel: GenerativeModel | null = null
+const nanoWarmUp: { warmUp?: Promise<WarmUpOutcome> } = {}
 
 type LanguageModelAvailability = { availability(options: LanguageModelCreateOptions): Promise<string> }
 
-// Warms up Nano for this step's answers when the Ask an Expert panel opens (#43), once per
-// list of answers, so the first pick does not wait for the model to load. Only where Chrome
-// already has Nano ready: never a download, never the cloud. Nothing on screen changes.
-export function warmUpPicker(stepTitle: string, answers: SavedAnswer[]): Promise<WarmUpOutcome> {
-  const models = pickModels(pickValues(answers))
+// Warms up Nano once per visit when the coach opens a skill with saved answers. Only where
+// Chrome already has Nano ready for the picker: never a download, never the cloud. Nothing
+// on screen changes.
+export function warmUpNano(): Promise<WarmUpOutcome> {
   const languageModel = (globalThis as { LanguageModel?: LanguageModelAvailability }).LanguageModel
-  return warmUpOnce(models, () =>
+  return warmUpOnce(nanoWarmUp, () =>
     warmUp({
       // Without Chrome's API the SDK would send even a device only call to the cloud.
       hasNano: languageModel !== undefined,
       availability: () => languageModel!.availability(createOptions),
       warm: async () => {
-        const result = await models.device.generateContent(pickPrompt(stepTitle, WARM_UP_QUESTION, answers))
+        warmUpModel ??= getGenerativeModel(ai, {
+          mode: InferenceMode.ONLY_ON_DEVICE,
+          onDeviceParams: { createOptions, promptOptions: { responseConstraint: { type: 'string', enum: [NONE_FITS] } } },
+        })
+        const result = await warmUpModel.generateContent(WARM_UP_PROMPT)
         if (result.response.inferenceSource !== InferenceSource.ON_DEVICE) {
           throw new Error('The warm up did not run on device.')
         }

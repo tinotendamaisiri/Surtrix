@@ -123,9 +123,10 @@ export async function hybridThenCloud<R>(hybrid: () => Promise<R>, cloud: () => 
   }
 }
 
-// Warming up the picker (#43). The first device pick after a page load waits while Chrome
-// loads Nano. When the Ask an Expert panel opens, a tiny device only call loads it, and only
-// where Nano is already available: it never starts a download and never calls the cloud.
+// Warming up Nano (#43). The first device pick after a page load waits while Chrome loads
+// Nano. When the coach opens a skill with saved answers, a tiny device only call loads it,
+// and only where Nano is already available: it never starts a download and never calls the
+// cloud.
 export type WarmUpOutcome = 'no-nano' | 'not-available' | 'warmed' | 'failed'
 
 export type WarmUpSteps = {
@@ -149,8 +150,8 @@ export async function warmUp({ hasNano, availability, warm }: WarmUpSteps): Prom
   }
 }
 
-// Runs a warm up at most once for the same holder (one list of answers). One that did not
-// warm can run again the next time the panel opens.
+// Runs a warm up at most once for the same holder. One that did not warm can run again the
+// next time the coach opens a skill.
 export function warmUpOnce(
   holder: { warmUp?: Promise<WarmUpOutcome> },
   run: () => Promise<WarmUpOutcome>,
@@ -162,4 +163,9 @@ export function warmUpOnce(
       return outcome
     })
   return holder.warmUp
+}
+
+// Whether any step of the skill has a saved answer, so a pick may be needed on this visit.
+export function hasSavedAnswers(byStep: Record<string, SavedAnswer[]>): boolean {
+  return Object.values(byStep).some((answers) => answers.length > 0)
 }

@@ -1,0 +1,61 @@
+/* The expert dashboard (#20). Uses the colours from index.css. */
+
+.expert-dashboard h2 {
+  margin: 0 0 4px;
+  font-size: 20px;
+}
+
+.expert-account {
+  display: grid;
+  gap: 12px;
+}
+
+.expert-account p {
+  margin: 0;
+}
+
+.open-questions {
+  display: grid;
+  gap: 16px;
+}
+
+.question-card {
+  display: grid;
+  grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.question-card img {
+  width: 100%;
+  border-radius: 8px;
+}
+
+.question-details {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.question-details p {
+  margin: 0;
+}
+
+.reply-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.question-text {
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .question-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

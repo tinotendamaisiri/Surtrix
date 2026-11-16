@@ -1,0 +1,332 @@
+:root {
+  --text: #1d1b20;
+  --muted: #5f5b66;
+  --bg: #ffffff;
+  --surface: #f4f3f6;
+  --border: #dcdae0;
+  --accent: #1a73e8;
+  --accent-text: #ffffff;
+  --error: #b3261e;
+
+  font: 16px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: light dark;
+  color: var(--text);
+  background: var(--bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #ece9f0;
+    --muted: #a8a3b0;
+    --bg: #141218;
+    --surface: #211f26;
+    --border: #3a3740;
+    --accent: #8ab4f8;
+    --accent-text: #0b1d3a;
+    --error: #f2b8b5;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+}
+
+main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+  display: grid;
+  gap: 20px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 28px;
+}
+
+header p {
+  margin: 0;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.camera {
+  aspect-ratio: 4 / 3;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.camera button {
+  justify-self: center;
+}
+
+.camera video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.controls {
+  display: grid;
+  gap: 12px;
+}
+
+label:has(input:disabled) {
+  color: var(--muted);
+}
+
+fieldset {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 0;
+}
+
+.question {
+  display: grid;
+  gap: 4px;
+}
+
+textarea {
+  font: inherit;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  resize: vertical;
+}
+
+button {
+  font: inherit;
+  font-weight: 600;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-text);
+  cursor: pointer;
+  justify-self: start;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.error {
+  color: var(--error);
+  margin: 0;
+}
+
+.result {
+  display: grid;
+  grid-template-columns: minmax(0, 200px) minmax(0, 1fr);
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.result img {
+  width: 100%;
+  border-radius: 8px;
+}
+
+.result p {
+  margin: 0 0 8px;
+}
+
+details {
+  margin-top: 12px;
+  font-size: 0.875rem;
+}
+
+summary {
+  cursor: pointer;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0;
+}
+
+dt {
+  color: var(--muted);
+}
+
+dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+a {
+  color: var(--accent);
+}
+
+input[type='file'] {
+  font: inherit;
+}
+
+.skill {
+  display: grid;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.skill ol {
+  margin: 0;
+  padding-left: 24px;
+  display: grid;
+  gap: 12px;
+}
+
+.skill li p {
+  margin: 0 0 4px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.step-title {
+  font-weight: 600;
+}
+
+@media (max-width: 520px) {
+  .result {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.home-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.skills {
+  display: grid;
+  gap: 12px;
+}
+
+.skills ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.skills li a {
+  display: grid;
+  gap: 2px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-decoration: none;
+}
+
+.skill-title {
+  font-weight: 600;
+}
+
+main.coach {
+  max-width: 1040px;
+}
+
+.coach-title {
+  display: grid;
+  gap: 4px;
+}
+
+.coach-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.step-card {
+  display: grid;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.step-card p {
+  margin: 0;
+}
+
+.step-heading {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.done-mark {
+  margin-left: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.label {
+  font-weight: 600;
+}
+
+.step-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.step-card p.bench {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.step-card p.wiring.not-yet .label {
+  color: var(--error);
+}
+
+@media (max-width: 760px) {
+  .coach-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

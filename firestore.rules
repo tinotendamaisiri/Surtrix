@@ -1,0 +1,147 @@
+rules_version = '2';
+
+// Everything is closed except what an issue opens, with tests in
+// tests/firestore.rules.test.ts. Track A owns skills and steps.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Trimmed, non empty text of at most max characters.
+    function isText(value, max) {
+      return value is string && value.size() > 0 && value.size() <= max && value.trim() == value;
+    }
+
+    // Every signed in learner can read every skill. A learner creates a skill only as
+    // its creator. Nobody updates or deletes skills yet. The demo skill's id is kept for
+    // the seeded demo skill (scripts/seedDemoSkill.ts), which learners never create.
+    match /skills/{skillId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && skillId != 'sample-led'
+        && request.resource.data.keys().hasOnly(['title', 'creatorId', 'stepCount', 'createdAt'])
+        && request.resource.data.keys().hasAll(['title', 'creatorId', 'stepCount', 'createdAt'])
+        && isText(request.resource.data.title, 200)
+        && request.resource.data.creatorId == request.auth.uid
+        && request.resource.data.stepCount is int
+        && request.resource.data.stepCount >= 1
+        && request.resource.data.stepCount <= 40
+        && request.resource.data.createdAt == request.time;
+
+      // Only the skill's creator creates its steps (the app writes them in one batch with
+      // the skill).
+      // Their ids are step-1, step-2 and so on, matching their number.
+      match /steps/{stepId} {
+        allow read: if signedIn();
+        allow create: if signedIn()
+          && skillAfter().creatorId == request.auth.uid
+          && request.resource.data.keys().hasOnly(['number', 'title', 'instruction', 'parts', 'doneWhen'])
+          && request.resource.data.keys().hasAll(['number', 'title', 'instruction', 'parts', 'doneWhen'])
+          && request.resource.data.number is int
+          && request.resource.data.number >= 1
+          && request.resource.data.number <= skillAfter().stepCount
+          && stepId == 'step-' + string(request.resource.data.number)
+          && isText(request.resource.data.title, 200)
+          && isText(request.resource.data.instruction, 2000)
+          && isText(request.resource.data.doneWhen, 1000)
+          // Rules cannot check each part; the app checks their length (src/skill.ts).
+          && request.resource.data.parts is list
+          && request.resource.data.parts.size() <= 30;
+
+        function skillAfter() {
+          return getAfter(/databases/$(database)/documents/skills/$(skillId)).data;
+        }
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Ask an Expert (#17). The shape is in the Contracts section of the build plan.
+    // A learner asks only as themselves and reads only their own questions. An expert
+    // (#20) reads every question and answers an open one once. Nobody deletes a question.
+    match /questions/{questionId} {
+      allow read: if signedIn() && (resource.data.learnerId == request.auth.uid || isExpert());
+      allow create: if signedIn() && isNewQuestion(request.resource.data);
+      allow update: if isExpert() && resource.data.status == 'open' && isReply(questionId);
+    }
+
+    // Experts (#20): a Google account Tino lists here by hand, as experts/{userId} with
+    // the name learners see. A user can only check their own entry.
+    match /experts/{userId} {
+      allow read: if signedIn() && request.auth.uid == userId;
+    }
+
+    // Saved expert answers (#20), reused by plan issue 10. The answer's id is its
+    // question's id, and it is written in one batch with the reply on the question.
+    match /skills/{skillId}/steps/{stepId}/answers/{answerId} {
+      allow read: if signedIn();
+      allow create: if isExpert() && isSavedAnswer(skillId, stepId, answerId, request.resource.data);
+    }
+
+    function isExpert() {
+      return signedIn()
+        && request.auth.token.firebase.sign_in_provider == 'google.com'
+        && exists(/databases/$(database)/documents/experts/$(request.auth.uid));
+    }
+
+    function expertName() {
+      return get(/databases/$(database)/documents/experts/$(request.auth.uid)).data.name;
+    }
+
+    // Only the status and the reply change, and the saved answer exists after the batch.
+    function isReply(questionId) {
+      let after = request.resource.data;
+      let reply = after.reply;
+      let fields = ['text', 'expertId', 'expertName', 'answeredAt'];
+      return after.diff(resource.data).affectedKeys().hasOnly(['status', 'reply'])
+        && after.status == 'answered'
+        && reply is map && reply.keys().hasOnly(fields) && reply.keys().hasAll(fields)
+        && isText(reply.text, 2000)
+        && reply.expertId == request.auth.uid
+        && reply.expertName == expertName()
+        && reply.answeredAt == request.time
+        && existsAfter(/databases/$(database)/documents/skills/$(resource.data.skillId)/steps/$(resource.data.stepId)/answers/$(questionId));
+    }
+
+    // The answer sits under its question's skill and step, and repeats its question and reply.
+    function isSavedAnswer(skillId, stepId, answerId, a) {
+      let question = getAfter(/databases/$(database)/documents/questions/$(answerId)).data;
+      let fields = ['questionId', 'question', 'answer', 'expertId', 'expertName', 'createdAt'];
+      return a.keys().hasOnly(fields) && a.keys().hasAll(fields)
+        && a.questionId == answerId
+        && question.skillId == skillId
+        && question.stepId == stepId
+        && question.status == 'answered'
+        && question.reply.expertId == request.auth.uid
+        && a.question == question.question
+        && a.answer == question.reply.text
+        && a.expertId == request.auth.uid
+        && a.expertName == expertName()
+        && a.createdAt == request.time;
+    }
+
+    // Uses isText from the skills rules above: trimmed, non empty, at most max characters.
+    function isNewQuestion(q) {
+      let fields = ['learnerId', 'skillId', 'skillTitle', 'stepId', 'stepNumber', 'stepTitle',
+        'stepInstruction', 'question', 'frame', 'origin', 'judgeSaid', 'status', 'createdAt'];
+      return q.keys().hasOnly(fields) && q.keys().hasAll(fields)
+        && q.learnerId == request.auth.uid
+        && isText(q.skillId, 128)
+        && isText(q.skillTitle, 200)
+        && isText(q.stepId, 128)
+        && q.stepNumber is int && q.stepNumber >= 1 && q.stepNumber <= 40
+        && isText(q.stepTitle, 200)
+        && isText(q.stepInstruction, 5000)
+        && isText(q.question, 500)
+        // A JPEG under 900 KB keeps the document under Firestore's 1 MiB limit.
+        && q.frame is bytes && q.frame.size() > 0 && q.frame.size() < 900 * 1024
+        && ((q.origin == 'learner' && q.judgeSaid == null)
+          || (q.origin == 'judge' && isText(q.judgeSaid, 2000)))
+        && q.status == 'open'
+        && q.createdAt == request.time;
+    }
+  }
+}

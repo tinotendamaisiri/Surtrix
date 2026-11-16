@@ -47,27 +47,42 @@ internals.
 * Firebase: AI Logic (Gemini Developer API backend), App Check, Firestore, Auth
   (Anonymous for learners, Google for experts), Hosting (live site plus a separate
   staging site).
-* On-device Nano: every 2 to 3 seconds, check a camera frame: which parts are
-  visible, is the LED lit, did the board change.
-* Cloud Gemini (fast Flash model, low thinking): when a step is marked done, judge
-  the wiring against the step and say exactly what to move. Also converts an
-  uploaded procedure into a JSON step list (structured output).
+* On-device Nano: about every 5 to 7 seconds (an answer takes about 2 to 4 s, then
+  a 3 s pause), check a camera frame: which of the step's parts are visible, is the
+  LED lit.
+* Cloud Gemini, low thinking, with one model per job:
+  * `gemini-4-hydrogen` is used ONLY for the wiring judgment: when a step is
+    marked done, judge the wiring against the step and say exactly what to move.
+  * Every other cloud task uses `gemini-3.5-flash-lite`: converting an uploaded
+    procedure into a JSON step list (structured output), simple questions, and
+    anything else that is not the wiring judgment.
+  * Why (measured Nov 15, #5): on the Nov 12 wiring photo, hydrogen caught the
+    mistake with the right fix 4 of 4 times in 3.3 to 5.5 s; flash-lite took 1.2
+    to 2.0 s but was fully right only 3 of 5. On the free tier hydrogen was
+    limited to 20 requests per day, counted per model; on Blaze (since Nov 15)
+    its limits are not published, so hydrogen is still kept for the one job that
+    needs it.
 * Expert escalation: when the cloud model is unsure or the user taps Ask an Expert,
   write a question to Firestore with the frame, step and question. Expert dashboard
   (Google sign in) lists open questions; the expert replies; the answer is saved to
   the skill.
 * Offline: on-device Nano gets saved expert answers for the current step and picks
   the one that applies.
-* Firestore (draft): `skills`, `skills/{id}/steps`, `questions`, `answers`,
-  `experts`.
+* Firestore: `skills`, `skills/{id}/steps`, `questions`,
+  `skills/{id}/steps/{stepId}/answers` (saved expert answers) and `experts`. The
+  shapes are in the Contracts section of the build plan.
 
-## Proven facts (tested Nov 12)
+## Proven facts (tested Nov 12 and 15)
 
 * Cloud Gemini caught a real breadboard wiring mistake in about 7 s with low
   thinking.
 * Gemini Nano in Chrome on Tino's Mac: image input available, about 3.3 s per
   answer, 8.5 s model load. Correct on parts and LED state, missed the wiring
   mistake. So: device watches, cloud judges.
+* Nov 15, staging: Gemini Nano described an LED that was not in the frame when the
+  question assumed one; the cloud model rejected the same false premise. Every
+  question sent to the device model must be neutral and must not assume what is
+  in the frame.
 
 ## How work starts
 
@@ -130,7 +145,10 @@ internals.
 * One branch per issue, named after it (for example `1-scaffold-app`), cut from the
   latest `origin/staging`, with a pull request into `staging`.
 * Commit author: Tinotenda Maisiri, with the GitHub noreply address set in this
-  repo's git config. No Co-Authored-By AI trailers. Commit or push only as part of an agreed issue.
+  repo's git config. Commit or push only as part of an agreed issue.
+* Never push anything to GitHub with Claude as author or co-author: no
+  Co-Authored-By trailers, no "Generated with Claude Code" lines, and no Claude
+  credit in commits, pull requests, issues or comments. Check before every push.
 * Never write "Closes #N" or "Fixes #N". Never put close, closes, closed, fix,
   fixes, fixed, resolve, resolves or resolved directly before #N anywhere in a PR
   or commit. Write "Part of #N" and nothing more about closing. An issue is closed
@@ -189,6 +207,48 @@ reported, and left for Tino to merge.
 * Verify on the deployed staging site by reading actual Firestore documents and
   real model responses, not just local output or tests. Read the record, not the
   rendered screen.
+
+## Firebase web key
+
+* The Firebase web key in `src/firebase-config.ts` is public by design. It is
+  limited to the Surtrix sites (surtrix.com, the live and staging `web.app` and
+  `firebaseapp.com` addresses, and `http://localhost:5173` to `5175`, one port per
+  worktree) and to the APIs the app calls, and the APIs behind it are protected by
+  App Check. Never rotate or delete it without Tino.
+* Any issue that adds a Firebase product adds that product's APIs to the key's API
+  restrictions in the same issue, and verifies them locally. For example Firestore:
+  `firestore.googleapis.com`; Auth: `identitytoolkit.googleapis.com` and
+  `securetoken.googleapis.com`. Check the Firebase API keys docs table for the full
+  list at the time. Otherwise the new product fails with a blocked key error.
+* Never add the Generative Language API (Gemini Developer API) to this key.
+* A new site or domain that serves the app goes on both this key's referrers and
+  the reCAPTCHA key's domains.
+* Change the key with gcloud as the account that owns `surtrix-50d22`, never the
+  Cosynced account, with `--account` and `--project surtrix-50d22` on every command.
+
+## Billing and quotas
+
+* `surtrix-50d22` is on the Blaze plan (since Nov 15). Budget: $5 per month, with
+  alerts at 50, 90 and 100 percent.
+* Spend caps of $5 each on the Gemini Developer API (AI Logic), Agent Platform
+  API, Cloud Run (App Hosting) and Cloud Run Functions. When a cap is reached, that
+  service pauses for the rest of the month. A 403 from AI Logic, or AI Logic
+  paused, may mean the cap was hit: check billing before debugging code.
+* The Gemini API is on Prepay: Tino bought $5 of credit on Nov 15, with auto
+  reload off. The balance is in AI Studio; the API responses carry none (checked
+  in the raw responses on Nov 15).
+  Errors seen or documented so far:
+  * 429 "Your prepayment credits are depleted": the credit ran out. Calls fail
+    until Tino tops up in AI Studio. Tell Tino (in unattended runs, log it under
+    Needs Tino). A 403 or a paused AI Logic points to the spend cap instead.
+  * 429 naming `generate_content_free_tier_requests`: a free tier limit (seen Nov
+    15, before Blaze, as 20 hydrogen requests per day; it no longer applies).
+  * 429 `RESOURCE_EXHAUSTED` from the Tier 1 spend limit, $10 per rolling 10
+    minutes (documented, not seen yet).
+  These are usually billing or quota stops, but a bug that sends too many cloud
+  calls causes the same errors, so check the call count too.
+* Buying credits and changing billing, budgets or caps are Tino's to do. Report
+  the exact error and log it under Needs Tino.
 
 ## No dead weight
 

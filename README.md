@@ -17,7 +17,9 @@ The app today has these screens:
   step done first has `gemini-4-hydrogen` in the cloud check the wiring against the
   step: if it is right the coach moves on; if not, it says what is wrong and what to
   move; if it cannot tell, Ask an Expert opens with its words. After any of those, or
-  a failed check, Mark done anyway moves on. With the camera off, Mark step done
+  a failed check, Mark done anyway moves on. A check that takes over 8 seconds lets
+  you carry on while it runs; at 30 seconds it gives up, and a failed check points to
+  the step's saved answers and Ask an Expert. With the camera off, Mark step done
   moves on unchecked. While the camera is on, Gemini Nano in Chrome on a computer
   watches the bench on device: it says which of the step's parts it sees and whether
   an LED is lit. An answer takes about 2 to 4 seconds and the next look starts 3

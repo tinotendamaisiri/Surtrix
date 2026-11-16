@@ -6,6 +6,11 @@ import type { Step } from './skill.ts'
 // one that caught the wiring mistake 4 of 4 times in #5.
 export const WIRING_MODEL = 'gemini-4-hydrogen'
 
+// From the Mark step done click: after the deadline the coach stops holding the learner
+// (wiring checks take 3.3 to 5.5 s, #5 and #35); after the give up it cancels the call (#9).
+export const WIRING_DEADLINE_MS = 8_000
+export const WIRING_GIVE_UP_MS = 30_000
+
 export const WIRING_VERDICTS = ['correct', 'not yet', 'unsure'] as const
 export type WiringVerdict = (typeof WIRING_VERDICTS)[number]
 

@@ -3,6 +3,8 @@ import type { Step } from '../src/skill.ts'
 import {
   describeWiringCheck,
   parseWiringCheck,
+  WIRING_DEADLINE_MS,
+  WIRING_GIVE_UP_MS,
   WIRING_MODEL,
   WIRING_SYSTEM_PROMPT,
   WIRING_TEXT_MAX_LENGTH,
@@ -20,6 +22,18 @@ const step: Step = {
 describe('WIRING_MODEL', () => {
   it('is gemini-4-hydrogen, kept for the wiring check alone', () => {
     expect(WIRING_MODEL).toBe('gemini-4-hydrogen')
+  })
+})
+
+describe('the wiring check times (#9)', () => {
+  it('holds the learner 8 s and gives up at 30 s', () => {
+    expect(WIRING_DEADLINE_MS).toBe(8_000)
+    expect(WIRING_GIVE_UP_MS).toBe(30_000)
+  })
+
+  it('lets normal checks (up to 5.5 s, #5 and #35) finish before the deadline', () => {
+    expect(WIRING_DEADLINE_MS).toBeGreaterThan(5_500)
+    expect(WIRING_GIVE_UP_MS).toBeGreaterThan(WIRING_DEADLINE_MS)
   })
 })
 

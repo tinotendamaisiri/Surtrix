@@ -36,14 +36,15 @@ const wiringModel = getGenerativeModel(ai, {
 
 export type WiringResult = { check: WiringCheck; source: string; at: Date; ms: number }
 
-// One cloud call per Mark step done click. Throws when the call fails or the answer does
-// not pass the checks in src/wiring.ts.
-export async function checkWiring(step: Step, jpegBase64: string): Promise<WiringResult> {
+// One cloud call per Mark step done click. Throws when the call fails, is cancelled through
+// signal, or the answer does not pass the checks in src/wiring.ts. Cancelling does not stop
+// Google from charging for the call.
+export async function checkWiring(step: Step, jpegBase64: string, signal: AbortSignal): Promise<WiringResult> {
   const started = performance.now()
-  const result = await wiringModel.generateContent([
-    wiringPrompt(step),
-    { type: 'inlineData', inlineData: { mimeType: 'image/jpeg', data: jpegBase64 } },
-  ])
+  const result = await wiringModel.generateContent(
+    [wiringPrompt(step), { type: 'inlineData', inlineData: { mimeType: 'image/jpeg', data: jpegBase64 } }],
+    { signal },
+  )
   const ms = Math.round(performance.now() - started)
   return {
     check: parseWiringCheck(result.response.text()),

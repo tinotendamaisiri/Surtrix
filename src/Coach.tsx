@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { InferenceSource } from 'firebase/ai'
-import AskExpert from './AskExpert.tsx'
+import AskExpert, { type JudgeOffer } from './AskExpert.tsx'
 import { useBenchWatch, type BenchWatch } from './benchWatch.ts'
 import { grabFrameBase64 } from './cameraFrame.ts'
 import type { StepSavedAnswers } from './SavedAnswerPicker.tsx'
@@ -16,7 +16,8 @@ const FINISHED = 'finished'
 type Wiring =
   | { kind: 'checking'; stepId: string }
   // showOn is the next step (or FINISHED) for a correct verdict, else the checked step.
-  | { kind: 'result'; stepId: string; showOn: string; stepNumber: number; result: WiringResult; frame: string }
+  // offer is made once per result: Ask an Expert opens again for every new offer object.
+  | { kind: 'result'; stepId: string; showOn: string; stepNumber: number; result: WiringResult; offer: JudgeOffer | null }
   | { kind: 'failed'; stepId: string }
 
 function Header() {
@@ -119,12 +120,17 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     setProgress(change)
   }
 
-  // One cloud check per click. Without a camera picture the step is marked done unchecked.
+  // One cloud check per click. With the camera off the step is marked done unchecked.
   async function markDone() {
     if (checking) return
-    const frame = cameraOn ? grabFrameBase64(videoRef.current) : null
-    if (!frame) {
+    if (!cameraOn) {
       move(markStepDone)
+      return
+    }
+    const frame = grabFrameBase64(videoRef.current)
+    // The camera is on but has no picture yet: nothing to check, so say so.
+    if (!frame) {
+      setWiring({ kind: 'failed', stepId: step.id })
       return
     }
     const index = progress.stepIndex
@@ -132,13 +138,14 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     try {
       const result = await checkWiring(step, frame)
       if (!onScreenRef.current) return
-      const checked = { stepId: step.id, stepNumber: index + 1, result, frame }
+      const checked = { stepId: step.id, stepNumber: index + 1, result }
       if (result.check.verdict === 'correct') {
         const next = index === skill.steps.length - 1 ? FINISHED : skill.steps[index + 1].id
-        setWiring({ kind: 'result', ...checked, showOn: next })
+        setWiring({ kind: 'result', ...checked, showOn: next, offer: null })
         setProgress(markStepDone)
       } else {
-        setWiring({ kind: 'result', ...checked, showOn: step.id })
+        const offer = result.check.verdict === 'unsure' ? { said: describeWiringCheck(result.check), frame } : null
+        setWiring({ kind: 'result', ...checked, showOn: step.id, offer })
       }
     } catch (e) {
       console.error('Wiring check failed', e)
@@ -148,10 +155,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
 
   const here = progress.finished ? FINISHED : step.id
   const shownResult = wiring?.kind === 'result' && wiring.showOn === here ? wiring : null
-  const judgeOffer =
-    shownResult?.result.check.verdict === 'unsure'
-      ? { said: describeWiringCheck(shownResult.result.check), frame: shownResult.frame }
-      : null
+  const judgeOffer = shownResult?.offer ?? null
   const isFirst = progress.stepIndex === 0
   const isLast = progress.stepIndex === skill.steps.length - 1
 

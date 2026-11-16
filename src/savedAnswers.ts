@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import {
   getGenerativeModel,
   InferenceMode,
+  InferenceSource,
   Schema,
   ThinkingLevel,
   type GenerativeModel,
@@ -21,7 +22,10 @@ import {
   pickPrompt,
   pickValues,
   stepAnswersFromDocuments,
+  warmUp,
+  warmUpOnce,
   type SavedAnswer,
+  type WarmUpOutcome,
 } from './savedAnswerPick'
 
 // Cloud picking uses the fast model, never the one kept for the wiring judgment.
@@ -80,7 +84,7 @@ export type Pick = {
   ms: number
 }
 
-function pickModel(mode: typeof InferenceMode.PREFER_ON_DEVICE | typeof InferenceMode.ONLY_IN_CLOUD, values: string[]) {
+function pickModel(mode: InferenceMode, values: string[]) {
   return getGenerativeModel(ai, {
     mode,
     onDeviceParams: { createOptions, promptOptions: { responseConstraint: { type: 'string', enum: values } } },
@@ -99,8 +103,16 @@ function pickModel(mode: typeof InferenceMode.PREFER_ON_DEVICE | typeof Inferenc
 }
 
 // The models for the last list of answers. Each model keeps its own Nano session, so
-// asking again on the same step reuses it instead of opening another one.
-let lastModels: { key: string; hybrid: GenerativeModel; cloud: GenerativeModel } | null = null
+// asking again on the same step reuses it instead of opening another one. device is used
+// only to warm up, and its session keeps Nano loaded.
+type PickModels = {
+  key: string
+  hybrid: GenerativeModel
+  cloud: GenerativeModel
+  device: GenerativeModel
+  warmUp?: Promise<WarmUpOutcome>
+}
+let lastModels: PickModels | null = null
 
 function pickModels(values: string[]) {
   const key = JSON.stringify(values)
@@ -109,6 +121,7 @@ function pickModels(values: string[]) {
       key,
       hybrid: pickModel(InferenceMode.PREFER_ON_DEVICE, values),
       cloud: pickModel(InferenceMode.ONLY_IN_CLOUD, values),
+      device: pickModel(InferenceMode.ONLY_ON_DEVICE, values),
     }
   }
   return lastModels
@@ -132,4 +145,30 @@ export async function pickSavedAnswer(stepTitle: string, question: string, answe
   )
   const ms = Math.round(performance.now() - started)
   return { answer: parsePick(result.response.text(), answers), source: result.response.inferenceSource ?? 'unknown', ms }
+}
+
+// What a warm up asks. Any pick will do: the answer is thrown away.
+const WARM_UP_QUESTION = 'Which saved answer fits?'
+
+type LanguageModelAvailability = { availability(options: LanguageModelCreateOptions): Promise<string> }
+
+// Warms up Nano for this step's answers when the Ask an Expert panel opens (#43), once per
+// list of answers, so the first pick does not wait for the model to load. Only where Chrome
+// already has Nano ready: never a download, never the cloud. Nothing on screen changes.
+export function warmUpPicker(stepTitle: string, answers: SavedAnswer[]): Promise<WarmUpOutcome> {
+  const models = pickModels(pickValues(answers))
+  const languageModel = (globalThis as { LanguageModel?: LanguageModelAvailability }).LanguageModel
+  return warmUpOnce(models, () =>
+    warmUp({
+      // Without Chrome's API the SDK would send even a device only call to the cloud.
+      hasNano: languageModel !== undefined,
+      availability: () => languageModel!.availability(createOptions),
+      warm: async () => {
+        const result = await models.device.generateContent(pickPrompt(stepTitle, WARM_UP_QUESTION, answers))
+        if (result.response.inferenceSource !== InferenceSource.ON_DEVICE) {
+          throw new Error('The warm up did not run on device.')
+        }
+      },
+    }),
+  )
 }

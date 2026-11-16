@@ -122,3 +122,44 @@ export async function hybridThenCloud<R>(hybrid: () => Promise<R>, cloud: () => 
     return cloud()
   }
 }
+
+// Warming up the picker (#43). The first device pick after a page load waits while Chrome
+// loads Nano. When the Ask an Expert panel opens, a tiny device only call loads it, and only
+// where Nano is already available: it never starts a download and never calls the cloud.
+export type WarmUpOutcome = 'no-nano' | 'not-available' | 'warmed' | 'failed'
+
+export type WarmUpSteps = {
+  // Chrome has its on device model API.
+  hasNano: boolean
+  // Chrome's answer on whether Nano can take the picker's text now.
+  availability: () => Promise<string>
+  // The device only call; its answer is thrown away.
+  warm: () => Promise<unknown>
+}
+
+export async function warmUp({ hasNano, availability, warm }: WarmUpSteps): Promise<WarmUpOutcome> {
+  if (!hasNano) return 'no-nano'
+  try {
+    if ((await availability()) !== 'available') return 'not-available'
+    await warm()
+    return 'warmed'
+  } catch (e) {
+    console.warn('Warming up the picker failed', e)
+    return 'failed'
+  }
+}
+
+// Runs a warm up at most once for the same holder (one list of answers). One that did not
+// warm can run again the next time the panel opens.
+export function warmUpOnce(
+  holder: { warmUp?: Promise<WarmUpOutcome> },
+  run: () => Promise<WarmUpOutcome>,
+): Promise<WarmUpOutcome> {
+  holder.warmUp ??= run()
+    .catch((): WarmUpOutcome => 'failed')
+    .then((outcome) => {
+      if (outcome !== 'warmed') holder.warmUp = undefined
+      return outcome
+    })
+  return holder.warmUp
+}

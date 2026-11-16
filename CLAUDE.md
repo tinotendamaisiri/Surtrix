@@ -47,8 +47,9 @@ internals.
 * Firebase: AI Logic (Gemini Developer API backend), App Check, Firestore, Auth
   (Anonymous for learners, Google for experts), Hosting (live site plus a separate
   staging site).
-* On-device Nano: every 2 to 3 seconds, check a camera frame: which parts are
-  visible, is the LED lit, did the board change.
+* On-device Nano: about every 5 to 7 seconds (an answer takes about 2 to 4 s, then
+  a 3 s pause), check a camera frame: which of the step's parts are visible, is the
+  LED lit.
 * Cloud Gemini, low thinking, with one model per job:
   * `gemini-4-hydrogen` is used ONLY for the wiring judgment: when a step is
     marked done, judge the wiring against the step and say exactly what to move.

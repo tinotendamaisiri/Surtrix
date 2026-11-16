@@ -112,6 +112,20 @@ GOOGLE_ACCESS_TOKEN="$(gcloud auth print-access-token --account <owner account>)
 Running it again rewrites only those documents and keeps any other answers stored
 under the steps. Questions and expert answers point at these ids, so they never change.
 
+### Clearing test data
+
+Staging and the live site share one database, so staging checks leave test skills,
+questions, saved answers and anonymous learners behind. `scripts/cleanupTestData.ts`
+lists them and, only with `--delete`, deletes them. It keeps the demo skill with its
+seeded answers, every experts entry and every Google account, and never touches
+anything created after the `--before` time:
+
+```
+GOOGLE_ACCESS_TOKEN="$(gcloud auth print-access-token --account <owner account>)" node scripts/cleanupTestData.ts real --before 2026-11-20T18:00:00Z
+```
+
+Check the list, then run the same command with `--delete` added.
+
 ### Checks
 
 `npm run check` runs the lint, the typecheck, the production build and the tests.

@@ -1,10 +1,10 @@
 // Check saved answers (#31), in the Ask an Expert panel's row of buttons: picks the saved
 // expert answer for this step that fits the learner's question, and says which path picked
 // it. When no model can pick here, it lists the step's saved answers as they are.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { InferenceSource } from 'firebase/ai'
 import { checkSavedAnswers, type CheckResult, type SavedAnswer } from './savedAnswerPick'
-import { pickSavedAnswer, type Pick } from './savedAnswers'
+import { pickSavedAnswer, warmUpPicker, type Pick } from './savedAnswers'
 import './SavedAnswerPicker.css'
 
 // This step's saved answers, as the coach loaded them.
@@ -22,6 +22,11 @@ export default function SavedAnswerPicker({ stepTitle, question, saved, disabled
   const [checking, setChecking] = useState(false)
   // The result and the question it was for: an edited question hides an old result.
   const [checked, setChecked] = useState<{ question: string; result: CheckResult<Pick> } | null>(null)
+  // The panel is open: get Nano ready for this step's answers, so the first pick is quick.
+  const warmAnswers = saved.kind === 'loaded' && saved.answers.length > 0 ? saved.answers : null
+  useEffect(() => {
+    if (warmAnswers) void warmUpPicker(stepTitle, warmAnswers)
+  }, [stepTitle, warmAnswers])
 
   if (saved.kind !== 'loaded' || saved.answers.length === 0) {
     return (

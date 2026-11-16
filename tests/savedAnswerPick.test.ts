@@ -13,7 +13,10 @@ import {
   savedAnswerFromDocument,
   sortAnswers,
   stepAnswersFromDocuments,
+  warmUp,
+  warmUpOnce,
   type SavedAnswer,
+  type WarmUpOutcome,
 } from '../src/savedAnswerPick.ts'
 
 const at = (ms: number) => ({ toDate: () => new Date(ms) })
@@ -174,5 +177,100 @@ describe('trying the cloud when the device fails', () => {
     calls.length = 0
     await expect(hybridThenCloud(hybrid(false), cloud, false)).rejects.toThrow('device failed')
     expect(calls).toEqual(['hybrid'])
+  })
+})
+
+describe('warming up the picker', () => {
+  function steps(hasNano: boolean, availability: string, warmFails = false) {
+    const calls: string[] = []
+    return {
+      calls,
+      steps: {
+        hasNano,
+        availability: async () => {
+          calls.push('availability')
+          return availability
+        },
+        warm: async () => {
+          calls.push('warm')
+          if (warmFails) throw new Error('device failed')
+        },
+      },
+    }
+  }
+
+  test('where Nano is available, it makes the device only call', async () => {
+    const { calls, steps: s } = steps(true, 'available')
+    expect(await warmUp(s)).toBe('warmed')
+    expect(calls).toEqual(['availability', 'warm'])
+  })
+
+  test("without Chrome's on device API it does nothing, so no call can reach the cloud", async () => {
+    const { calls, steps: s } = steps(false, 'available')
+    expect(await warmUp(s)).toBe('no-nano')
+    expect(calls).toEqual([])
+  })
+
+  test.each(['downloadable', 'downloading', 'unavailable'])(
+    'when Nano is %s it does not call the model, so it never starts a download',
+    async (availability) => {
+      const { calls, steps: s } = steps(true, availability)
+      expect(await warmUp(s)).toBe('not-available')
+      expect(calls).toEqual(['availability'])
+    },
+  )
+
+  test('a failed warm up is reported, not thrown', async () => {
+    const { steps: s } = steps(true, 'available', true)
+    expect(await warmUp(s)).toBe('failed')
+  })
+
+  test('a failed availability check is reported, not thrown', async () => {
+    const s = { hasNano: true, availability: () => Promise.reject(new Error('no')), warm: async () => {} }
+    expect(await warmUp(s)).toBe('failed')
+  })
+})
+
+describe('warming up once per list of answers', () => {
+  function counted(outcome: WarmUpOutcome) {
+    const run = { count: 0, fn: async (): Promise<WarmUpOutcome> => (run.count++, outcome) }
+    return run
+  }
+
+  test('opening the panel again on the same step does not warm up again', async () => {
+    const holder = {}
+    const run = counted('warmed')
+    expect(await warmUpOnce(holder, run.fn)).toBe('warmed')
+    expect(await warmUpOnce(holder, run.fn)).toBe('warmed')
+    expect(run.count).toBe(1)
+  })
+
+  test('opening it twice while the first warm up runs starts only one', async () => {
+    const holder = {}
+    const run = counted('warmed')
+    const [a, b] = await Promise.all([warmUpOnce(holder, run.fn), warmUpOnce(holder, run.fn)])
+    expect([a, b, run.count]).toEqual(['warmed', 'warmed', 1])
+  })
+
+  test('another list of answers warms up on its own', async () => {
+    const run = counted('warmed')
+    await warmUpOnce({}, run.fn)
+    await warmUpOnce({}, run.fn)
+    expect(run.count).toBe(2)
+  })
+
+  test.each<WarmUpOutcome>(['no-nano', 'not-available', 'failed'])(
+    'after %s, the next opening tries again',
+    async (outcome) => {
+      const holder = {}
+      const run = counted(outcome)
+      expect(await warmUpOnce(holder, run.fn)).toBe(outcome)
+      await warmUpOnce(holder, run.fn)
+      expect(run.count).toBe(2)
+    },
+  )
+
+  test('a warm up that throws counts as failed', async () => {
+    expect(await warmUpOnce({}, () => Promise.reject(new Error('no')))).toBe('failed')
   })
 })

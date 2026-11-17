@@ -1,10 +1,11 @@
-import { useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import './Landing.css'
 import LandingFooter from './LandingFooter.tsx'
 import { HERO_IMAGE, HERO_SMALL_IMAGE, landingSkills, type LandingSkill } from './landingSkills.ts'
 import MySkills from './MySkills.tsx'
 import { coachHash } from './screenAddress.ts'
 import { DEMO_SKILL_ID } from './demoSkill.ts'
+import { nextSkillsTab, takeSkillsTab } from './landingIntent.ts'
 import Wordmark from './Wordmark.tsx'
 
 // Home is the landing page (#51): the approved design rebuilt in the app's own React and
@@ -13,6 +14,11 @@ import Wordmark from './Wordmark.tsx'
 export default function Home() {
   const skillsRef = useRef<HTMLElement>(null)
   const howRef = useRef<HTMLElement>(null)
+  // Arriving from "Back to skills" (#59): open on its tab, scrolled to the Skills section.
+  const [arrivalTab] = useState(() => nextSkillsTab())
+  useEffect(() => {
+    if (takeSkillsTab()) skillsRef.current?.scrollIntoView({ block: 'start' })
+  }, [])
 
   return (
     <main className="landing">
@@ -55,7 +61,7 @@ export default function Home() {
         </div>
       </section>
 
-      <SkillsSection sectionRef={skillsRef} />
+      <SkillsSection sectionRef={skillsRef} initialTab={arrivalTab ?? 'all'} />
       <HowItWorks sectionRef={howRef} />
       <LandingFooter onHow={() => scrollToSection(howRef)} onSkills={() => scrollToSection(skillsRef)} />
     </main>
@@ -110,8 +116,8 @@ const tabs: { id: Tab; label: string }[] = [
   { id: 'mine', label: 'My skills' },
 ]
 
-function SkillsSection({ sectionRef }: { sectionRef: RefObject<HTMLElement | null> }) {
-  const [tab, setTab] = useState<Tab>('all')
+function SkillsSection({ sectionRef, initialTab }: { sectionRef: RefObject<HTMLElement | null>; initialTab: Tab }) {
+  const [tab, setTab] = useState<Tab>(initialTab)
   const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({})
 
   function onTabKey(event: KeyboardEvent) {
@@ -207,7 +213,9 @@ function SkillCard({ skill, copy = false }: { skill: LandingSkill; copy?: boolea
   return (
     <li className={copy ? 'landing-card-copy' : undefined} aria-hidden={copy || undefined}>
       {skill.href ? (
-        <a className="landing-card" href={skill.href} tabIndex={copy ? -1 : undefined}>
+        // Out of the tab order (#59): the carousel slides it off screen, and the demo is
+        // reachable by keyboard from the hero and the footer. Still clickable.
+        <a className="landing-card" href={skill.href} tabIndex={-1}>
           {content}
         </a>
       ) : (

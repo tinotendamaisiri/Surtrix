@@ -1,4 +1,5 @@
 import SkillList from './SkillList.tsx'
+import Wordmark from './Wordmark.tsx'
 
 export default function Home() {
   return (
@@ -6,7 +7,7 @@ export default function Home() {
       <header>
         <h1>
           <a className="home-link" href="#">
-            Surtrix
+            <Wordmark />
           </a>
         </h1>
       </header>

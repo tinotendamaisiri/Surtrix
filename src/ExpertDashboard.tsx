@@ -15,6 +15,7 @@ import {
   type OpenQuestion,
 } from './experts'
 import './ExpertDashboard.css'
+import Wordmark from './Wordmark.tsx'
 
 function formatTime(date: Date | null): string {
   return date
@@ -62,7 +63,7 @@ export default function ExpertDashboard() {
       <header>
         <h1>
           <a className="home-link" href="#">
-            Surtrix
+            <Wordmark />
           </a>
         </h1>
         <p className="muted">Expert dashboard</p>

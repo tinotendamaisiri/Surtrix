@@ -89,12 +89,15 @@ main.landing {
 /* Hero */
 
 /* The hero is 900 px tall up to 1440 px wide, as designed, with an 18 percent (162 px)
-   bottom fade. Wider, the photo grows with the page (62.5vw tall: 70 percent of the width,
-   at the photo's shape; cqw here is percent of the page width, without a scrollbar), so it slides up a little and the hero ends exactly where the
-   photo ends, with no hard edge. The bottom fade narrows to a 50 px band, so at 1920 px
+   bottom fade. Wider, the photo grows with the page (62.5 percent of the page width
+   tall: 70 percent of the width, at the photo's shape), so it slides up a little and the
+   hero ends exactly where the photo ends, with no hard edge. The bottom fade narrows to
+   50 px at 1920 px, then grows with the page (2.6 percent of its width), so at 1920 px
    and wider the iron tip, the smoke and the whole board sit above it, and the REC label
    stays below the header. In the photo the REC label is at 37.9 percent down, the iron
-   tip at 74.3 percent and the board's bottom edge at 93.7 percent. */
+   tip at 74.3 percent and the board's bottom edge at 93.7 percent. The wide rules ask
+   the page (main.landing) for its width, not the window, and cqw is percent of that
+   width, so a visible scrollbar changes nothing. */
 .landing-hero {
   --hero-height: 900px;
   --photo-shift: 0px;
@@ -106,7 +109,7 @@ main.landing {
 
 /* From 1440 to 1920 px: the photo slides from 0 to 250 px up, the hero grows from 900 to
    950 px (the photo's height minus the shift), and the fade narrows from 162 to 50 px. */
-@media (min-width: 1441px) and (max-width: 1920px) {
+@container (min-width: 1441px) and (max-width: 1920px) {
   .landing-hero {
     --hero-height: calc(750px + 10.43cqw);
     --photo-shift: calc(750px - 52.08cqw);
@@ -115,7 +118,7 @@ main.landing {
 }
 
 /* From 1920 px: the same composition as at 1920 px, scaled with the photo. */
-@media (min-width: 1921px) {
+@container (min-width: 1921px) {
   .landing-hero {
     --hero-height: 49.49cqw;
     --photo-shift: -13.02cqw;

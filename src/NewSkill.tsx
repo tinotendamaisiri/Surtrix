@@ -10,6 +10,7 @@ import {
 } from './procedure'
 import { coachHash } from './screenAddress'
 import { saveSkill } from './skills'
+import BackToSkills from './BackToSkills.tsx'
 import Wordmark from './Wordmark.tsx'
 
 type Input = 'pdf' | 'text'
@@ -119,7 +120,7 @@ export default function NewSkill() {
         </h1>
         <p className="muted">New skill</p>
         <p>
-          <a href="#">Back to skills</a>
+          <BackToSkills tab="mine" />
         </p>
       </header>
 

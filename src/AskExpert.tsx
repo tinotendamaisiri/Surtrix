@@ -12,6 +12,7 @@ import {
   type QuestionStep,
 } from './questions'
 import SavedAnswerPicker, { type StepSavedAnswers } from './SavedAnswerPicker.tsx'
+import { questionAfterNewCheck } from './autoAsk.ts'
 import './AskExpert.css'
 
 // Made by the judge (plan issue 6) when it is unsure about the step: its words and the
@@ -45,7 +46,6 @@ function newDraftId(): number {
 
 type MyQuestions = { stepKey: string; questions: Question[]; failed: boolean }
 
-const JUDGE_QUESTION = 'Is my wiring right for this step?'
 
 // How long Send waits for the server before closing the panel. Offline, the question
 // stays in the list as sending and goes once the network is back.
@@ -89,14 +89,16 @@ export default function AskExpert({
     setError(null)
     setLateError(false)
   }
-  // A new judge offer opens the panel.
+  // A new judge offer opens the panel, or, when it is already open, brings in its photo and
+  // the check's words, keeping a question the learner typed (#69). A question being sent is
+  // left alone.
   if (judgeOffer !== seenOffer) {
     setSeenOffer(judgeOffer)
-    if (judgeOffer) {
+    if (judgeOffer && !sending) {
       setDraft({
         id: newDraftId(),
         frame: judgeOffer.frame,
-        question: JUDGE_QUESTION,
+        question: questionAfterNewCheck(draft?.question ?? null),
         judgeSaid: judgeOffer.said.trim() || null,
       })
       setError(null)

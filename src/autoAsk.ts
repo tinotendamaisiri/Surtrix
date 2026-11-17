@@ -57,6 +57,16 @@ export function uncountAutoAsk() {
 // The question sent with the AI's own words (judgeSaid) and the photo.
 export const AUTO_QUESTION = 'The AI was not sure about this step. Is my wiring right?'
 
+// The ready made question in the manual Ask an Expert panel when a check opens it.
+export const JUDGE_QUESTION = 'Is my wiring right for this step?'
+
+// A new unsure check while the manual panel is open (#69) brings its own photo and words;
+// the learner's question stays if they typed one, else it is the ready made one.
+export function questionAfterNewCheck(current: string | null): string {
+  const typed = current !== null && current.trim() !== '' && current !== JUDGE_QUESTION
+  return typed ? current : JUDGE_QUESTION
+}
+
 // After no saved answer fits: wait for the question already open on this step; else leave
 // it to the learner's own question when the manual Ask an Expert panel is open with one
 // unsent (#69); past the limit leave it to the learner (the manual panel opens); or ask.

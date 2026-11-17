@@ -1,6 +1,6 @@
 # Surtrix
 
-Surtrix is an AI bench coach for hands-on electronics work. You upload a procedure
+Surtrix is an expert over your shoulder for hands-on work. You upload a procedure
 (a manual, SOP or guide), point a camera at your bench, and Surtrix guides you step
 by step, catches mistakes, and calls a live human expert when the AI is unsure.
 Expert answers are saved to the skill and reused, including offline.
@@ -9,9 +9,12 @@ Built for the Google #BuildHybridAI 2026 hackathon.
 
 The app today has these screens:
 
-* Home lists the skills: the demo skill (lighting an LED with a resistor on a
-  breadboard), then the skills you saved, newest first. The demo skill is stored in
-  Firestore like any saved skill.
+* Home is the landing page: what Surtrix does, Try the demo (the demo skill, lighting
+  an LED with a resistor on a breadboard), Create a skill, I am an expert (the expert
+  dashboard) and How it works. Its Skills section has two tabs: All skills, a
+  carousel where only the LED card is a real skill (the others are examples), and My
+  skills, the skills you saved, newest first. The demo skill is stored in Firestore
+  like any saved skill.
 * The coach (`#coach/{skill id}`) walks you through a skill one step at a time, next
   to a live camera preview. You move with Back and Next. With the camera on, Mark
   step done first has `gemini-4-hydrogen` in the cloud check the wiring against the

@@ -8,7 +8,7 @@ was also called "Surtrix".
 
 ## Product
 
-Surtrix is an AI bench coach for hands-on electronics work. The user uploads a
+Surtrix is an expert over your shoulder for hands-on work. The user uploads a
 procedure (manual, SOP, guide), points a camera at their bench, and Surtrix guides
 them step by step, catches mistakes, and calls a live human expert when the AI is
 unsure. Expert answers are saved to the skill and reused, including offline.

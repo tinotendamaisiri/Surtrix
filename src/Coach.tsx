@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { InferenceSource } from 'firebase/ai'
 import AskExpert, { type JudgeOffer } from './AskExpert.tsx'
 import { useBenchWatch, type BenchWatch } from './benchWatch.ts'
@@ -28,6 +28,8 @@ import {
   afterNoFit,
   autoAskedThisSession,
   countAutoAsk,
+  manualSendBlocked,
+  MANUAL_SEND_BLOCKED,
   readAutoAskChoice,
   uncountAutoAsk,
   writeAutoAskChoice,
@@ -103,6 +105,13 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const [manualOffer, setManualOffer] = useState<JudgeOffer | null>(null)
   const [autoChoice, setAutoChoice] = useState<AutoAskChoice>(readAutoAskChoice)
   const [unsureCount, setUnsureCount] = useState(0)
+  // Whether the manual Ask an Expert panel is open with a question not yet sent (#69).
+  const panelOpenRef = useRef(false)
+  const onPanelChange = useCallback((open: boolean) => {
+    panelOpenRef.current = open
+    // Cancelled: the "asking below" line no longer holds.
+    if (!open) setAutoAsk((a) => (a?.kind === 'panel-open' ? null : a))
+  }, [])
   // This learner's questions on the current step, live: an open one blocks a new automatic one.
   const [mine, setMine] = useState<{ stepId: string; questions: Question[] }>({ stepId: '', questions: [] })
   const mineRef = useRef(mine)
@@ -300,7 +309,12 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       }
     }
     const open = mineRef.current.stepId === s.id ? mineRef.current.questions.find((q) => q.status === 'open') : undefined
-    const next = afterNoFit({ openOnStep: open !== undefined, asked: autoAskedThisSession() })
+    const next = afterNoFit({ panelOpen: panelOpenRef.current, openOnStep: open !== undefined, asked: autoAskedThisSession() })
+    // The learner is already asking in the manual panel: their Send is the one question.
+    if (next === 'panel-open') {
+      setAutoAsk({ stepId: s.id, kind: 'panel-open', said })
+      return
+    }
     if (next === 'still-waiting') {
       setAutoAsk({ stepId: s.id, kind: 'still-waiting', said, questionId: open?.id ?? null })
       return
@@ -455,6 +469,10 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
                 captureFrame={() => (cameraOn ? grabFrameBase64(videoRef.current) : null)}
                 savedAnswers={stepSaved}
                 judgeOffer={manualOffer}
+                onPanelChange={onPanelChange}
+                sendBlocked={
+                  mine.stepId === step.id && manualSendBlocked(autoChoice, mine.questions) ? MANUAL_SEND_BLOCKED : null
+                }
               />
             </section>
           )}

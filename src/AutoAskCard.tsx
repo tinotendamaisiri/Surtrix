@@ -13,7 +13,7 @@ export type AutoAsk = { stepId: string; said: string } & (
   | { kind: 'saved'; pick: Pick & { answer: NonNullable<Pick['answer']> } }
   // questionId: the question being waited on, once known; only its reply shows here.
   | { kind: 'asking' | 'queued' | 'still-waiting'; questionId: string | null }
-  | { kind: 'limit' | 'failed' }
+  | { kind: 'limit' | 'failed' | 'panel-open' }
 )
 
 const sourceText: Record<string, string> = {
@@ -108,6 +108,7 @@ function Status({ autoAsk, questions, onChoose }: { autoAsk: AutoAsk; questions:
     queued: "An expert will be asked when you're back online.",
     'still-waiting': 'Still waiting for an expert.',
     limit: 'The AI has asked 3 experts this session. You can send this one yourself below.',
+    'panel-open': "You're asking an expert below. Send it when you're ready.",
     failed: 'Could not ask an expert. You can send it yourself below.',
   }
   return (

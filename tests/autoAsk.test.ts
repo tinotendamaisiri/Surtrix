@@ -4,7 +4,9 @@ import {
   AUTO_ASK_LIMIT,
   AUTO_QUESTION,
   afterNoFit,
+  JUDGE_QUESTION,
   manualSendBlocked,
+  questionAfterNewCheck,
   readAutoAskChoice,
   writeAutoAskChoice,
 } from '../src/autoAsk.ts'
@@ -72,4 +74,12 @@ test("the manual Send is off only while the AI's own question on the step is ope
   expect(manualSendBlocked('on', [{ origin: 'judge', status: 'answered' }])).toBe(false)
   expect(manualSendBlocked('on', [{ origin: 'learner', status: 'open' }])).toBe(false)
   expect(manualSendBlocked('on', [])).toBe(false)
+})
+
+test("a new check keeps the learner's typed question, else the ready made one (#69)", () => {
+  expect(questionAfterNewCheck(null)).toBe(JUDGE_QUESTION)
+  expect(questionAfterNewCheck('')).toBe(JUDGE_QUESTION)
+  expect(questionAfterNewCheck('   ')).toBe(JUDGE_QUESTION)
+  expect(questionAfterNewCheck(JUDGE_QUESTION)).toBe(JUDGE_QUESTION)
+  expect(questionAfterNewCheck('Which row is the long leg in?')).toBe('Which row is the long leg in?')
 })

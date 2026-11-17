@@ -265,6 +265,8 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   // asking is off, else let the AI ask.
   function handleUnsure(s: CoachStep, index: number, offer: JudgeOffer) {
     setUnsureCount((n) => n + 1)
+    // An open Ask an Expert panel takes this check's photo and words (#69).
+    if (panelOpenRef.current) setManualOffer(offer)
     const choice = choiceRef.current ?? readAutoAskChoice()
     if (choice === null) {
       setAutoAsk({ stepId: s.id, kind: 'notice', said: offer.said, offer, index })

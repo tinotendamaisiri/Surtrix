@@ -1,0 +1,872 @@
+/* The landing page (#51), always dark. Every button, badge and menu item is a pill.
+   Sizes on the hero photo are in cqw (percent of the photo's width), so the REC dot and
+   the smoke scale with the photo at every width. 1px of the 1008 px wide design photo is
+   0.0992cqw. */
+
+html:has(main.landing),
+body:has(main.landing) {
+  background: #0f0b07;
+  color-scheme: dark;
+}
+
+main.landing {
+  container-type: inline-size;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  display: block;
+  background: #0f0b07;
+  color: #f4efe6;
+  color-scheme: dark;
+  font-family: Inter, system-ui, sans-serif;
+  overflow-x: clip;
+}
+
+.landing h1,
+.landing h2,
+.landing h3 {
+  font-family: Montserrat, system-ui, sans-serif;
+  color: #f4efe6;
+}
+
+.landing a {
+  color: #f4efe6;
+}
+
+.landing button {
+  font: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+}
+
+.landing-pill {
+  display: inline-block;
+  border-radius: 999px;
+  text-decoration: none;
+  font-size: 15px;
+  padding: 16px 28px;
+}
+
+.landing .landing-pill-yellow {
+  background: #f9d440;
+  color: #0b1e3c;
+  font-weight: 600;
+}
+
+.landing .landing-pill-yellow:hover {
+  background: #fbe073;
+}
+
+.landing .landing-pill-outline {
+  border: 1px solid #4a3f33;
+  color: #f4efe6;
+}
+
+.landing .landing-pill-outline:hover {
+  border-color: #f9d440;
+  color: #f9d440;
+}
+
+.landing .landing-pill-expert {
+  border: 1px solid rgba(249, 212, 64, 0.55);
+  color: #f9d440;
+  padding: 11px 20px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.landing .landing-pill-expert:hover {
+  background: rgba(249, 212, 64, 0.12);
+}
+
+.landing :focus-visible {
+  outline: 2px solid #f9d440;
+  outline-offset: 3px;
+}
+
+/* Hero */
+
+/* The hero is 900 px tall up to 1440 px wide, as designed, with an 18 percent (162 px)
+   bottom fade. Wider, the photo grows with the page (62.5 percent of the page width
+   tall: 70 percent of the width, at the photo's shape), so it slides up a little and the
+   hero ends exactly where the photo ends, with no hard edge. The bottom fade narrows to
+   50 px at 1920 px, then grows with the page (2.6 percent of its width), so at 1920 px
+   and wider the iron tip, the smoke and the whole board sit above it, and the REC label
+   stays below the header. In the photo the REC label is at 37.9 percent down, the iron
+   tip at 74.3 percent and the board's bottom edge at 93.7 percent. The wide rules ask
+   the page (main.landing) for its width, not the window, and cqw is percent of that
+   width, so a visible scrollbar changes nothing. */
+.landing-hero {
+  --hero-height: 900px;
+  --photo-shift: 0px;
+  --photo-fade: 162px;
+  position: relative;
+  min-height: var(--hero-height);
+  overflow: hidden;
+}
+
+/* From 1440 to 1920 px: the photo slides from 0 to 250 px up, the hero grows from 900 to
+   950 px (the photo's height minus the shift), and the fade narrows from 162 to 50 px. */
+@container (min-width: 1441px) and (max-width: 1920px) {
+  .landing-hero {
+    --hero-height: calc(750px + 10.43cqw);
+    --photo-shift: calc(750px - 52.08cqw);
+    --photo-fade: calc(498px - 23.33cqw);
+  }
+}
+
+/* From 1920 px: the same composition as at 1920 px, scaled with the photo. */
+@container (min-width: 1921px) {
+  .landing-hero {
+    --hero-height: 49.49cqw;
+    --photo-shift: -13.02cqw;
+    --photo-fade: 2.6cqw;
+  }
+}
+
+.landing-header {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 28px 48px;
+}
+
+/* The wordmark file has a 17 px transparent margin (#49); at 160 px wide that is 17/3 px.
+   Pulling it back lines the letters up with the copy below. */
+.landing-header .wordmark {
+  margin-left: calc(-17px / 3);
+}
+
+.landing-menu {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.landing-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 5px;
+  border-radius: 999px;
+  background: rgba(15, 11, 7, 0.55);
+  border: 1px solid rgba(255, 236, 205, 0.12);
+  backdrop-filter: blur(8px);
+}
+
+.landing .landing-nav button {
+  color: #cfc6b8;
+  font-size: 14px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.landing .landing-nav button:hover {
+  background: rgba(255, 236, 205, 0.1);
+  color: #f4efe6;
+}
+
+.landing-photo {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 70%;
+  height: var(--hero-height);
+  overflow: hidden;
+  mask-image: linear-gradient(to right, transparent 0%, #000 20%), linear-gradient(to bottom, #000 calc(100% - var(--photo-fade)), transparent 100%);
+  mask-composite: intersect;
+}
+
+/* The photo at its own shape (1327 x 1185), at least 900 px tall, centered and cropped
+   like object-fit cover, from the top up to 1440 px wide and shifted up beyond that. */
+.landing-photo-frame {
+  position: absolute;
+  top: var(--photo-shift);
+  left: 50%;
+  width: max(100%, calc(900px * 1327 / 1185));
+  aspect-ratio: 1327 / 1185;
+  transform: translateX(-50%);
+  container-type: inline-size;
+}
+
+.landing-photo-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.landing-rec {
+  position: absolute;
+  left: 74.47%;
+  top: 37.87%;
+  width: max(4px, 0.6cqw);
+  height: max(4px, 0.6cqw);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: #ff2a22;
+  box-shadow: 0 0 6px 1px rgba(255, 42, 34, 0.9);
+  animation: landing-blink 1.2s steps(1) infinite;
+}
+
+@keyframes landing-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* The iron tip, where the smoke starts. */
+.landing-plume,
+.landing-smoke {
+  position: absolute;
+  left: 50.2%;
+  top: 74.3%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.landing-plume b {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.4) 45%, rgba(255, 255, 255, 0) 72%);
+  filter: blur(4px);
+}
+
+.landing-plume b:nth-child(1) {
+  left: -0.89cqw;
+  top: -4.56cqw;
+  width: 1.79cqw;
+  height: 4.96cqw;
+  opacity: 0.85;
+}
+
+.landing-plume b:nth-child(2) {
+  left: -1.98cqw;
+  top: -11.11cqw;
+  width: 2.98cqw;
+  height: 7.54cqw;
+  opacity: 0.6;
+  transform: rotate(-10deg);
+}
+
+.landing-plume b:nth-child(3) {
+  left: -0.99cqw;
+  top: -18.85cqw;
+  width: 4.56cqw;
+  height: 9.52cqw;
+  opacity: 0.38;
+  transform: rotate(12deg);
+}
+
+.landing-plume b:nth-child(4) {
+  left: -3.77cqw;
+  top: -26.79cqw;
+  width: 6.55cqw;
+  height: 10.91cqw;
+  opacity: 0.2;
+  transform: rotate(-8deg);
+}
+
+.landing-smoke i {
+  position: absolute;
+  left: -1.79cqw;
+  top: -3.97cqw;
+  width: 3.97cqw;
+  height: 8.93cqw;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 1), rgba(255, 255, 255, 0.6) 40%, rgba(255, 255, 255, 0) 70%);
+  filter: blur(5px);
+  opacity: 0;
+  animation: landing-rise 5.6s ease-out infinite;
+}
+
+.landing-smoke i:nth-child(2n) {
+  animation-name: landing-rise-2;
+}
+
+.landing-smoke i:nth-child(2) {
+  animation-delay: 0.7s;
+}
+
+.landing-smoke i:nth-child(3) {
+  animation-delay: 1.4s;
+}
+
+.landing-smoke i:nth-child(4) {
+  animation-delay: 2.1s;
+}
+
+.landing-smoke i:nth-child(5) {
+  animation-delay: 2.8s;
+}
+
+.landing-smoke i:nth-child(6) {
+  animation-delay: 3.5s;
+}
+
+.landing-smoke i:nth-child(7) {
+  animation-delay: 4.2s;
+}
+
+.landing-smoke i:nth-child(8) {
+  animation-delay: 4.9s;
+}
+
+@keyframes landing-rise {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.35, 0.5) rotate(0);
+  }
+  10% {
+    opacity: 1;
+  }
+  40% {
+    transform: translate(-1.59cqw, -10.91cqw) scale(1.2, 1.5) rotate(-10deg);
+  }
+  70% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(1.39cqw, -27.78cqw) scale(2.8, 2.6) rotate(8deg);
+  }
+}
+
+@keyframes landing-rise-2 {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.35, 0.5) rotate(0);
+  }
+  10% {
+    opacity: 0.95;
+  }
+  40% {
+    transform: translate(1.39cqw, -9.92cqw) scale(1.1, 1.4) rotate(10deg);
+  }
+  70% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-1.79cqw, -26.79cqw) scale(2.6, 2.5) rotate(-8deg);
+  }
+}
+
+.landing-copy {
+  position: absolute;
+  z-index: 3;
+  left: 48px;
+  top: 220px;
+  max-width: 470px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.landing-copy h1 {
+  margin: 0;
+  font-weight: 700;
+  font-size: clamp(36px, 8.6vw, 60px);
+  line-height: 1.04;
+  letter-spacing: -1.5px;
+}
+
+.landing-copy p {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.6;
+  color: #cfc6b8;
+}
+
+.landing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* Sections */
+
+.landing-skills,
+.landing-how {
+  scroll-margin-top: 40px;
+}
+
+.landing-section-head {
+  position: relative;
+  text-align: center;
+  padding: 0 24px;
+  margin-bottom: 56px;
+}
+
+.landing-section-head h2 {
+  margin: 0;
+  font-weight: 700;
+  font-size: clamp(30px, 6.4vw, 46px);
+  line-height: 1.15;
+  letter-spacing: -1px;
+}
+
+.landing-section-head p {
+  margin: 18px auto 0;
+  max-width: 700px;
+  font-size: 16px;
+  line-height: 1.6;
+  color: #a89e8f;
+}
+
+.landing-gradient {
+  background: linear-gradient(90deg, #f9d440, #f7a64a 55%, #f4efe6);
+  background-clip: text;
+  color: transparent;
+}
+
+/* Skills */
+
+.landing-skills {
+  position: relative;
+  padding: 30px 0 80px;
+}
+
+.landing-glow {
+  position: absolute;
+  left: 50%;
+  top: -190px;
+  width: 1000px;
+  height: 560px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse 18% 55% at 50% 50%, rgba(249, 212, 64, 0.26), rgba(249, 150, 40, 0.1) 45%, rgba(15, 11, 7, 0) 75%);
+  pointer-events: none;
+}
+
+.landing-tabs {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  width: fit-content;
+  margin: 0 auto 32px;
+  padding: 5px;
+  border-radius: 999px;
+  background: rgba(15, 11, 7, 0.55);
+  border: 1px solid rgba(255, 236, 205, 0.12);
+}
+
+.landing .landing-tabs button {
+  color: #cfc6b8;
+  font-size: 14px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.landing .landing-tabs button:hover {
+  color: #f4efe6;
+}
+
+.landing .landing-tabs button[aria-selected='true'] {
+  background: #f9d440;
+  color: #0b1e3c;
+  font-weight: 600;
+}
+
+.landing-marquee {
+  overflow: hidden;
+  mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+}
+
+/* The right padding equals the gap, so one copy of the cards is exactly half the track. */
+.landing-track {
+  display: flex;
+  gap: 20px;
+  width: max-content;
+  margin: 0;
+  padding: 0 20px 0 0;
+  list-style: none;
+  animation: landing-slide 120s linear infinite;
+}
+
+.landing-marquee:hover .landing-track,
+.landing-marquee:focus-within .landing-track {
+  animation-play-state: paused;
+}
+
+@keyframes landing-slide {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.landing-card {
+  box-sizing: border-box;
+  width: 300px;
+  height: 380px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 0 0 22px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255, 244, 225, 0.06), rgba(255, 244, 225, 0.025));
+  border: 1px solid rgba(255, 236, 205, 0.1);
+  text-decoration: none;
+}
+
+a.landing-card:hover {
+  border-color: rgba(249, 212, 64, 0.55);
+}
+
+.landing-card-photo {
+  position: relative;
+  box-sizing: border-box;
+  height: 160px;
+  padding: 14px;
+  background-size: cover;
+  background-position: center;
+}
+
+.landing-card-photo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(15, 11, 7, 0.35), rgba(15, 11, 7, 0) 40%, rgba(15, 11, 7, 0.15) 70%, rgba(26, 21, 15, 1) 100%);
+  pointer-events: none;
+}
+
+.landing-card-top {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.landing-trade {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(15, 11, 7, 0.62);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 236, 205, 0.1);
+  font-size: 12px;
+  color: #e8dfd0;
+}
+
+.landing-trade i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid #f9d440;
+}
+
+.landing-verified,
+.landing-live,
+.landing-where {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  border-radius: 999px;
+}
+
+.landing-verified {
+  padding: 4px 10px;
+  background: rgba(15, 11, 7, 0.62);
+  color: #f9d440;
+  border: 1px solid rgba(249, 212, 64, 0.35);
+}
+
+.landing-live {
+  padding: 5px 10px;
+  background: #f9d440;
+  color: #0b1e3c;
+}
+
+.landing-card-body {
+  padding: 0 22px;
+}
+
+.landing-card h3,
+.landing-myskill h3 {
+  margin: 0 0 8px;
+  font-weight: 600;
+  font-size: 21px;
+  line-height: 1.25;
+}
+
+.landing-card p {
+  margin: 0 0 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #a89e8f;
+}
+
+.landing-ticks {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 13px;
+  color: #cfc6b8;
+}
+
+.landing-tick-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.landing-tick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(249, 212, 64, 0.18);
+  color: #f9d440;
+  font-size: 10px;
+}
+
+/* My skills */
+
+.landing-myskills {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 20px;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 24px;
+  list-style: none;
+}
+
+.landing-myskill {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 18px;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 22px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255, 244, 225, 0.06), rgba(255, 244, 225, 0.025));
+  border: 1px solid rgba(255, 236, 205, 0.1);
+  text-decoration: none;
+}
+
+.landing-myskill:hover {
+  border-color: rgba(249, 212, 64, 0.55);
+}
+
+.landing-myskills-empty {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 0 24px;
+}
+
+.landing-myskills-note {
+  position: relative;
+  margin: 0;
+  text-align: center;
+  font-size: 16px;
+  color: #a89e8f;
+}
+
+.landing-error {
+  color: #f2b8b5;
+}
+
+/* How it works */
+
+.landing-how {
+  box-sizing: border-box;
+  max-width: 1344px;
+  margin: 0 auto;
+  padding: 40px 48px 120px;
+}
+
+.landing-steps {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.landing-steps::before {
+  content: '';
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  top: 118px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(249, 212, 64, 0), rgba(249, 212, 64, 0.45), rgba(249, 212, 64, 0));
+}
+
+.landing-step {
+  position: relative;
+  padding: 24px 24px 28px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255, 244, 225, 0.05), rgba(255, 244, 225, 0.02));
+  border: 1px solid rgba(255, 236, 205, 0.1);
+}
+
+.landing-step-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 22px;
+}
+
+.landing-step-number {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: #a89e8f;
+}
+
+.landing-where {
+  padding: 4px 10px;
+  color: #f9d440;
+  border: 1px solid rgba(249, 212, 64, 0.35);
+}
+
+.landing-step-icon {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 22px;
+  border-radius: 999px;
+  background: #1a150f;
+  border: 1px solid rgba(249, 212, 64, 0.35);
+  box-shadow: 0 0 24px rgba(249, 212, 64, 0.12);
+}
+
+.landing-step h3 {
+  margin: 0 0 10px;
+  font-weight: 600;
+  font-size: 21px;
+}
+
+.landing-step p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #a89e8f;
+}
+
+.landing-loop {
+  max-width: 760px;
+  margin: 28px auto 0;
+  padding: 12px 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 236, 205, 0.1);
+  text-align: center;
+  font-size: 14px;
+  color: #a89e8f;
+}
+
+.landing-loop b {
+  font-weight: 600;
+  color: #f4efe6;
+}
+
+/* Phone width: the photo stacks above the copy, the step cards stack, the menu wraps. */
+@media (max-width: 900px) {
+  .landing-hero {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .landing-header {
+    order: 1;
+    padding: 20px 24px;
+  }
+
+  .landing-photo {
+    order: 2;
+    position: relative;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1327 / 1185;
+    mask-image: linear-gradient(to bottom, #000 70%, transparent 100%);
+  }
+
+  .landing-photo-frame {
+    top: 0;
+    left: 0;
+    width: 100%;
+    transform: none;
+  }
+
+  .landing-copy {
+    order: 3;
+    position: relative;
+    left: auto;
+    top: auto;
+    max-width: none;
+    padding: 24px;
+  }
+
+  .landing-how {
+    padding: 40px 24px 80px;
+  }
+
+  .landing-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .landing-steps::before {
+    display: none;
+  }
+
+  .landing-loop {
+    border-radius: 18px;
+  }
+}
+
+/* Reduced motion: the moving smoke hides over the still plume, the REC dot stays lit,
+   the carousel stands still and scrolls by hand instead. */
+@media (prefers-reduced-motion: reduce) {
+  .landing-smoke {
+    display: none;
+  }
+
+  .landing-rec {
+    animation: none;
+  }
+
+  .landing-track {
+    animation: none;
+  }
+
+  .landing-card-copy {
+    display: none;
+  }
+
+  .landing-marquee {
+    overflow-x: auto;
+  }
+}

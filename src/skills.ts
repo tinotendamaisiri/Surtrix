@@ -1,7 +1,6 @@
 import { collection, doc, getDoc, getDocs, orderBy, query, where, writeBatch, type Timestamp } from 'firebase/firestore'
 import { auth, db, signInLearner } from './firebase'
 import type { CoachSkill } from './coach'
-import { DEMO_SKILL_ID } from './demoSkill'
 import type { Skill } from './skill'
 import { coachSkillFromDocuments, isDocumentId, skillDocuments, type StepDocument } from './skillDocuments'
 
@@ -25,34 +24,10 @@ export async function saveSkill(skill: Skill): Promise<string> {
   return skillRef.id
 }
 
-// The skills on home: the demo skill first, then the ones this learner saved, newest
-// first. A demo skill that is missing or cannot be read is left out, so the learner's own
-// skills still show.
-export async function listSkills(): Promise<SkillSummary[]> {
-  const [demo, mine] = await Promise.all([
-    loadDemoSkillSummary().catch((e) => {
-      console.error('Loading the demo skill failed', e)
-      return null
-    }),
-    listMySkills(),
-  ])
-  return demo ? [demo, ...mine] : mine
-}
-
-async function loadDemoSkillSummary(): Promise<SkillSummary | null> {
-  await learnerId()
-  const snapshot = await getDoc(doc(db, 'skills', DEMO_SKILL_ID))
-  const title: unknown = snapshot.get('title')
-  const stepCount: unknown = snapshot.get('stepCount')
-  if (!snapshot.exists() || typeof title !== 'string' || typeof stepCount !== 'number') {
-    console.error(`The demo skill skills/${DEMO_SKILL_ID} is missing or not whole. Run scripts/seedDemoSkill.ts.`)
-    return null
-  }
-  return { id: snapshot.id, title, stepCount }
-}
-
-// The skills this learner saved, newest first. Sorted here, so no composite index.
-async function listMySkills(): Promise<SkillSummary[]> {
+// The skills this learner saved, newest first, for the My skills tab on home (#51).
+// Sorted here, so no composite index. The demo skill is never among them: it is seeded by
+// the Surtrix team, not saved by a learner.
+export async function listMySkills(): Promise<SkillSummary[]> {
   const snapshot = await getDocs(query(collection(db, 'skills'), where('creatorId', '==', await learnerId())))
   return snapshot.docs
     .map((d) => ({ id: d.id, title: d.get('title') as string, stepCount: d.get('stepCount') as number, createdAt: d.get('createdAt') as Timestamp | null }))

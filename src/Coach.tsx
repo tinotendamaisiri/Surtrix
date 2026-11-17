@@ -109,6 +109,8 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const panelOpenRef = useRef(false)
   const onPanelChange = useCallback((open: boolean) => {
     panelOpenRef.current = open
+    // Cancelled: the "asking below" line no longer holds.
+    if (!open) setAutoAsk((a) => (a?.kind === 'panel-open' ? null : a))
   }, [])
   // This learner's questions on the current step, live: an open one blocks a new automatic one.
   const [mine, setMine] = useState<{ stepId: string; questions: Question[] }>({ stepId: '', questions: [] })

@@ -57,9 +57,10 @@ test('the automatic question fits the question rules and has no dashes', () => {
   expect(AUTO_QUESTION).not.toMatch(/[\u2013\u2014]| - /)
 })
 
-test('an open manual panel stops the automatic question before anything else (#69)', () => {
+test('an open manual panel stops the automatic question; an open question on the step still comes first (#69)', () => {
   expect(afterNoFit({ panelOpen: true, openOnStep: false, asked: 0 })).toBe('panel-open')
-  expect(afterNoFit({ panelOpen: true, openOnStep: true, asked: 3 })).toBe('panel-open')
+  expect(afterNoFit({ panelOpen: true, openOnStep: false, asked: 3 })).toBe('panel-open')
+  expect(afterNoFit({ panelOpen: true, openOnStep: true, asked: 0 })).toBe('still-waiting')
   expect(afterNoFit({ panelOpen: false, openOnStep: false, asked: 0 })).toBe('ask')
 })
 

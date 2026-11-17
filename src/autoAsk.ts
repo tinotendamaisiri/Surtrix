@@ -57,9 +57,9 @@ export function uncountAutoAsk() {
 // The question sent with the AI's own words (judgeSaid) and the photo.
 export const AUTO_QUESTION = 'The AI was not sure about this step. Is my wiring right?'
 
-// After no saved answer fits: leave it to the learner's own question when the manual Ask an
-// Expert panel is open with one unsent (#69), wait for the question already open on this
-// step, past the limit leave it to the learner (the manual panel opens), or ask.
+// After no saved answer fits: wait for the question already open on this step; else leave
+// it to the learner's own question when the manual Ask an Expert panel is open with one
+// unsent (#69); past the limit leave it to the learner (the manual panel opens); or ask.
 export type AfterNoFit = 'panel-open' | 'ask' | 'still-waiting' | 'limit'
 
 export function afterNoFit({
@@ -71,8 +71,8 @@ export function afterNoFit({
   openOnStep: boolean
   asked: number
 }): AfterNoFit {
-  if (panelOpen) return 'panel-open'
   if (openOnStep) return 'still-waiting'
+  if (panelOpen) return 'panel-open'
   if (asked >= AUTO_ASK_LIMIT) return 'limit'
   return 'ask'
 }

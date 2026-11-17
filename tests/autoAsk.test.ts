@@ -47,5 +47,5 @@ test('at most 3 automatic questions per session', () => {
 
 test('the automatic question fits the question rules and has no dashes', () => {
   expect(AUTO_QUESTION.length).toBeLessThanOrEqual(500)
-  expect(AUTO_QUESTION).not.toMatch(/[–—]| - /)
+  expect(AUTO_QUESTION).not.toMatch(/[\u2013\u2014]| - /)
 })

@@ -8,7 +8,7 @@ was also called "Surtrix".
 
 ## Product
 
-Surtrix is an AI bench coach for hands-on electronics work. The user uploads a
+Surtrix is an expert over your shoulder for hands-on work. The user uploads a
 procedure (manual, SOP, guide), points a camera at their bench, and Surtrix guides
 them step by step, catches mistakes, and calls a live human expert when the AI is
 unsure. Expert answers are saved to the skill and reused, including offline.
@@ -71,6 +71,16 @@ internals.
 * Firestore: `skills`, `skills/{id}/steps`, `questions`,
   `skills/{id}/steps/{stepId}/answers` (saved expert answers) and `experts`. The
   shapes are in the Contracts section of the build plan.
+
+## Brand
+
+* Navy `#0B1E3C`: the flat color of the wordmark and the X mark.
+* Yellow `#F9D440`: the brightest point of the glow in the X, measured from the logo
+  files. It is a glow, not a flat fill.
+* The logo files are in `public/brand/` (wordmarks, X marks, icons, the link preview
+  image and the app manifest). Headers use the `Wordmark` component: navy on the
+  light page, white in dark mode.
+* The app's other colors (`src/index.css`) stay as they are until the redesign.
 
 ## Proven facts (tested Nov 12 and 15)
 

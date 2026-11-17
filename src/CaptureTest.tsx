@@ -11,6 +11,7 @@ import {
   type Path,
 } from './firebase'
 import { grabFrame, type Frame } from './cameraFrame.ts'
+import Wordmark from './Wordmark.tsx'
 
 type Capture = FrameAnswer & { frame: Frame; question: string }
 
@@ -122,7 +123,9 @@ export default function CaptureTest() {
   return (
     <main>
       <header>
-        <h1>Surtrix</h1>
+        <h1>
+          <Wordmark />
+        </h1>
         <p className="muted">Capture test</p>
         <p>
           <a href="#new-skill">Turn a procedure into steps</a>

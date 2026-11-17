@@ -9,6 +9,7 @@ import { goBack, goNext, markStepDone, startProgress, type CoachProgress, type C
 import { describeBenchAnswer } from './watch.ts'
 import { describeWiringCheck, WIRING_DEADLINE_MS, WIRING_GIVE_UP_MS } from './wiring.ts'
 import { checkWiring, type WiringResult } from './wiringCheck.ts'
+import Wordmark from './Wordmark.tsx'
 
 // Where a wiring check result shows: under a step (by id), or on the All steps done screen.
 const FINISHED = 'finished'
@@ -26,7 +27,7 @@ function Header() {
     <header>
       <h1>
         <a className="home-link" href="#">
-          Surtrix
+          <Wordmark />
         </a>
       </h1>
     </header>

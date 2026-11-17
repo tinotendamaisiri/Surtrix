@@ -10,6 +10,7 @@ body:has(main.landing) {
 }
 
 main.landing {
+  container-type: inline-size;
   max-width: none;
   margin: 0;
   padding: 0;
@@ -87,34 +88,38 @@ main.landing {
 
 /* Hero */
 
-/* The hero is 900 px tall up to 1440 px wide, as designed. Wider, the photo grows with
-   the page, so the hero grows a little and the photo slides up with it: the iron tip, the
-   smoke and the whole board stay above the bottom fade (which starts at 82 percent), and
-   the REC label stays below the header. In the photo the REC label is at 37.9 percent
-   down, the iron tip at 74.3 percent and the board's bottom edge at 93.7 percent; above
-   1440 px the photo is 62.5vw tall (70 percent of the width, at the photo's shape). */
+/* The hero is 900 px tall up to 1440 px wide, as designed, with an 18 percent (162 px)
+   bottom fade. Wider, the photo grows with the page (62.5vw tall: 70 percent of the width,
+   at the photo's shape; cqw here is percent of the page width, without a scrollbar), so it slides up a little and the hero ends exactly where the
+   photo ends, with no hard edge. The bottom fade narrows to a 50 px band, so at 1920 px
+   and wider the iron tip, the smoke and the whole board sit above it, and the REC label
+   stays below the header. In the photo the REC label is at 37.9 percent down, the iron
+   tip at 74.3 percent and the board's bottom edge at 93.7 percent. */
 .landing-hero {
   --hero-height: 900px;
   --photo-shift: 0px;
+  --photo-fade: 162px;
   position: relative;
   min-height: var(--hero-height);
   overflow: hidden;
 }
 
-/* From 1440 to 1920 px: from 900 to 1000 px tall, and from no shift to 324 px up. */
+/* From 1440 to 1920 px: the photo slides from 0 to 250 px up, the hero grows from 900 to
+   950 px (the photo's height minus the shift), and the fade narrows from 162 to 50 px. */
 @media (min-width: 1441px) and (max-width: 1920px) {
   .landing-hero {
-    --hero-height: calc(600px + 20.83vw);
-    --photo-shift: calc(972px - 67.5vw);
+    --hero-height: calc(750px + 10.43cqw);
+    --photo-shift: calc(750px - 52.08cqw);
+    --photo-fade: calc(498px - 23.33cqw);
   }
 }
 
-/* From 1920 px: the hero is 5/6 of the photo's height and the photo 27 percent up, the
-   same composition as at 1920 px, scaled. */
+/* From 1920 px: the same composition as at 1920 px, scaled with the photo. */
 @media (min-width: 1921px) {
   .landing-hero {
-    --hero-height: 52.09vw;
-    --photo-shift: -16.88vw;
+    --hero-height: 49.49cqw;
+    --photo-shift: -13.02cqw;
+    --photo-fade: 2.6cqw;
   }
 }
 
@@ -173,7 +178,7 @@ main.landing {
   width: 70%;
   height: var(--hero-height);
   overflow: hidden;
-  mask-image: linear-gradient(to right, transparent 0%, #000 20%), linear-gradient(to bottom, #000 82%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0%, #000 20%), linear-gradient(to bottom, #000 calc(100% - var(--photo-fade)), transparent 100%);
   mask-composite: intersect;
 }
 

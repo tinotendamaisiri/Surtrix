@@ -87,10 +87,35 @@ main.landing {
 
 /* Hero */
 
+/* The hero is 900 px tall up to 1440 px wide, as designed. Wider, the photo grows with
+   the page, so the hero grows a little and the photo slides up with it: the iron tip, the
+   smoke and the whole board stay above the bottom fade (which starts at 82 percent), and
+   the REC label stays below the header. In the photo the REC label is at 37.9 percent
+   down, the iron tip at 74.3 percent and the board's bottom edge at 93.7 percent; above
+   1440 px the photo is 62.5vw tall (70 percent of the width, at the photo's shape). */
 .landing-hero {
+  --hero-height: 900px;
+  --photo-shift: 0px;
   position: relative;
-  min-height: 900px;
+  min-height: var(--hero-height);
   overflow: hidden;
+}
+
+/* From 1440 to 1920 px: from 900 to 1000 px tall, and from no shift to 324 px up. */
+@media (min-width: 1441px) and (max-width: 1920px) {
+  .landing-hero {
+    --hero-height: calc(600px + 20.83vw);
+    --photo-shift: calc(972px - 67.5vw);
+  }
+}
+
+/* From 1920 px: the hero is 5/6 of the photo's height and the photo 27 percent up, the
+   same composition as at 1920 px, scaled. */
+@media (min-width: 1921px) {
+  .landing-hero {
+    --hero-height: 52.09vw;
+    --photo-shift: -16.88vw;
+  }
 }
 
 .landing-header {
@@ -146,17 +171,17 @@ main.landing {
   top: 0;
   right: 0;
   width: 70%;
-  height: 900px;
+  height: var(--hero-height);
   overflow: hidden;
   mask-image: linear-gradient(to right, transparent 0%, #000 20%), linear-gradient(to bottom, #000 82%, transparent 100%);
   mask-composite: intersect;
 }
 
 /* The photo at its own shape (1327 x 1185), at least 900 px tall, centered and cropped
-   from the top: the same crop as object-fit cover with object-position center top. */
+   like object-fit cover, from the top up to 1440 px wide and shifted up beyond that. */
 .landing-photo-frame {
   position: absolute;
-  top: 0;
+  top: var(--photo-shift);
   left: 50%;
   width: max(100%, calc(900px * 1327 / 1185));
   aspect-ratio: 1327 / 1185;
@@ -782,6 +807,7 @@ a.landing-card:hover {
   }
 
   .landing-photo-frame {
+    top: 0;
     left: 0;
     width: 100%;
     transform: none;

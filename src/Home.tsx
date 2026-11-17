@@ -72,13 +72,14 @@ function HeroPhoto() {
   return (
     <div className="landing-photo">
       <div className="landing-photo-frame">
-        <picture>
-          <source media="(max-width: 900px)" srcSet={`/landing/${HERO_SMALL_IMAGE}`} />
-          <img
-            src={`/landing/${HERO_IMAGE}`}
-            alt="A student solders a circuit board under a desk lamp while Surtrix shows the current step"
-          />
-        </picture>
+        {/* The browser picks by the photo's width on screen times the screen's density, so
+            only small, low density screens get the small photo. */}
+        <img
+          src={`/landing/${HERO_IMAGE}`}
+          srcSet={`/landing/${HERO_SMALL_IMAGE} 664w, /landing/${HERO_IMAGE} 1327w`}
+          sizes="(max-width: 900px) 100vw, 1008px"
+          alt="A student solders a circuit board under a desk lamp while Surtrix shows the current step"
+        />
         <span className="landing-rec" aria-hidden="true" />
         <span className="landing-plume" aria-hidden="true">
           <b />

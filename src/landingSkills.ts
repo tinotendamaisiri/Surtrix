@@ -18,7 +18,7 @@ export type LandingSkill = {
 }
 
 export const HERO_IMAGE = 'hero.jpg'
-// The same photo for phone widths, where the hero is narrower.
+// The same photo, half the size, for small, low density screens.
 export const HERO_SMALL_IMAGE = 'hero-small.jpg'
 
 export const landingSkills: readonly LandingSkill[] = [

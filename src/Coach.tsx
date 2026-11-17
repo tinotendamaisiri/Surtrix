@@ -10,6 +10,8 @@ import { describeBenchAnswer } from './watch.ts'
 import { describeWiringCheck, WIRING_DEADLINE_MS, WIRING_GIVE_UP_MS } from './wiring.ts'
 import { checkWiring, type WiringResult } from './wiringCheck.ts'
 import Wordmark from './Wordmark.tsx'
+import BackToSkills from './BackToSkills.tsx'
+import { skillsTabFor } from './landingIntent.ts'
 
 // Where a wiring check result shows: under a step (by id), or on the All steps done screen.
 const FINISHED = 'finished'
@@ -43,7 +45,7 @@ export default function Coach({ skill }: { skill: CoachSkill | undefined }) {
       <main>
         <Header />
         <p>This skill could not be found.</p>
-        <a href="#">Back to skills</a>
+        <BackToSkills tab="all" />
       </main>
     )
   }
@@ -200,7 +202,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       <Header />
 
       <div className="coach-title">
-        <a href="#">Back to skills</a>
+        <BackToSkills tab={skillsTabFor(skill.id)} />
         <h2>{skill.title}</h2>
       </div>
 
@@ -222,7 +224,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
               <button type="button" onClick={() => move(() => startProgress(skill.steps.length))}>
                 Start again
               </button>
-              <a href="#">Back to skills</a>
+              <BackToSkills tab={skillsTabFor(skill.id)} />
             </div>
           </section>
         ) : (

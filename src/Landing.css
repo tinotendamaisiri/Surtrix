@@ -917,6 +917,19 @@ a.landing-card:hover {
   margin: 0;
 }
 
+/* An inline link, with a 44 px tall tap area that does not change the line. */
+.landing .landing-footer-license {
+  display: inline-block;
+  padding: 12px 0;
+  margin: -12px 0;
+  line-height: 20px;
+  color: #cfc6b8;
+}
+
+.landing .landing-footer-license:hover {
+  color: #f9d440;
+}
+
 .landing-footer-built {
   display: inline-flex;
   align-items: center;

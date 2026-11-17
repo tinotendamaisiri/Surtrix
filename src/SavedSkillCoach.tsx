@@ -3,6 +3,8 @@ import Coach from './Coach.tsx'
 import type { CoachSkill } from './coach.ts'
 import { loadSkill } from './skills.ts'
 import Wordmark from './Wordmark.tsx'
+import BackToSkills from './BackToSkills.tsx'
+import { skillsTabFor } from './landingIntent.ts'
 
 type State = { kind: 'loading' } | { kind: 'loaded'; skill: CoachSkill | null } | { kind: 'failed' }
 
@@ -40,7 +42,7 @@ export default function SavedSkillCoach({ skillId }: { skillId: string }) {
       ) : (
         <>
           <p className="error">Could not load this skill. Reload the page to try again.</p>
-          <a href="#">Back to skills</a>
+          <BackToSkills tab={skillsTabFor(skillId)} />
         </>
       )}
     </main>

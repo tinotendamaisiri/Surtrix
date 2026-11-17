@@ -66,7 +66,18 @@ export default function LandingFooter({ onHow, onSkills }: { onHow: () => void; 
         </nav>
       </div>
       <div className="landing-footer-bar">
-        <p>© 2026 Surtrix. All rights reserved.</p>
+        <p>
+          © 2026 Surtrix. Open source under{' '}
+          <a
+            className="landing-footer-license"
+            href="https://github.com/tinotendamaisiri/Surtrix/blob/main/LICENSE"
+            target="_blank"
+            rel="noopener"
+          >
+            Apache 2.0
+          </a>
+          .
+        </p>
         <p className="landing-footer-built">
           <i aria-hidden="true" />
           Built for #BuildHybridAI

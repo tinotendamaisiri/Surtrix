@@ -1,6 +1,6 @@
 // Saved expert answers in the coach (#31). When the coach opens a skill (online), it loads
-// the saved answers of every step once and keeps them in memory, so they still help if the
-// network drops. A learner's question picks one with Gemini Nano on device first, and
+// the saved answers of every step and keeps listening (#65), with them in memory, so they
+// still help if the network drops and a new answer shows at once. A learner's question picks one with Gemini Nano on device first, and
 // gemini-3.5-flash-lite in the cloud when Nano cannot answer.
 import { useEffect, useState } from 'react'
 import {
@@ -12,7 +12,7 @@ import {
   type GenerativeModel,
   type LanguageModelCreateOptions,
 } from 'firebase/ai'
-import { collection, getDocs } from 'firebase/firestore'
+import { collection, onSnapshot } from 'firebase/firestore'
 import { ai, db, signInLearner } from './firebase'
 import type { CoachSkill } from './coach'
 import {
@@ -36,44 +36,68 @@ export const PICK_CLOUD_MODEL = 'gemini-3.5-flash-lite'
 // Every step's saved answers, by step id.
 export type StepAnswers = Record<string, SavedAnswer[]>
 
-// Loads the saved answers of every step of a skill the coach loaded. Only these are ever
-// offered, so an answer filed under a skill or step that does not exist is never used.
-export async function loadSavedAnswers(skill: CoachSkill): Promise<StepAnswers> {
-  await signInLearner()
-  const steps = await Promise.all(
-    skill.steps.map(async (step) => {
-      const snapshot = await getDocs(collection(db, 'skills', skill.id, 'steps', step.id, 'answers'))
-      return { stepId: step.id, documents: snapshot.docs.map((d) => ({ id: d.id, data: d.data() })) }
-    }),
-  )
-  return stepAnswersFromDocuments(steps)
-}
-
 export type SavedAnswersState = { kind: 'loading' } | { kind: 'loaded'; byStep: StepAnswers } | { kind: 'failed' }
 
-// The coach's saved answers, loaded once per skill.
+// Listens to the saved answers of every step of a skill the coach loaded, so a new expert
+// answer shows at once (#65). Only these steps are ever offered, so an answer filed under a
+// skill or step that does not exist is never used. The answers stay in memory, so they
+// still help if the network drops. onChange gets every step's answers once each step has
+// loaded, then again on every change. Returns a function that stops listening.
+export function watchSavedAnswers(
+  skill: CoachSkill,
+  onChange: (byStep: StepAnswers) => void,
+  onError: (error: unknown) => void,
+): () => void {
+  let stopped = false
+  const stops: (() => void)[] = []
+  const documents = new Map<string, { id: string; data: Record<string, unknown> }[]>()
+  signInLearner().then(() => {
+    if (stopped) return
+    for (const step of skill.steps) {
+      stops.push(
+        onSnapshot(
+          collection(db, 'skills', skill.id, 'steps', step.id, 'answers'),
+          (snapshot) => {
+            documents.set(step.id, snapshot.docs.map((d) => ({ id: d.id, data: d.data() })))
+            if (documents.size < skill.steps.length) return
+            onChange(stepAnswersFromDocuments(skill.steps.map((s) => ({ stepId: s.id, documents: documents.get(s.id) ?? [] }))))
+          },
+          onError,
+        ),
+      )
+    }
+  }, onError)
+  return () => {
+    stopped = true
+    stops.forEach((stop) => stop())
+  }
+}
+
+// The coach's saved answers, kept up to date while it is open.
 export function useSavedAnswers(skill: CoachSkill): SavedAnswersState {
   const [state, setState] = useState<{ skillId: string; value: SavedAnswersState }>({
     skillId: skill.id,
     value: { kind: 'loading' },
   })
   useEffect(() => {
-    let onScreen = true
-    loadSavedAnswers(skill).then(
+    let first = true
+    const stop = watchSavedAnswers(
+      skill,
       (byStep) => {
-        if (!onScreen) return
         setState({ skillId: skill.id, value: { kind: 'loaded', byStep } })
         // Get Nano ready while the learner works, so the first pick is quick (#43).
-        if (hasSavedAnswers(byStep)) void warmUpNano()
+        if (first && hasSavedAnswers(byStep)) void warmUpNano()
+        first = false
       },
       (e) => {
         console.error('Loading saved answers failed', e)
-        if (onScreen) setState({ skillId: skill.id, value: { kind: 'failed' } })
+        // Answers already loaded stay; only a first load that fails shows as failed.
+        setState((current) =>
+          current.skillId === skill.id && current.value.kind === 'loaded' ? current : { skillId: skill.id, value: { kind: 'failed' } },
+        )
       },
     )
-    return () => {
-      onScreen = false
-    }
+    return stop
   }, [skill])
   return state.skillId === skill.id ? state.value : { kind: 'loading' }
 }

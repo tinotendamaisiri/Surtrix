@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Coach from './Coach.tsx'
 import type { CoachSkill } from './coach.ts'
 import { loadSkill } from './skills.ts'
+import Wordmark from './Wordmark.tsx'
 
 type State = { kind: 'loading' } | { kind: 'loaded'; skill: CoachSkill | null } | { kind: 'failed' }
 
@@ -30,7 +31,7 @@ export default function SavedSkillCoach({ skillId }: { skillId: string }) {
       <header>
         <h1>
           <a className="home-link" href="#">
-            Surtrix
+            <Wordmark />
           </a>
         </h1>
       </header>

@@ -171,14 +171,18 @@ function PartModal({ skillId, part, onClose }: { skillId: string; part: string; 
 }
 
 // STEPS: done steps show a tick, the current one is highlighted, the rest are numbered.
+// disabled: off at the same times as Back and Next (while a wiring check is within its
+// time limit), so a check already paid for is never cancelled by a step change.
 export function StepList({
   steps,
   progress,
   onGo,
+  disabled = false,
 }: {
   steps: CoachStep[]
   progress: CoachProgress
   onGo: (index: number) => void
+  disabled?: boolean
 }) {
   return (
     <section className="ws-section" aria-labelledby="ws-steps-heading">
@@ -195,7 +199,9 @@ export function StepList({
                 type="button"
                 className={`ws-step ${current ? 'ws-step-current' : ''} ${done ? 'ws-step-done' : ''}`}
                 aria-current={current ? 'step' : undefined}
-                onClick={() => onGo(index)}
+                disabled={disabled}
+                // The step already on screen: nothing to do, and its verdict stays.
+                onClick={() => !current && onGo(index)}
               >
                 <span className="ws-step-mark" aria-hidden="true">
                   {done && !current ? '✓' : index + 1}
@@ -220,7 +226,7 @@ function prefersReducedMotion(): boolean {
 }
 
 // From live experts: the skill's saved expert answers, one at a time, every 4 seconds.
-// Hovering or focusing pauses it, and it stays still with reduced motion.
+// Hovering pauses it, and it stays still with reduced motion.
 export function ExpertsCard({ state }: { state: { kind: 'loading' } | { kind: 'failed' } | { kind: 'loaded'; cards: ExpertCard[] } }) {
   const cards = state.kind === 'loaded' ? state.cards : []
   const [shown, setShown] = useState(0)
@@ -255,8 +261,6 @@ export function ExpertsCard({ state }: { state: { kind: 'loading' } | { kind: 'f
           className="ws-ticker"
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}
-          onFocus={() => setPaused(true)}
-          onBlur={() => setPaused(false)}
         >
           <div key={`${card.id}-${shown}`} className="ws-expert ws-expert-in">
             <span className="ws-avatar" aria-hidden="true">
@@ -264,8 +268,9 @@ export function ExpertsCard({ state }: { state: { kind: 'loading' } | { kind: 'f
             </span>
             <p>
               Answer on {card.stepTitle}, from <b>{card.expertName}</b>{' '}
-              <span className="ws-verified" title="Verified expert" aria-label="verified expert">
-                ✓
+              <span className="ws-verified" title="Verified expert">
+                <span aria-hidden="true">✓</span>
+                <span className="ws-visually-hidden">verified expert</span>
               </span>
             </p>
           </div>

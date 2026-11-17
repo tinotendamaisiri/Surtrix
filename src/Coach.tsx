@@ -71,6 +71,10 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const stepSaved: StepSavedAnswers =
     saved.kind === 'loaded' ? { kind: 'loaded', answers: saved.byStep[step.id] ?? [] } : saved
 
+  // Where Ask an Expert sits. On stacked layouts it is below the step, so an unsure
+  // verdict that opens it scrolls it into view.
+  const notSureRef = useRef<HTMLElement>(null)
+
   // Counts the cameras now and whenever one is plugged in or out.
   useEffect(() => {
     const devices = navigator.mediaDevices
@@ -235,6 +239,11 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const here = progress.finished ? FINISHED : step.id
   const shownResult = wiring?.kind === 'result' && wiring.showOn === here ? wiring : null
   const judgeOffer = shownResult?.offer ?? null
+  useEffect(() => {
+    if (!judgeOffer || !window.matchMedia('(max-width: 1100px)').matches) return
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    notSureRef.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
+  }, [judgeOffer])
   const isFirst = progress.stepIndex === 0
   const isLast = progress.stepIndex === skill.steps.length - 1
 
@@ -261,9 +270,14 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       <div className="ws-grid">
         <aside className="ws-left ws-panel" aria-label="Parts and steps">
           <PartsList skillId={skill.id} parts={parts} />
-          <StepList steps={skill.steps} progress={progress} onGo={(index) => move((p) => goToStep(p, index))} />
+          <StepList
+            steps={skill.steps}
+            progress={progress}
+            disabled={holding}
+            onGo={(index) => move((p) => goToStep(p, index))}
+          />
           {!progress.finished && (
-            <section className="ws-notsure" aria-label="Not sure?">
+            <section className="ws-notsure" aria-label="Not sure?" ref={notSureRef}>
               <p className="ws-notsure-title">Not sure?</p>
               <AskExpert
                 step={{
@@ -296,7 +310,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
                   <i className="ws-rec" aria-hidden="true" />
                   REC
                 </span>
-                {watch.deviceStatus === 'available' && (
+                {watch.deviceStatus === 'available' && !progress.finished && (
                   <span className="ws-tag">
                     <i className="ws-dot" aria-hidden="true" />
                     ON DEVICE · WATCHING THE BENCH

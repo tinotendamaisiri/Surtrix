@@ -3,8 +3,10 @@
    the smoke scale with the photo at every width. 1px of the 1008 px wide design photo is
    0.0992cqw. */
 
+html:has(main.landing),
 body:has(main.landing) {
   background: #0f0b07;
+  color-scheme: dark;
 }
 
 main.landing {

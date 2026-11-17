@@ -49,9 +49,9 @@ export function countAutoAsk() {
   askedThisSession += 1
 }
 
-// For tests only.
-export function resetAutoAskCount() {
-  askedThisSession = 0
+// A question that could not be sent does not count.
+export function uncountAutoAsk() {
+  askedThisSession = Math.max(0, askedThisSession - 1)
 }
 
 // The question sent with the AI's own words (judgeSaid) and the photo.

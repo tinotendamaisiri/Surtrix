@@ -1,6 +1,6 @@
 // Saved expert answers in the coach (#31). When the coach opens a skill (online), it loads
-// the saved answers of every step and keeps listening (#65), with them in memory, so they
-// still help if the network drops and a new answer shows at once. A learner's question picks one with Gemini Nano on device first, and
+// the saved answers of every step and keeps listening (#65). They stay in memory, so they
+// still help if the network drops, and a new answer shows at once. A learner's question picks one with Gemini Nano on device first, and
 // gemini-3.5-flash-lite in the cloud when Nano cannot answer.
 import { useEffect, useState } from 'react'
 import {
@@ -91,7 +91,8 @@ export function useSavedAnswers(skill: CoachSkill): SavedAnswersState {
       },
       (e) => {
         console.error('Loading saved answers failed', e)
-        // Answers already loaded stay; only a first load that fails shows as failed.
+        // Answers already loaded stay; only a first load that fails shows as failed. A
+        // listener that fails later stops updating its step, which keeps its last answers.
         setState((current) =>
           current.skillId === skill.id && current.value.kind === 'loaded' ? current : { skillId: skill.id, value: { kind: 'failed' } },
         )

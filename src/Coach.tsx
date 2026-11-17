@@ -29,6 +29,7 @@ import {
   autoAskedThisSession,
   countAutoAsk,
   readAutoAskChoice,
+  uncountAutoAsk,
   writeAutoAskChoice,
   type AutoAskChoice,
 } from './autoAsk.ts'
@@ -106,11 +107,13 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const [mine, setMine] = useState<{ stepId: string; questions: Question[] }>({ stepId: '', questions: [] })
   const mineRef = useRef(mine)
   const savedRef = useRef(saved)
-  const stepIdRef = useRef(step.id)
+  const choiceRef = useRef(autoChoice)
+  // Each automatic run's number: a step change or a new run makes an older one stop.
+  const runRef = useRef(0)
   useEffect(() => {
     mineRef.current = mine
     savedRef.current = saved
-    stepIdRef.current = step.id
+    choiceRef.current = autoChoice
   })
   useEffect(() => {
     const stepId = step.id
@@ -232,6 +235,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   function move(change: (p: CoachProgress) => CoachProgress) {
     endWiringCheck()
     setWiring(null)
+    runRef.current++
     setAutoAsk(null)
     setManualOffer(null)
     setProgress(change)
@@ -252,7 +256,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   // asking is off, else let the AI ask.
   function handleUnsure(s: CoachStep, index: number, offer: JudgeOffer) {
     setUnsureCount((n) => n + 1)
-    const choice = readAutoAskChoice() ?? autoChoice
+    const choice = readAutoAskChoice() ?? choiceRef.current
     if (choice === null) {
       setAutoAsk({ stepId: s.id, kind: 'notice', said: offer.said, offer, index })
       return
@@ -267,6 +271,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   function chooseAutoAsk(choice: 'on' | 'off') {
     writeAutoAskChoice(choice)
     setAutoChoice(choice)
+    choiceRef.current = choice
     // Answering the first time notice decides this verdict too.
     if (autoAsk?.kind !== 'notice' || autoAsk.stepId !== step.id) return
     const { offer, index } = autoAsk
@@ -280,7 +285,8 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   // The saved answers first; if none fits, a question with the photo, the step and the
   // AI's own words, unless one is already open on this step or the limit is reached.
   async function runAutoAsk(s: CoachStep, index: number, offer: JudgeOffer) {
-    const stillHere = () => onScreenRef.current && stepIdRef.current === s.id
+    const run = ++runRef.current
+    const stillHere = () => onScreenRef.current && runRef.current === run
     const said = offer.said
     setAutoAsk({ stepId: s.id, kind: 'picking', said })
     const current = savedRef.current
@@ -293,10 +299,10 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
         return
       }
     }
-    const openOnStep = mineRef.current.stepId === s.id && mineRef.current.questions.some((q) => q.status === 'open')
-    const next = afterNoFit({ openOnStep, asked: autoAskedThisSession() })
+    const open = mineRef.current.stepId === s.id ? mineRef.current.questions.find((q) => q.status === 'open') : undefined
+    const next = afterNoFit({ openOnStep: open !== undefined, asked: autoAskedThisSession() })
     if (next === 'still-waiting') {
-      setAutoAsk({ stepId: s.id, kind: 'still-waiting', said })
+      setAutoAsk({ stepId: s.id, kind: 'still-waiting', said, questionId: open?.id ?? null })
       return
     }
     if (next === 'limit') {
@@ -304,28 +310,35 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       setManualOffer(offer)
       return
     }
+    // The learner may have switched it off while the saved answers were checked.
+    if ((readAutoAskChoice() ?? choiceRef.current) !== 'on') {
+      setAutoAsk(null)
+      setManualOffer(offer)
+      return
+    }
     countAutoAsk()
-    setAutoAsk({ stepId: s.id, kind: navigator.onLine ? 'asking' : 'queued', said })
+    const failed = (e: unknown) => {
+      console.error('Could not ask an expert', e)
+      uncountAutoAsk()
+      if (!stillHere()) return
+      setAutoAsk({ stepId: s.id, kind: 'failed', said })
+      setManualOffer(offer)
+    }
+    setAutoAsk({ stepId: s.id, kind: navigator.onLine ? 'asking' : 'queued', said, questionId: null })
     try {
-      const { saved: sent } = await askExpert({
+      const { id, saved: sent } = await askExpert({
         step: questionStep(s, index),
         question: AUTO_QUESTION,
         frameBase64: offer.frame,
         judgeSaid: said,
       })
+      if (stillHere()) setAutoAsk((a) => (a?.stepId === s.id && 'questionId' in a ? { ...a, questionId: id } : a))
       // Offline, the question waits in Firestore's queue and goes once back online.
-      sent.then(
-        () => setAutoAsk((a) => (a?.stepId === s.id && a.kind === 'queued' ? { ...a, kind: 'asking' } : a)),
-        (e: unknown) => {
-          console.error('Could not ask an expert', e)
-          setAutoAsk((a) => (a?.stepId === s.id && (a.kind === 'queued' || a.kind === 'asking') ? { ...a, kind: 'failed' } : a))
-        },
-      )
+      sent.then(() => {
+        if (stillHere()) setAutoAsk((a) => (a?.stepId === s.id && a.kind === 'queued' ? { ...a, kind: 'asking' } : a))
+      }, failed)
     } catch (e) {
-      console.error('Could not ask an expert', e)
-      if (!stillHere()) return
-      setAutoAsk({ stepId: s.id, kind: 'failed', said })
-      setManualOffer(offer)
+      failed(e)
     }
   }
 

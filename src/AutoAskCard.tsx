@@ -11,7 +11,9 @@ export type AutoAsk = { stepId: string; said: string } & (
   | { kind: 'notice'; offer: JudgeOffer; index: number }
   | { kind: 'picking' }
   | { kind: 'saved'; pick: Pick & { answer: NonNullable<Pick['answer']> } }
-  | { kind: 'asking' | 'queued' | 'still-waiting' | 'limit' | 'failed' }
+  // questionId: the question being waited on, once known; only its reply shows here.
+  | { kind: 'asking' | 'queued' | 'still-waiting'; questionId: string | null }
+  | { kind: 'limit' | 'failed' }
 )
 
 const sourceText: Record<string, string> = {
@@ -86,10 +88,9 @@ function Status({ autoAsk, questions, onChoose }: { autoAsk: AutoAsk; questions:
     )
   }
 
-  // The newest question the AI asked on this step: its reply shows here once it comes.
-  const asked = questions.find((q) => q.origin === 'judge')
-  const waitingKinds = ['asking', 'queued', 'still-waiting']
-  if (asked?.reply && waitingKinds.includes(autoAsk.kind)) {
+  // The question being waited on: its reply, and only its reply, shows here once it comes.
+  const asked = 'questionId' in autoAsk && autoAsk.questionId ? questions.find((q) => q.id === autoAsk.questionId) : undefined
+  if (asked?.reply) {
     return (
       <div className="ws-note">
         <p className="ws-mono ws-note-label">REAL EXPERT · ANSWERED</p>

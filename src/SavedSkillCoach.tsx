@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import Coach from './Coach.tsx'
 import type { CoachSkill } from './coach.ts'
 import { loadSkill } from './skills.ts'
-import Wordmark from './Wordmark.tsx'
 import BackToSkills from './BackToSkills.tsx'
 import { skillsTabFor } from './landingIntent.ts'
+import { WorkspaceShell, WorkspaceTopBar } from './WorkspacePanels.tsx'
 
 type State = { kind: 'loading' } | { kind: 'loaded'; skill: CoachSkill | null } | { kind: 'failed' }
 
@@ -28,23 +28,19 @@ export default function SavedSkillCoach({ skillId }: { skillId: string }) {
   }, [skillId])
 
   if (state.kind === 'loaded') return <Coach skill={state.skill ?? undefined} />
+  const exitTab = skillsTabFor(skillId)
   return (
-    <main>
-      <header>
-        <h1>
-          <a className="home-link" href="#">
-            <Wordmark />
-          </a>
-        </h1>
-      </header>
-      {state.kind === 'loading' ? (
-        <p className="muted">Loading the skill</p>
-      ) : (
-        <>
-          <p className="error">Could not load this skill. Reload the page to try again.</p>
-          <BackToSkills tab={skillsTabFor(skillId)} />
-        </>
-      )}
-    </main>
+    <WorkspaceShell top={<WorkspaceTopBar exitTab={exitTab} />}>
+      <section className="ws-message ws-panel">
+        {state.kind === 'loading' ? (
+          <p className="ws-quiet">Loading the skill</p>
+        ) : (
+          <>
+            <p className="ws-error">Could not load this skill. Reload the page to try again.</p>
+            <BackToSkills tab={exitTab} className="ws-pill" />
+          </>
+        )}
+      </section>
+    </WorkspaceShell>
   )
 }

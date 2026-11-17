@@ -30,6 +30,12 @@ export function goNext(progress: CoachProgress): CoachProgress {
   return { ...progress, stepIndex: progress.stepIndex + 1 }
 }
 
+// Goes straight to a step, from the Workspace's step list (#62). Nothing is marked done.
+export function goToStep(progress: CoachProgress, index: number): CoachProgress {
+  if (index < 0 || index >= progress.done.length) return progress
+  return { ...progress, stepIndex: index, finished: false }
+}
+
 // Marks the current step done and moves to the next one; after the last step, the
 // skill is finished.
 export function markStepDone(progress: CoachProgress): CoachProgress {

@@ -1,5 +1,6 @@
 import { useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import './Landing.css'
+import LandingFooter from './LandingFooter.tsx'
 import { HERO_IMAGE, HERO_SMALL_IMAGE, landingSkills, type LandingSkill } from './landingSkills.ts'
 import MySkills from './MySkills.tsx'
 import { coachHash } from './screenAddress.ts'
@@ -56,6 +57,7 @@ export default function Home() {
 
       <SkillsSection sectionRef={skillsRef} />
       <HowItWorks sectionRef={howRef} />
+      <LandingFooter onHow={() => scrollToSection(howRef)} onSkills={() => scrollToSection(skillsRef)} />
     </main>
   )
 }

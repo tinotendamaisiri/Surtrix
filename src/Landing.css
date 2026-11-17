@@ -41,8 +41,13 @@ main.landing {
   color: inherit;
 }
 
+/* Every button and every link that acts as one is at least 44 px tall (#54). */
 .landing-pill {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 44px;
   border-radius: 999px;
   text-decoration: none;
   font-size: 15px;
@@ -162,6 +167,10 @@ main.landing {
 }
 
 .landing .landing-nav button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  box-sizing: border-box;
   color: #cfc6b8;
   font-size: 14px;
   padding: 10px 18px;
@@ -366,7 +375,10 @@ main.landing {
   z-index: 3;
   left: 48px;
   top: 220px;
-  max-width: 470px;
+  /* Never into the opaque photo, which starts at 44 percent of the width (the photo
+     starts at 30 percent and fades in over its first 20 percent): 48 px from the left
+     plus this width stays 16 px short of it. 470 px from about 1180 px wide, as designed. */
+  max-width: min(470px, calc(44% - 64px));
   display: flex;
   flex-direction: column;
   gap: 22px;
@@ -461,6 +473,10 @@ main.landing {
 }
 
 .landing .landing-tabs button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  box-sizing: border-box;
   color: #cfc6b8;
   font-size: 14px;
   padding: 10px 18px;
@@ -790,6 +806,169 @@ a.landing-card:hover {
 .landing-loop b {
   font-weight: 600;
   color: #f4efe6;
+}
+
+/* Footer (#54) */
+
+.landing-footer {
+  position: relative;
+  overflow: hidden;
+  border-top: 1px solid rgba(255, 236, 205, 0.1);
+}
+
+.landing-footer-glow {
+  position: absolute;
+  left: 50%;
+  bottom: -260px;
+  width: 1100px;
+  height: 520px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(249, 212, 64, 0.16), rgba(249, 150, 40, 0.06) 45%, rgba(15, 11, 7, 0) 72%);
+  pointer-events: none;
+}
+
+.landing-footer-main {
+  position: relative;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 1.7fr 1fr 1fr 1fr;
+  gap: 40px;
+  max-width: 1344px;
+  margin: 0 auto;
+  padding: 72px 48px 48px;
+}
+
+.landing-footer-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  max-width: 420px;
+}
+
+.landing-footer-brand .wordmark {
+  margin-left: calc(-17px / 3);
+}
+
+.landing-footer-line {
+  margin: 0;
+  font-family: Montserrat, system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 22px;
+  color: #f4efe6;
+}
+
+.landing-footer-text {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #a89e8f;
+}
+
+.landing-footer-column h2 {
+  margin: 0 0 8px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  color: #a89e8f;
+}
+
+.landing-footer-column ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.landing .landing-footer-column a,
+.landing .landing-footer-column button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 15px;
+  color: #cfc6b8;
+  text-decoration: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.landing .landing-footer-column a:hover,
+.landing .landing-footer-column button:hover {
+  color: #f9d440;
+}
+
+.landing-footer-bar {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  max-width: 1344px;
+  margin: 0 auto;
+  padding: 24px 48px;
+  border-top: 1px solid rgba(255, 236, 205, 0.1);
+  font-size: 13px;
+  color: #a89e8f;
+}
+
+.landing-footer-bar p {
+  margin: 0;
+}
+
+.landing-footer-built {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 236, 205, 0.12);
+  color: #cfc6b8;
+}
+
+.landing-footer-built i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f9d440;
+  box-shadow: 0 0 6px rgba(249, 212, 64, 0.8);
+}
+
+/* The big outlined wordmark: across the full page width (cqw is percent of the page
+   width), about 270 px tall at 1440 px, cut off at the bottom. Decorative only. */
+.landing-bigmark {
+  position: relative;
+  height: 0.8em;
+  overflow: hidden;
+  font-family: Montserrat, system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 18.75cqw;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  text-align: center;
+  white-space: nowrap;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(244, 239, 230, 0.14);
+  user-select: none;
+  pointer-events: none;
+}
+
+@media (max-width: 900px) {
+  .landing-footer-main {
+    grid-template-columns: 1fr 1fr;
+    gap: 32px 24px;
+    padding: 56px 24px 32px;
+  }
+
+  .landing-footer-brand {
+    grid-column: 1 / -1;
+    max-width: none;
+  }
+
+  .landing-footer-bar {
+    padding: 20px 24px;
+  }
 }
 
 /* Phone width: the photo stacks above the copy, the step cards stack, the menu wraps. */

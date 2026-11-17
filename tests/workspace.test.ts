@@ -16,7 +16,7 @@ test('every demo part has a picture and a note, and only the demo skill gets the
   for (const part of skillParts(demoSteps)) {
     const info = partInfo('sample-led', part)
     expect(info?.note.length).toBeGreaterThan(10)
-    expect(info?.note).not.toMatch(/[–—]| - /)
+    expect(info?.note).not.toMatch(/[\u2013\u2014]| - /)
   }
   expect(partInfo('h0mqHrOwc1uVUcZzG2yQ', 'LED')).toBeNull()
   expect(partInfo('sample-led', 'soldering iron')).toBeNull()

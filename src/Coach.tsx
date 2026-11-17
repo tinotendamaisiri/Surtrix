@@ -256,7 +256,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   // asking is off, else let the AI ask.
   function handleUnsure(s: CoachStep, index: number, offer: JudgeOffer) {
     setUnsureCount((n) => n + 1)
-    const choice = readAutoAskChoice() ?? choiceRef.current
+    const choice = choiceRef.current ?? readAutoAskChoice()
     if (choice === null) {
       setAutoAsk({ stepId: s.id, kind: 'notice', said: offer.said, offer, index })
       return
@@ -311,7 +311,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       return
     }
     // The learner may have switched it off while the saved answers were checked.
-    if ((readAutoAskChoice() ?? choiceRef.current) !== 'on') {
+    if ((choiceRef.current ?? readAutoAskChoice()) !== 'on') {
       setAutoAsk(null)
       setManualOffer(offer)
       return
@@ -368,6 +368,10 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       ],
     }
     setWiring({ kind: 'checking', stepId: step.id, slow: false })
+    // A new check stops an automatic run from the last verdict, which may still be picking:
+    // its photo is out of date, and a correct verdict moves on without a step change.
+    runRef.current++
+    setAutoAsk(null)
     try {
       const result = await checkWiring(step, frame, controller.signal)
       if (!stillCurrent()) return

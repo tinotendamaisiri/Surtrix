@@ -1,7 +1,18 @@
 // Ask an Expert (#17): saving a learner's question and listing their questions for a
 // step. The document shape is in the Contracts section of the build plan, and
 // firestore.rules checks every field.
-import { Bytes, collection, onSnapshot, query, serverTimestamp, where, type DocumentSnapshot, type Timestamp, doc, setDoc } from 'firebase/firestore'
+import {
+  Bytes,
+  collection,
+  doc,
+  onSnapshot,
+  query,
+  serverTimestamp,
+  setDoc,
+  where,
+  type DocumentSnapshot,
+  type Timestamp,
+} from 'firebase/firestore'
 import { auth, db, signInLearner } from './firebase'
 
 export const QUESTION_MAX_LENGTH = 500

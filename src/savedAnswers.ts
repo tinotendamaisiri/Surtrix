@@ -1,7 +1,8 @@
 // Saved expert answers in the coach (#31). When the coach opens a skill (online), it loads
 // the saved answers of every step and keeps listening (#65). They stay in memory, so they
-// still help if the network drops, and a new answer shows at once. A learner's question picks one with Gemini Nano on device first, and
-// gemini-3.5-flash-lite in the cloud when Nano cannot answer.
+// still help if the network drops, and a new answer shows at once. A learner's question
+// picks one with Gemini Nano on device first, and gemini-3.5-flash-lite in the cloud when
+// Nano cannot answer.
 import { useEffect, useState } from 'react'
 import {
   getGenerativeModel,
@@ -60,7 +61,8 @@ export function watchSavedAnswers(
           (snapshot) => {
             documents.set(step.id, snapshot.docs.map((d) => ({ id: d.id, data: d.data() })))
             if (documents.size < skill.steps.length) return
-            onChange(stepAnswersFromDocuments(skill.steps.map((s) => ({ stepId: s.id, documents: documents.get(s.id) ?? [] }))))
+            const steps = skill.steps.map((s) => ({ stepId: s.id, documents: documents.get(s.id) ?? [] }))
+            onChange(stepAnswersFromDocuments(steps))
           },
           onError,
         ),
@@ -94,7 +96,9 @@ export function useSavedAnswers(skill: CoachSkill): SavedAnswersState {
         // Answers already loaded stay; only a first load that fails shows as failed. A
         // listener that fails later stops updating its step, which keeps its last answers.
         setState((current) =>
-          current.skillId === skill.id && current.value.kind === 'loaded' ? current : { skillId: skill.id, value: { kind: 'failed' } },
+          current.skillId === skill.id && current.value.kind === 'loaded'
+            ? current
+            : { skillId: skill.id, value: { kind: 'failed' } },
         )
       },
     )

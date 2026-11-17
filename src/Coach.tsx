@@ -4,14 +4,36 @@ import AskExpert, { type JudgeOffer } from './AskExpert.tsx'
 import { useBenchWatch, type BenchWatch } from './benchWatch.ts'
 import { grabFrameBase64 } from './cameraFrame.ts'
 import type { StepSavedAnswers } from './SavedAnswerPicker.tsx'
-import { useSavedAnswers } from './savedAnswers.ts'
-import { goBack, goNext, goToStep, markStepDone, startProgress, type CoachProgress, type CoachSkill } from './coach.ts'
+import { pickSavedAnswer, useSavedAnswers, type Pick as SavedPick } from './savedAnswers.ts'
+import {
+  goBack,
+  goNext,
+  goToStep,
+  markStepDone,
+  startProgress,
+  type CoachProgress,
+  type CoachSkill,
+  type CoachStep,
+} from './coach.ts'
 import { describeBenchAnswer } from './watch.ts'
 import { describeWiringCheck, WIRING_DEADLINE_MS, WIRING_GIVE_UP_MS } from './wiring.ts'
 import { checkWiring, type WiringResult } from './wiringCheck.ts'
 import BackToSkills from './BackToSkills.tsx'
 import { skillsTabFor } from './landingIntent.ts'
 import { expertCards, skillParts } from './workspace.ts'
+import { askExpert, watchMyQuestions, type Question } from './questions.ts'
+import { checkSavedAnswers } from './savedAnswerPick.ts'
+import {
+  AUTO_QUESTION,
+  afterNoFit,
+  autoAskedThisSession,
+  countAutoAsk,
+  readAutoAskChoice,
+  uncountAutoAsk,
+  writeAutoAskChoice,
+  type AutoAskChoice,
+} from './autoAsk.ts'
+import AutoAskCard, { type AutoAsk } from './AutoAskCard.tsx'
 import { ExpertsCard, PartsList, StepList, WorkspaceShell, WorkspaceTopBar } from './WorkspacePanels.tsx'
 
 // Where a wiring check result shows: under a step (by id), or on the All steps done screen.
@@ -21,8 +43,7 @@ type Wiring =
   // slow: past the deadline, so the learner may carry on while the check runs.
   | { kind: 'checking'; stepId: string; slow: boolean }
   // showOn is the next step (or FINISHED) for a correct verdict, else the checked step.
-  // offer is made once per result: Ask an Expert opens again for every new offer object.
-  | { kind: 'result'; stepId: string; showOn: string; stepNumber: number; result: WiringResult; offer: JudgeOffer | null }
+  | { kind: 'result'; stepId: string; showOn: string; stepNumber: number; result: WiringResult }
   | { kind: 'failed'; stepId: string }
 
 // The Surtrix Workspace (#62) for one skill: the parts and steps on the left, the camera
@@ -74,6 +95,34 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   // Where Ask an Expert sits. On stacked layouts it is below the step, so an unsure
   // verdict that opens it scrolls it into view.
   const notSureRef = useRef<HTMLElement>(null)
+
+  // The AI asking an expert by itself when the wiring check is unsure (#65).
+  const [autoAsk, setAutoAsk] = useState<AutoAsk | null>(null)
+  // Opens the manual Ask an Expert panel with the check's words and photo: when automatic
+  // asking is off, past the limit, or when asking failed.
+  const [manualOffer, setManualOffer] = useState<JudgeOffer | null>(null)
+  const [autoChoice, setAutoChoice] = useState<AutoAskChoice>(readAutoAskChoice)
+  const [unsureCount, setUnsureCount] = useState(0)
+  // This learner's questions on the current step, live: an open one blocks a new automatic one.
+  const [mine, setMine] = useState<{ stepId: string; questions: Question[] }>({ stepId: '', questions: [] })
+  const mineRef = useRef(mine)
+  const savedRef = useRef(saved)
+  const choiceRef = useRef(autoChoice)
+  // Each automatic run's number: a step change or a new run makes an older one stop.
+  const runRef = useRef(0)
+  useEffect(() => {
+    mineRef.current = mine
+    savedRef.current = saved
+    choiceRef.current = autoChoice
+  })
+  useEffect(() => {
+    const stepId = step.id
+    return watchMyQuestions(
+      { skillId: skill.id, stepId },
+      (questions) => setMine({ stepId, questions }),
+      (e) => console.error('Watching your questions failed', e),
+    )
+  }, [skill.id, step.id])
 
   // Counts the cameras now and whenever one is plugged in or out.
   useEffect(() => {
@@ -186,7 +235,111 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   function move(change: (p: CoachProgress) => CoachProgress) {
     endWiringCheck()
     setWiring(null)
+    runRef.current++
+    setAutoAsk(null)
+    setManualOffer(null)
     setProgress(change)
+  }
+
+  function questionStep(s: CoachStep, index: number) {
+    return {
+      skillId: skill.id,
+      skillTitle: skill.title,
+      stepId: s.id,
+      stepNumber: index + 1,
+      stepTitle: s.title,
+      stepInstruction: s.instruction,
+    }
+  }
+
+  // An unsure verdict: ask the learner the first time, leave it to them when automatic
+  // asking is off, else let the AI ask.
+  function handleUnsure(s: CoachStep, index: number, offer: JudgeOffer) {
+    setUnsureCount((n) => n + 1)
+    const choice = choiceRef.current ?? readAutoAskChoice()
+    if (choice === null) {
+      setAutoAsk({ stepId: s.id, kind: 'notice', said: offer.said, offer, index })
+      return
+    }
+    if (choice === 'off') {
+      setManualOffer(offer)
+      return
+    }
+    void runAutoAsk(s, index, offer)
+  }
+
+  function chooseAutoAsk(choice: 'on' | 'off') {
+    writeAutoAskChoice(choice)
+    setAutoChoice(choice)
+    choiceRef.current = choice
+    // Answering the first time notice decides this verdict too.
+    if (autoAsk?.kind !== 'notice' || autoAsk.stepId !== step.id) return
+    const { offer, index } = autoAsk
+    if (choice === 'on') void runAutoAsk(step, index, offer)
+    else {
+      setAutoAsk(null)
+      setManualOffer(offer)
+    }
+  }
+
+  // The saved answers first; if none fits, a question with the photo, the step and the
+  // AI's own words, unless one is already open on this step or the limit is reached.
+  async function runAutoAsk(s: CoachStep, index: number, offer: JudgeOffer) {
+    const run = ++runRef.current
+    const stillHere = () => onScreenRef.current && runRef.current === run
+    const said = offer.said
+    setAutoAsk({ stepId: s.id, kind: 'picking', said })
+    const current = savedRef.current
+    const answers = current.kind === 'loaded' ? (current.byStep[s.id] ?? []) : []
+    if (answers.length > 0) {
+      const result = await checkSavedAnswers(() => pickSavedAnswer(s.title, said, answers))
+      if (!stillHere()) return
+      if (result.kind === 'picked' && result.pick.answer) {
+        setAutoAsk({ stepId: s.id, kind: 'saved', said, pick: result.pick as SavedPick & { answer: NonNullable<SavedPick['answer']> } })
+        return
+      }
+    }
+    const open = mineRef.current.stepId === s.id ? mineRef.current.questions.find((q) => q.status === 'open') : undefined
+    const next = afterNoFit({ openOnStep: open !== undefined, asked: autoAskedThisSession() })
+    if (next === 'still-waiting') {
+      setAutoAsk({ stepId: s.id, kind: 'still-waiting', said, questionId: open?.id ?? null })
+      return
+    }
+    if (next === 'limit') {
+      setAutoAsk({ stepId: s.id, kind: 'limit', said })
+      setManualOffer(offer)
+      return
+    }
+    // The learner may have switched it off while the saved answers were checked.
+    if ((choiceRef.current ?? readAutoAskChoice()) !== 'on') {
+      setAutoAsk(null)
+      setManualOffer(offer)
+      return
+    }
+    countAutoAsk()
+    const failed = (e: unknown) => {
+      console.error('Could not ask an expert', e)
+      uncountAutoAsk()
+      if (!stillHere()) return
+      setAutoAsk({ stepId: s.id, kind: 'failed', said })
+      setManualOffer(offer)
+    }
+    setAutoAsk({ stepId: s.id, kind: navigator.onLine ? 'asking' : 'queued', said, questionId: null })
+    try {
+      const { id, saved: sent } = await askExpert({
+        step: questionStep(s, index),
+        question: AUTO_QUESTION,
+        frameBase64: offer.frame,
+        judgeSaid: said,
+      })
+      if (stillHere()) setAutoAsk((a) => (a?.stepId === s.id && 'questionId' in a ? { ...a, questionId: id } : a))
+      // Offline, the question waits in Firestore's queue and goes once back online.
+      sent.then(() => {
+        if (stillHere()) setAutoAsk((a) => (a?.stepId === s.id && a.kind === 'queued' ? { ...a, kind: 'asking' } : a))
+      }, failed)
+    } catch (e) {
+      failed(e)
+    }
   }
 
   // One cloud check per click. With the camera off the step is marked done unchecked.
@@ -215,6 +368,10 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       ],
     }
     setWiring({ kind: 'checking', stepId: step.id, slow: false })
+    // A new check stops an automatic run from the last verdict, which may still be picking:
+    // its photo is out of date, and a correct verdict moves on without a step change.
+    runRef.current++
+    setAutoAsk(null)
     try {
       const result = await checkWiring(step, frame, controller.signal)
       if (!stillCurrent()) return
@@ -222,11 +379,11 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       const checked = { stepId: step.id, stepNumber: index + 1, result }
       if (result.check.verdict === 'correct') {
         const next = index === skill.steps.length - 1 ? FINISHED : skill.steps[index + 1].id
-        setWiring({ kind: 'result', ...checked, showOn: next, offer: null })
+        setWiring({ kind: 'result', ...checked, showOn: next })
         setProgress(markStepDone)
       } else {
-        const offer = result.check.verdict === 'unsure' ? { said: describeWiringCheck(result.check), frame } : null
-        setWiring({ kind: 'result', ...checked, showOn: step.id, offer })
+        setWiring({ kind: 'result', ...checked, showOn: step.id })
+        if (result.check.verdict === 'unsure') handleUnsure(step, index, { said: describeWiringCheck(result.check), frame })
       }
     } catch (e) {
       if (!stillCurrent()) return
@@ -238,12 +395,13 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
 
   const here = progress.finished ? FINISHED : step.id
   const shownResult = wiring?.kind === 'result' && wiring.showOn === here ? wiring : null
-  const judgeOffer = shownResult?.offer ?? null
+  // An unsure verdict is shown in the Not sure? row. On stacked layouts that row is below
+  // the step, so it scrolls into view.
   useEffect(() => {
-    if (!judgeOffer || !window.matchMedia('(max-width: 1100px)').matches) return
+    if (unsureCount === 0 || !window.matchMedia('(max-width: 1100px)').matches) return
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     notSureRef.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
-  }, [judgeOffer])
+  }, [unsureCount])
   const isFirst = progress.stepIndex === 0
   const isLast = progress.stepIndex === skill.steps.length - 1
 
@@ -279,6 +437,12 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
           {!progress.finished && (
             <section className="ws-notsure" aria-label="Not sure?" ref={notSureRef}>
               <p className="ws-notsure-title">Not sure?</p>
+              <AutoAskCard
+                autoAsk={autoAsk?.stepId === step.id ? autoAsk : null}
+                questions={mine.stepId === step.id ? mine.questions : []}
+                choice={autoChoice}
+                onChoose={chooseAutoAsk}
+              />
               <AskExpert
                 step={{
                   skillId: skill.id,
@@ -290,7 +454,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
                 }}
                 captureFrame={() => (cameraOn ? grabFrameBase64(videoRef.current) : null)}
                 savedAnswers={stepSaved}
-                judgeOffer={judgeOffer}
+                judgeOffer={manualOffer}
               />
             </section>
           )}

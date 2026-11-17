@@ -57,12 +57,43 @@ export function uncountAutoAsk() {
 // The question sent with the AI's own words (judgeSaid) and the photo.
 export const AUTO_QUESTION = 'The AI was not sure about this step. Is my wiring right?'
 
-// After no saved answer fits: ask, wait for the question already open on this step, or,
-// past the limit, leave it to the learner (the manual Ask an Expert opens).
-export type AfterNoFit = 'ask' | 'still-waiting' | 'limit'
+// The ready made question in the manual Ask an Expert panel when a check opens it.
+export const JUDGE_QUESTION = 'Is my wiring right for this step?'
 
-export function afterNoFit({ openOnStep, asked }: { openOnStep: boolean; asked: number }): AfterNoFit {
+// A new unsure check while the manual panel is open (#69) brings its own photo and words;
+// the learner's question stays if they typed one, else it is the ready made one.
+export function questionAfterNewCheck(current: string | null): string {
+  const typed = current !== null && current.trim() !== '' && current !== JUDGE_QUESTION
+  return typed ? current : JUDGE_QUESTION
+}
+
+// After no saved answer fits: wait for the question already open on this step; else leave
+// it to the learner's own question when the manual Ask an Expert panel is open with one
+// unsent (#69); past the limit leave it to the learner (the manual panel opens); or ask.
+export type AfterNoFit = 'panel-open' | 'ask' | 'still-waiting' | 'limit'
+
+export function afterNoFit({
+  panelOpen = false,
+  openOnStep,
+  asked,
+}: {
+  panelOpen?: boolean
+  openOnStep: boolean
+  asked: number
+}): AfterNoFit {
   if (openOnStep) return 'still-waiting'
+  if (panelOpen) return 'panel-open'
   if (asked >= AUTO_ASK_LIMIT) return 'limit'
   return 'ask'
 }
+
+// With automatic asking on, the manual panel's Send is off while the AI's own question on
+// the step waits for an expert (#69), so a step never gets a second question that way.
+export function manualSendBlocked(
+  choice: AutoAskChoice,
+  questions: readonly { origin: string; status: string }[],
+): boolean {
+  return choice === 'on' && questions.some((q) => q.origin === 'judge' && q.status === 'open')
+}
+
+export const MANUAL_SEND_BLOCKED = 'An expert is already being asked about this step.'

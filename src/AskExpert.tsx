@@ -12,6 +12,7 @@ import {
   type QuestionStep,
 } from './questions'
 import SavedAnswerPicker, { type StepSavedAnswers } from './SavedAnswerPicker.tsx'
+import { questionAfterNewCheck } from './autoAsk.ts'
 import './AskExpert.css'
 
 // Made by the judge (plan issue 6) when it is unsure about the step: its words and the
@@ -28,6 +29,10 @@ type Props = {
   // This step's saved expert answers (#31), for Check saved answers. Left out, the panel
   // has no Check saved answers.
   savedAnswers?: StepSavedAnswers
+  // Told whether the panel is open with a question not yet sent (#69).
+  onPanelChange?: (open: boolean) => void
+  // Why Send is off, or null when it is on (#69).
+  sendBlocked?: string | null
 }
 
 // What the open panel holds. id tells one opened question from the next.
@@ -41,7 +46,6 @@ function newDraftId(): number {
 
 type MyQuestions = { stepKey: string; questions: Question[]; failed: boolean }
 
-const JUDGE_QUESTION = 'Is my wiring right for this step?'
 
 // How long Send waits for the server before closing the panel. Offline, the question
 // stays in the list as sending and goes once the network is back.
@@ -55,7 +59,14 @@ function formatTime(date: Date | null): string {
   return date ? date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''
 }
 
-export default function AskExpert({ step, captureFrame, judgeOffer = null, savedAnswers }: Props) {
+export default function AskExpert({
+  step,
+  captureFrame,
+  judgeOffer = null,
+  savedAnswers,
+  onPanelChange,
+  sendBlocked = null,
+}: Props) {
   const { skillId, stepId } = step
   const stepKey = JSON.stringify([skillId, stepId])
   const [draft, setDraft] = useState<Draft | null>(null)
@@ -78,14 +89,16 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null, saved
     setError(null)
     setLateError(false)
   }
-  // A new judge offer opens the panel.
+  // A new judge offer opens the panel, or, when it is already open, brings in its photo and
+  // the check's words, keeping a question the learner typed (#69). A question being sent is
+  // left alone.
   if (judgeOffer !== seenOffer) {
     setSeenOffer(judgeOffer)
-    if (judgeOffer) {
+    if (judgeOffer && !sending) {
       setDraft({
         id: newDraftId(),
         frame: judgeOffer.frame,
-        question: JUDGE_QUESTION,
+        question: questionAfterNewCheck(draft?.question ?? null),
         judgeSaid: judgeOffer.said.trim() || null,
       })
       setError(null)
@@ -111,6 +124,10 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null, saved
   }, [skillId, stepId])
 
   const open = draft !== null
+  // Reported after render, so the coach knows before it would ask by itself (#69).
+  useEffect(() => {
+    onPanelChange?.(open)
+  }, [open, onPanelChange])
   const questions = mine?.stepKey === stepKey ? mine.questions : []
   const listFailed = mine?.stepKey === stepKey && mine.failed
 
@@ -121,7 +138,7 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null, saved
   }
 
   async function send() {
-    if (!draft?.frame || questionProblem(draft.question) || sending) return
+    if (!draft?.frame || questionProblem(draft.question) || sending || sendBlocked) return
     const sentId = draft.id
     // False once this panel is gone: closed by a step change, or another one opened.
     const stillOpen = () => draftIdRef.current === sentId
@@ -204,7 +221,7 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null, saved
             <button
               type="button"
               onClick={send}
-              disabled={sending || !draft.frame || questionProblem(draft.question) !== null}
+              disabled={sending || sendBlocked !== null || !draft.frame || questionProblem(draft.question) !== null}
             >
               {sending ? 'Sending' : 'Send'}
             </button>
@@ -221,6 +238,7 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null, saved
               />
             )}
           </div>
+          {sendBlocked && <p className="muted">{sendBlocked}</p>}
           {error && <p className="error">{error}</p>}
         </div>
       )}

@@ -1,6 +1,15 @@
 // The AI asking an expert by itself (#65): the choice and what happens when no saved answer fits.
 import { expect, test } from 'vitest'
-import { AUTO_ASK_LIMIT, AUTO_QUESTION, afterNoFit, readAutoAskChoice, writeAutoAskChoice } from '../src/autoAsk.ts'
+import {
+  AUTO_ASK_LIMIT,
+  AUTO_QUESTION,
+  afterNoFit,
+  JUDGE_QUESTION,
+  manualSendBlocked,
+  questionAfterNewCheck,
+  readAutoAskChoice,
+  writeAutoAskChoice,
+} from '../src/autoAsk.ts'
 
 function fakeStore() {
   const values = new Map<string, string>()
@@ -48,4 +57,29 @@ test('at most 3 automatic questions per session', () => {
 test('the automatic question fits the question rules and has no dashes', () => {
   expect(AUTO_QUESTION.length).toBeLessThanOrEqual(500)
   expect(AUTO_QUESTION).not.toMatch(/[\u2013\u2014]| - /)
+})
+
+test('an open manual panel stops the automatic question; an open question on the step still comes first (#69)', () => {
+  expect(afterNoFit({ panelOpen: true, openOnStep: false, asked: 0 })).toBe('panel-open')
+  expect(afterNoFit({ panelOpen: true, openOnStep: false, asked: 3 })).toBe('panel-open')
+  expect(afterNoFit({ panelOpen: true, openOnStep: true, asked: 0 })).toBe('still-waiting')
+  expect(afterNoFit({ panelOpen: false, openOnStep: false, asked: 0 })).toBe('ask')
+})
+
+test("the manual Send is off only while the AI's own question on the step is open and asking is on (#69)", () => {
+  const judgeOpen = { origin: 'judge', status: 'open' }
+  expect(manualSendBlocked('on', [judgeOpen])).toBe(true)
+  expect(manualSendBlocked('off', [judgeOpen])).toBe(false)
+  expect(manualSendBlocked(null, [judgeOpen])).toBe(false)
+  expect(manualSendBlocked('on', [{ origin: 'judge', status: 'answered' }])).toBe(false)
+  expect(manualSendBlocked('on', [{ origin: 'learner', status: 'open' }])).toBe(false)
+  expect(manualSendBlocked('on', [])).toBe(false)
+})
+
+test("a new check keeps the learner's typed question, else the ready made one (#69)", () => {
+  expect(questionAfterNewCheck(null)).toBe(JUDGE_QUESTION)
+  expect(questionAfterNewCheck('')).toBe(JUDGE_QUESTION)
+  expect(questionAfterNewCheck('   ')).toBe(JUDGE_QUESTION)
+  expect(questionAfterNewCheck(JUDGE_QUESTION)).toBe(JUDGE_QUESTION)
+  expect(questionAfterNewCheck('Which row is the long leg in?')).toBe('Which row is the long leg in?')
 })

@@ -395,15 +395,20 @@ main.workspace {
   inset: 0;
   z-index: 50;
   display: grid;
-  place-items: center;
+  /* One column up to 640 px, never wider than the screen less 24 px each side (#62:
+     a column sized to the content let the modal run off a phone's screen). */
+  grid-template-columns: minmax(0, 640px);
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 0 24px;
   background: rgba(8, 6, 4, 0.72);
   backdrop-filter: blur(6px);
 }
 
 .ws-modal {
   position: relative;
-  width: 640px;
-  max-width: calc(100% - 48px);
+  width: 100%;
   /* A phone held sideways: the modal scrolls instead of losing its top. */
   max-height: calc(100vh - 32px);
   overflow-y: auto;

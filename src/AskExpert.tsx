@@ -159,9 +159,17 @@ export default function AskExpert({ step, captureFrame, judgeOffer = null, saved
   return (
     <section className="ask-expert">
       {!open && (
-        <button type="button" onClick={openPanel}>
-          Ask an Expert
-        </button>
+        <div className="ask-entry">
+          <button type="button" onClick={openPanel}>
+            Ask an Expert
+          </button>
+          {/* Both need a question first, so both open the panel (#62). */}
+          {savedAnswers && (
+            <button type="button" className="secondary" onClick={openPanel}>
+              Check saved answers
+            </button>
+          )}
+        </div>
       )}
 
       {open && (

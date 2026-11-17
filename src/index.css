@@ -236,78 +236,8 @@ h2 {
   height: 36px;
 }
 
-main.coach {
-  max-width: 1040px;
-}
-
-.coach-title {
-  display: grid;
-  gap: 4px;
-}
-
-.coach-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-  gap: 20px;
-  align-items: start;
-}
-
-.step-card {
-  display: grid;
-  gap: 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px;
-}
-
-.step-card p {
-  margin: 0;
-}
-
-.step-heading {
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.done-mark {
-  margin-left: 4px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--accent-text);
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
-.label {
-  font-weight: 600;
-}
-
-.step-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-}
-
 button.secondary {
   background: transparent;
   color: var(--text);
   border: 1px solid var(--border);
-}
-
-.step-card p.bench {
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
-
-.step-card p.wiring.not-yet .label {
-  color: var(--error);
-}
-
-@media (max-width: 760px) {
-  .coach-body {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }

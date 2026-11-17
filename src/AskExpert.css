@@ -14,12 +14,6 @@
   padding: 16px;
 }
 
-/* Inside the coach's step card, which already uses the surface colour. */
-.step-card .ask-panel,
-.step-card .my-questions li {
-  background: var(--bg);
-}
-
 .ask-panel h2 {
   margin: 0;
   font-size: 20px;

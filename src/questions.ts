@@ -2,12 +2,13 @@
 // step. The document shape is in the Contracts section of the build plan, and
 // firestore.rules checks every field.
 import {
-  addDoc,
   Bytes,
   collection,
+  doc,
   onSnapshot,
   query,
   serverTimestamp,
+  setDoc,
   where,
   type DocumentSnapshot,
   type Timestamp,
@@ -87,9 +88,14 @@ function clip(text: string, max: number): string {
 }
 
 // Saves the question for an expert. Resolves as soon as the question is saved in the
-// page (it then shows in the learner's list); saved resolves once the server has it,
-// which waits for the network when offline.
-export async function askExpert({ step, question, frameBase64, judgeSaid }: NewQuestion): Promise<{ saved: Promise<void> }> {
+// page (it then shows in the learner's list), with its id; saved resolves once the server
+// has it, which waits for the network when offline.
+export async function askExpert({
+  step,
+  question,
+  frameBase64,
+  judgeSaid,
+}: NewQuestion): Promise<{ id: string; saved: Promise<void> }> {
   const problem = questionProblem(question)
   if (problem) throw new Error(problem)
   // Model answers often end with a newline; empty words mean the learner asked.
@@ -99,7 +105,8 @@ export async function askExpert({ step, question, frameBase64, judgeSaid }: NewQ
   await signInLearner()
   const learnerId = auth.currentUser?.uid
   if (!learnerId) throw new Error('The learner is not signed in.')
-  const saved = addDoc(collection(db, 'questions'), {
+  const ref = doc(collection(db, 'questions'))
+  const saved = setDoc(ref, {
     learnerId,
     skillId: step.skillId,
     skillTitle: clip(step.skillTitle, TITLE_MAX_LENGTH),
@@ -114,7 +121,7 @@ export async function askExpert({ step, question, frameBase64, judgeSaid }: NewQ
     status: 'open',
     createdAt: serverTimestamp(),
   }).then(() => undefined)
-  return { saved }
+  return { id: ref.id, saved }
 }
 
 function toDate(value: unknown): Date | null {

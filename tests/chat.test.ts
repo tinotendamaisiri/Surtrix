@@ -1,5 +1,6 @@
 // The Workspace chat (#74): the prompt, reading a reply, the thread, the unread count and
 // the closed bar's preview.
+import { AIError, AIErrorCode } from 'firebase/ai'
 import { expect, test } from 'vitest'
 import { autoAskStatus, type AutoAsk } from '../src/autoAsk.ts'
 import {
@@ -23,6 +24,7 @@ import {
   ChatLimitedError,
   chatLimitReached,
   chatSentThisSession,
+  cloudStatus,
   cloudThenDevice,
   countChatMessage,
   isLimitedStatus,
@@ -346,4 +348,18 @@ test('any other cloud failure has the device answer, only when it is ready', asy
   const notReady = await choose(httpError(500), false)
   expect(notReady.calls).toEqual(['cloud', 'ready?'])
   expect((notReady.result as Error).message).toBe('HTTP 500')
+})
+
+test("the status is read from the SDK's own error, so 429 and 403 stay limited", async () => {
+  const sdkError = (status: number) => new AIError(AIErrorCode.FETCH_ERROR, `HTTP ${status}`, { status })
+  expect(cloudStatus(sdkError(429))).toBe(429)
+  expect(cloudStatus(new AIError(AIErrorCode.ERROR, 'Failed to fetch'))).toBeUndefined()
+  expect(cloudStatus(new Error('timed out'))).toBeUndefined()
+  const result = await cloudThenDevice({
+    cloud: () => Promise.reject(sdkError(403)),
+    device: async () => 'device answer',
+    deviceReady: async () => true,
+    statusOf: cloudStatus,
+  }).catch((e: unknown) => e)
+  expect(result).toBeInstanceOf(ChatLimitedError)
 })

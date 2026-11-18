@@ -6,7 +6,6 @@
 // so each message is one call with the recent chat written into the prompt. Text only: no
 // camera photo goes with it.
 import {
-  AIError,
   getGenerativeModel,
   InferenceMode,
   Schema,
@@ -19,6 +18,7 @@ import {
   CHAT_INSTRUCTION,
   chatPrompt,
   chatReplySchema,
+  cloudStatus,
   cloudThenDevice,
   parseChatReply,
   savedAnswerIds,
@@ -106,7 +106,7 @@ export async function replyToChat(context: ChatContext): Promise<ChatReply> {
     cloud: () => models.cloud.generateContent(prompt, { timeout: CHAT_CLOUD_LIMIT_MS }),
     device: () => models.device.generateContent(prompt),
     deviceReady: nanoReady,
-    statusOf: (e) => (e instanceof AIError ? e.customErrorData?.status : undefined),
+    statusOf: cloudStatus,
   })
   return {
     answer: parseChatReply(result.response.text(), context.savedAnswers),

@@ -135,7 +135,7 @@ export default function Chat({ sectionRef, ...props }: Props) {
         {props.panel}
 
         {props.limitReached && (
-          <div className="ws-chat-limit">
+          <div className="ws-chat-limit" role="status">
             <p>{CHAT_LIMIT_TEXT}</p>
             <button type="button" className="ws-pill ws-pill-gold" onClick={() => props.onAskExpert('')}>
               Ask an expert

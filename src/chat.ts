@@ -58,6 +58,12 @@ export function isLimitedStatus(status: number | undefined): boolean {
 
 export const LIMITED_TEXT = 'Answers are limited right now.'
 
+// The HTTP status of a failed cloud call: the SDK's AIError carries it in customErrorData.
+export function cloudStatus(error: unknown): number | undefined {
+  const status = (error as { customErrorData?: { status?: unknown } } | null)?.customErrorData?.status
+  return typeof status === 'number' ? status : undefined
+}
+
 // The cloud refused for billing or quota: the chat says answers are limited.
 export class ChatLimitedError extends Error {
   constructor(cause: unknown) {

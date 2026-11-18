@@ -523,10 +523,6 @@ main.landing {
   text-decoration: none;
 }
 
-a.landing-card:hover {
-  border-color: rgba(249, 212, 64, 0.55);
-}
-
 .landing-card-photo {
   position: relative;
   box-sizing: border-box;
@@ -573,7 +569,6 @@ a.landing-card:hover {
 }
 
 .landing-verified,
-.landing-live,
 .landing-where {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 10px;
@@ -588,11 +583,6 @@ a.landing-card:hover {
   border: 1px solid rgba(249, 212, 64, 0.35);
 }
 
-.landing-live {
-  padding: 5px 10px;
-  background: #f9d440;
-  color: #0b1e3c;
-}
 
 .landing-card-body {
   padding: 0 22px;

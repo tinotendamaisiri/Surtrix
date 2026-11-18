@@ -169,6 +169,7 @@ main.landing {
 .landing .landing-nav button,
 .landing .landing-nav a {
   display: inline-flex;
+  text-decoration: none;
   align-items: center;
   min-height: 44px;
   box-sizing: border-box;

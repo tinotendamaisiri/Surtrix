@@ -505,6 +505,10 @@ main.skills-page {
 }
 
 .skills-page .skills-empty a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 2px;
   color: #f9d440;
 }
 

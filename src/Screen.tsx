@@ -17,6 +17,19 @@ export default function Screen() {
     return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
   const address = screenFromHash(hash)
+  // A new screen opens at its top (#83), not where the last one was scrolled to. Switching
+  // the Skills page's tab is the same screen, and Home scrolls to How it works itself.
+  const screenKey =
+    address.screen === 'coach'
+      ? `coach/${address.skillId}`
+      : address.screen === 'home' && address.section === 'how'
+        ? 'home/how'
+        : address.screen
+  useEffect(() => {
+    // Home's own effect has already scrolled to How it works (a child's effects run first).
+    if (screenKey === 'home/how') return
+    window.scrollTo(0, 0)
+  }, [screenKey])
   switch (address.screen) {
     case 'new-skill':
       return <NewSkill />

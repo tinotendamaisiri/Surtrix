@@ -95,10 +95,15 @@ export default function AskExpert({
     }
   }
   // Ask an Expert from the chat opens the panel with a new photo, and the learner's message
-  // when it came from an AI reply. A question being sent is left alone.
+  // when it came from an AI reply. An open panel keeps its photo, the check's words and what
+  // the learner typed; only an empty question takes the message.
   if (askRequest !== seenRequest) {
     setSeenRequest(askRequest)
-    if (askRequest && !sending) {
+    if (askRequest && draft) {
+      if (!sending && draft.question.trim() === '' && askRequest.question !== '') {
+        setDraft({ ...draft, question: askRequest.question })
+      }
+    } else if (askRequest) {
       setDraft({ id: newDraftId(), frame: askRequest.frame, question: askRequest.question, judgeSaid: null })
       setError(null)
       setLateError(false)

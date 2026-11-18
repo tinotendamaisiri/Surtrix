@@ -159,6 +159,7 @@ function question(over: Partial<ChatQuestion>): ChatQuestion {
   return {
     id: 'q1',
     question: 'Is my wiring right?',
+    frameUrl: '',
     origin: 'learner',
     judgeSaid: null,
     status: 'open',

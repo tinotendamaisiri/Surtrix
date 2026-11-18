@@ -293,9 +293,13 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     setChatItems((items) => putAuto(items, auto, stepMark(auto.stepId), Date.now()))
   }
 
-  // Changes a run's notification, even once it is no longer the current one.
-  function updateAutoAsk(id: string, change: (auto: AutoAsk) => AutoAsk) {
-    setChatItems((items) => items.map((i) => (i.id === id && i.kind === 'auto' ? { ...i, auto: change(i.auto) } : i)))
+  // Changes a run's notification, even once it is no longer the current one. news: the
+  // change is news for the learner, so it counts as new in the closed chat.
+  function updateAutoAsk(id: string, change: (auto: AutoAsk) => AutoAsk, news = false) {
+    const now = Date.now()
+    setChatItems((items) =>
+      items.map((i) => (i.id === id && i.kind === 'auto' ? { ...i, at: news ? now : i.at, auto: change(i.auto) } : i)),
+    )
   }
 
   // The current run stops being current. A notice not answered, a check of the saved answers
@@ -452,9 +456,13 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       console.error('Could not ask an expert', e)
       uncountAutoAsk()
       if (!onScreenRef.current) return
-      // The notification says so even after a step change; the panel opens only on its step.
-      updateAutoAsk(id, () => ({ id, stepId: s.id, kind: 'failed', said }))
-      if (stillHere()) setManualOffer(offer)
+      // The notification says so even after a step change, as news; the panel opens, in the
+      // open chat, only on its step.
+      updateAutoAsk(id, () => ({ id, stepId: s.id, kind: 'failed', said }), true)
+      if (stillHere()) {
+        openChat()
+        setManualOffer(offer)
+      }
     }
     showAutoAsk({ id, stepId: s.id, kind: navigator.onLine ? 'asking' : 'queued', said, questionId: null })
     try {
@@ -579,6 +587,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
               onOpen={openChat}
               onClose={closeChat}
               entries={entries}
+              stepId={step.id}
               unread={chatOpen ? 0 : unreadCount(entries, chatSeenAt)}
               preview={chatPreview(entries)}
               noticeId={currentNotice ? currentNotice.id : null}

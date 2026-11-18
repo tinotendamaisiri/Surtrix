@@ -8,6 +8,8 @@ import { NONE_FITS, type SavedAnswer } from './savedAnswerPick.ts'
 export type ChatQuestion = {
   id: string
   question: string
+  // The photo sent with it, as a data URL, or empty.
+  frameUrl: string
   origin: 'learner' | 'judge'
   judgeSaid: string | null
   status: 'open' | 'answered'

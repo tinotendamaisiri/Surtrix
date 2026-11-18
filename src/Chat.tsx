@@ -20,6 +20,8 @@ type Props = {
   entries: ChatEntry[]
   unread: number
   preview: string
+  // The step the learner is on: Ask an expert shows only on its replies.
+  stepId: string
   // The current first time notice, the one notification that takes a choice.
   noticeId: string | null
   // This learner's questions on the step, for the notifications waiting on one.
@@ -36,7 +38,7 @@ type Props = {
   sectionRef?: Ref<HTMLElement>
 }
 
-type EntryProps = Pick<Props, 'noticeId' | 'questions' | 'onChoose' | 'onAskExpert'>
+type EntryProps = Pick<Props, 'stepId' | 'noticeId' | 'questions' | 'onChoose' | 'onAskExpert'>
 
 export default function Chat({ sectionRef, ...props }: Props) {
   const { open, entries, unread, preview, answering } = props
@@ -108,6 +110,7 @@ export default function Chat({ sectionRef, ...props }: Props) {
             <li key={entry.id} className={entryClass(entry)}>
               <Entry
                 entry={entry}
+                stepId={props.stepId}
                 noticeId={props.noticeId}
                 questions={props.questions}
                 onChoose={props.onChoose}
@@ -183,10 +186,12 @@ function Entry({ entry, ...props }: { entry: ChatEntry } & EntryProps) {
       return (
         <>
           <p className="ws-mono ws-msg-label">YOU ASKED AN EXPERT</p>
+          {q.frameUrl && <img className="ws-msg-photo" src={q.frameUrl} alt="The photo you sent" />}
           <p>{q.question}</p>
-          {q.status === 'open' && (
-            <p className="ws-msg-status">{q.sent ? 'Waiting for an expert to answer' : 'Sending'}</p>
-          )}
+          <p className="ws-msg-status">
+            Asked {formatTime(q.createdAt)}
+            {q.status === 'open' && (q.sent ? ', waiting for an expert to answer' : ', sending')}
+          </p>
         </>
       )
     }
@@ -210,7 +215,7 @@ function Entry({ entry, ...props }: { entry: ChatEntry } & EntryProps) {
               </p>
             </div>
           )}
-          {answer.unsure && (
+          {answer.unsure && entry.stepId === props.stepId && (
             <button type="button" className="ws-pill ws-pill-gold" onClick={() => props.onAskExpert(entry.question)}>
               Ask an expert
             </button>
@@ -222,9 +227,11 @@ function Entry({ entry, ...props }: { entry: ChatEntry } & EntryProps) {
       return (
         <>
           <p>The AI could not answer right now. Try again, or ask an expert.</p>
-          <button type="button" className="ws-pill ws-pill-gold" onClick={() => props.onAskExpert(entry.question)}>
-            Ask an expert
-          </button>
+          {entry.stepId === props.stepId && (
+            <button type="button" className="ws-pill ws-pill-gold" onClick={() => props.onAskExpert(entry.question)}>
+              Ask an expert
+            </button>
+          )}
         </>
       )
     case 'auto': {
@@ -262,6 +269,10 @@ function Entry({ entry, ...props }: { entry: ChatEntry } & EntryProps) {
       )
     }
   }
+}
+
+function formatTime(date: Date | null): string {
+  return date ? date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''
 }
 
 function ChatIcon() {

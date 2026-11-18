@@ -660,11 +660,11 @@ main.workspace {
 }
 
 .ws-chat-messages {
-  flex: 1;
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  min-height: 120px;
+  min-height: 80px;
   margin: 0;
   padding: 4px 2px;
   list-style: none;
@@ -759,6 +759,14 @@ main.workspace {
   font-size: 13px;
 }
 
+/* The Ask an Expert panel takes the room it needs, leaving the messages at least 80 px,
+   and scrolls inside past that, so the text box below it always stays in the column. */
+.ws-chat .ask-expert {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .ws-chat .ask-panel {
   gap: 10px;
   padding: 14px;
@@ -770,7 +778,7 @@ main.workspace {
 }
 
 .ws-chat .ask-panel img {
-  max-height: 180px;
+  max-height: 120px;
   object-fit: cover;
 }
 

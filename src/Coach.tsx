@@ -156,7 +156,8 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       (questions) => setMine({ questions }),
       (e) => {
         console.error('Watching your questions failed', e)
-        setMine({ questions: [], failed: true })
+        // The last list stays, so its rules and the chat keep working.
+        setMine((m) => ({ questions: m.questions, failed: true }))
       },
     )
   }, [skill.id])
@@ -323,9 +324,13 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   useEffect(() => {
     if (!chatInView) return
     const seen = () => writeChatSeenAt(skill.id, Date.now())
+    // Phones can close a hidden tab without pagehide, so going hidden counts too.
+    const hidden = () => document.visibilityState === 'hidden' && seen()
     window.addEventListener('pagehide', seen)
+    document.addEventListener('visibilitychange', hidden)
     return () => {
       window.removeEventListener('pagehide', seen)
+      document.removeEventListener('visibilitychange', hidden)
       seen()
     }
   }, [chatInView, skill.id])

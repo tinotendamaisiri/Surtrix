@@ -28,6 +28,13 @@ export const AUTO_ASK_STATUS: Record<Exclude<AutoAsk['kind'], 'notice' | 'saved'
   failed: 'Could not ask an expert. You can send it yourself below.',
 }
 
+// The status line where the learner is no longer on the run's step: there is no panel
+// "below" there, so only the first sentence is kept.
+export function autoAskStatus(kind: Exclude<AutoAsk['kind'], 'notice' | 'saved'>, onStep: boolean): string {
+  const text = AUTO_ASK_STATUS[kind]
+  return onStep ? text : text.replace(/\. .*$/, '.')
+}
+
 // The learner's choice: on, off, or not made yet (the first time notice shows).
 export type AutoAskChoice = 'on' | 'off' | null
 

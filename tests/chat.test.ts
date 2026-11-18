@@ -1,7 +1,7 @@
 // The Workspace chat (#74): the prompt, reading a reply, the thread, the unread count and
 // the closed bar's preview.
 import { expect, test } from 'vitest'
-import type { AutoAsk } from '../src/autoAsk.ts'
+import { autoAskStatus, type AutoAsk } from '../src/autoAsk.ts'
 import {
   appendItem,
   CHAT_INSTRUCTION,
@@ -107,52 +107,86 @@ test('a reply that is not JSON, or says nothing, is refused', () => {
   expect(parseChatReply('{"reply":"","savedAnswerId":"a1","unsure":false}', answers).savedAnswer).toBe(answers[0])
 })
 
-const step1 = { stepId: 's1', stepNumber: 1, title: 'Place the LED' }
-const step2 = { stepId: 's2', stepNumber: 2, title: 'Add the resistor' }
+const steps = [
+  { id: 's1', title: 'Place the LED' },
+  { id: 's2', title: 'Add the resistor' },
+  { id: 's3', title: 'Add the wire' },
+]
 
 function typed(id: string, stepId: string, text: string, at: number): ChatItem {
   return { id, at, kind: 'typed', stepId, text }
 }
 
-test('a step line shows before the first message about each step, once', () => {
+function question(over: Partial<ChatQuestion>): ChatQuestion {
+  return {
+    id: 'q1',
+    stepId: 's1',
+    question: 'Is my wiring right?',
+    frameUrl: '',
+    origin: 'learner',
+    judgeSaid: null,
+    status: 'open',
+    sent: true,
+    createdAt: new Date(5),
+    reply: null,
+    ...over,
+  }
+}
+
+const lines = (entries: ReturnType<typeof chatEntries>) =>
+  entries.map((e) => (e.kind === 'step' ? `step ${e.stepNumber}` : e.id))
+
+test('a step line shows before each run of entries about one step', () => {
   let items: ChatItem[] = []
-  items = appendItem(items, typed('t1', 's1', 'one', 1), step1)
-  items = appendItem(items, typed('t2', 's1', 'two', 2), step1)
-  items = appendItem(items, typed('t3', 's2', 'three', 3), step2)
-  expect(items.map((i) => (i.kind === 'step' ? `step ${i.stepNumber}` : i.id))).toEqual(['step 1', 't1', 't2', 'step 2', 't3'])
+  items = appendItem(items, typed('t1', 's1', 'one', 1))
+  items = appendItem(items, typed('t2', 's1', 'two', 2))
+  items = appendItem(items, typed('t3', 's2', 'three', 3))
+  expect(lines(chatEntries(items, [], steps))).toEqual(['step 1', 't1', 't2', 'step 2', 't3'])
+})
+
+test("a reply to an earlier step's question shows under that step's own line", () => {
+  // The learner asked on step 1, then typed on step 3; the expert answered the step 1 question.
+  const items = [typed('t1', 's3', 'Which rail?', 10)]
+  const replied = question({ status: 'answered', reply: { text: 'Yes.', expertName: 'Tino', answeredAt: new Date(20) } })
+  expect(lines(chatEntries(items, [replied], steps))).toEqual(['step 1', 'asked-q1', 'step 3', 't1', 'step 1', 'reply-q1'])
 })
 
 const asking: AutoAsk = { id: 'auto1', stepId: 's1', said: 'Not sure about the LED.', kind: 'picking' }
 
 test('an automatic asking update changes its notification in place', () => {
-  let items = putAuto([], asking, step1, 10)
-  items = putAuto(items, { ...asking, kind: 'asking', questionId: null }, step1, 20)
-  const autos = items.filter((i) => i.kind === 'auto')
-  expect(autos).toHaveLength(1)
-  expect(autos[0]).toMatchObject({ at: 10, auto: { kind: 'asking' } })
+  let items = putAuto([], asking, 10)
+  items = putAuto(items, { ...asking, kind: 'asking', questionId: null }, 20)
+  expect(items).toHaveLength(1)
+  expect(items[0]).toMatchObject({ at: 10, auto: { kind: 'asking' } })
 })
 
 test('a change that is news moves the notification to now; one that is not keeps its time', () => {
-  const items = putAuto([], asking, step1, 10)
-  expect(putAuto(items, { ...asking, kind: 'still-waiting', questionId: null }, step1, 30, true).find((i) => i.kind === 'auto')?.at).toBe(30)
-  expect(putAuto(items, { ...asking, kind: 'still-waiting', questionId: null }, step1, 30).find((i) => i.kind === 'auto')?.at).toBe(10)
+  const items = putAuto([], asking, 10)
+  expect(putAuto(items, { ...asking, kind: 'still-waiting', questionId: null }, 30, true)[0].at).toBe(30)
+  expect(putAuto(items, { ...asking, kind: 'still-waiting', questionId: null }, 30)[0].at).toBe(10)
 })
 
 test("the closed bar's preview of a notification is its status, or the saved answer", () => {
-  const preview = (auto: AutoAsk) => chatPreview(chatEntries(putAuto([], auto, step1, 1), []))
+  const preview = (auto: AutoAsk) => chatPreview(chatEntries(putAuto([], auto, 1), [], steps))
   expect(preview({ ...asking, kind: 'asking', questionId: null })).toBe('Asking an expert…')
   expect(preview({ ...asking, kind: 'saved', pick: { answer: answers[0], source: 'on_device', ms: 900 } })).toBe('Tino: The long leg.')
 })
 
+test('away from its step, a status keeps only its first sentence, with no "below"', () => {
+  expect(autoAskStatus('failed', true)).toBe('Could not ask an expert. You can send it yourself below.')
+  expect(autoAskStatus('failed', false)).toBe('Could not ask an expert.')
+  expect(autoAskStatus('limit', false)).toBe('The AI has asked 3 experts this session.')
+  expect(autoAskStatus('asking', false)).toBe('Asking an expert…')
+})
+
 test('a notice, a check of saved answers or an "asking below" line goes once it is not current; asking stays', () => {
   for (const kind of ['picking', 'panel-open'] as const) {
-    const items = putAuto([], { ...asking, kind }, step1, 10)
-    expect(dropPassingAuto(items, 'auto1').some((i) => i.kind === 'auto')).toBe(false)
+    expect(dropPassingAuto(putAuto([], { ...asking, kind }, 10), 'auto1')).toEqual([])
   }
-  const asked = putAuto([], { ...asking, kind: 'asking', questionId: 'q1' }, step1, 10)
+  const asked = putAuto([], { ...asking, kind: 'asking', questionId: 'q1' }, 10)
   expect(dropPassingAuto(asked, 'auto1')).toEqual(asked)
   // Only the run named is taken out.
-  expect(dropPassingAuto(putAuto([], asking, step1, 10), 'other').some((i) => i.kind === 'auto')).toBe(true)
+  expect(dropPassingAuto(putAuto([], asking, 10), 'other')).toHaveLength(1)
 })
 
 test("the model gets the learner's and the AI's messages, with a saved answer's words", () => {
@@ -167,32 +201,17 @@ test("the model gets the learner's and the AI's messages, with a saved answer's 
   ])
 })
 
-function question(over: Partial<ChatQuestion>): ChatQuestion {
-  return {
-    id: 'q1',
-    question: 'Is my wiring right?',
-    frameUrl: '',
-    origin: 'learner',
-    judgeSaid: null,
-    status: 'open',
-    sent: true,
-    createdAt: new Date(5),
-    reply: null,
-    ...over,
-  }
-}
-
 test("the chat shows the learner's questions and every expert reply, by time", () => {
   const items: ChatItem[] = [typed('t1', 's1', 'hello', 1), typed('t2', 's1', 'later', 9)]
   const replied = question({ status: 'answered', reply: { text: 'Yes.', expertName: 'Tino', answeredAt: new Date(7) } })
-  expect(chatEntries(items, [replied]).map((e) => e.id)).toEqual(['t1', 'asked-q1', 'reply-q1', 't2'])
+  expect(lines(chatEntries(items, [replied], steps))).toEqual(['step 1', 't1', 'asked-q1', 'reply-q1', 't2'])
 })
 
 test("the AI's own question shows only where this page did not ask it", () => {
   const judge = question({ id: 'q2', origin: 'judge', judgeSaid: 'Not sure.' })
-  const tracked = putAuto([], { ...asking, kind: 'asking', questionId: 'q2' }, step1, 1)
-  expect(chatEntries(tracked, [judge]).some((e) => e.kind === 'judge-asked')).toBe(false)
-  expect(chatEntries([], [judge]).map((e) => e.kind)).toEqual(['judge-asked'])
+  const tracked = putAuto([], { ...asking, kind: 'asking', questionId: 'q2' }, 1)
+  expect(chatEntries(tracked, [judge], steps).some((e) => e.kind === 'judge-asked')).toBe(false)
+  expect(chatEntries([], [judge], steps).map((e) => e.kind)).toEqual(['step', 'judge-asked'])
 })
 
 test('the unread count is replies and notifications since the chat was last open', () => {
@@ -202,12 +221,13 @@ test('the unread count is replies and notifications since the chat was last open
       { id: 'r1', at: 21, kind: 'reply', stepId: 's1', question: 'hi', source: 'on_device', answer: { text: 'Hello.', savedAnswer: null, unsure: false } },
       { id: 'r0', at: 5, kind: 'reply', stepId: 's1', question: 'old', source: 'on_device', answer: { text: 'Old.', savedAnswer: null, unsure: false } },
       { id: 'th', at: 22, kind: 'thinking', stepId: 's1' },
-      ...putAuto([], { ...asking, kind: 'asking', questionId: null }, step1, 23),
+      ...putAuto([], { ...asking, kind: 'asking', questionId: null }, 23),
     ],
-    [question({ createdAt: new Date(24), reply: { text: 'Yes.', expertName: 'Tino', answeredAt: new Date(25) } }), question({ id: 'q9', origin: 'judge', createdAt: null })],
+    [question({ createdAt: new Date(24), reply: { text: 'Yes.', expertName: 'Tino', answeredAt: new Date(25) } }), question({ id: 'q9', stepId: 's2', origin: 'judge', createdAt: null })],
+    steps,
   )
   // The reply at 21, the notification at 23 and the expert reply at 25; not the typed
-  // message, the step line, the learner's question, the thinking line, the old reply or
+  // message, the step lines, the learner's question, the thinking line, the old reply or
   // the question with no time yet.
   expect(unreadCount(entries, 10)).toBe(3)
   expect(unreadCount(entries, 30)).toBe(0)
@@ -216,8 +236,8 @@ test('the unread count is replies and notifications since the chat was last open
 test("the closed bar's preview is the latest message, or a prompt to ask", () => {
   expect(chatPreview([])).toBe(EMPTY_PREVIEW)
   expect(EMPTY_PREVIEW).toBe('Ask about this step')
-  const items = appendItem([], typed('t1', 's1', 'Which leg?', 1), step1)
-  expect(chatPreview(chatEntries(items, []))).toBe('Which leg?')
+  const items = [typed('t1', 's1', 'Which leg?', 1)]
+  expect(chatPreview(chatEntries(items, [], steps))).toBe('Which leg?')
   const replied = question({ reply: { text: 'Yes.', expertName: 'Tino', answeredAt: new Date(7) } })
-  expect(chatPreview(chatEntries(items, [replied]))).toBe('Tino: Yes.')
+  expect(chatPreview(chatEntries(items, [replied], steps))).toBe('Tino: Yes.')
 })

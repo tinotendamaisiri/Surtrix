@@ -2,7 +2,7 @@
 // notice, what the AI is doing about an unsure check, and the saved answer it found. The
 // expert's reply shows as its own notification in the chat.
 import { InferenceSource } from 'firebase/ai'
-import { AUTO_ASK_STATUS, type AutoAsk } from './autoAsk.ts'
+import { autoAskStatus, type AutoAsk } from './autoAsk.ts'
 import type { ChatQuestion } from './chat.ts'
 
 const sourceLabel: Record<string, string> = {
@@ -16,9 +16,11 @@ type Props = {
   asked: ChatQuestion | undefined
   // Only the current notice takes a choice.
   onChoose?: (choice: 'on' | 'off') => void
+  // Whether the learner is on the run's step.
+  onStep: boolean
 }
 
-export default function AutoAskCard({ autoAsk, asked, onChoose }: Props) {
+export default function AutoAskCard({ autoAsk, asked, onChoose, onStep }: Props) {
   if (autoAsk.kind === 'notice') {
     return (
       <div className="ws-note" role="region" aria-label="Ask experts for me">
@@ -63,7 +65,7 @@ export default function AutoAskCard({ autoAsk, asked, onChoose }: Props) {
     <div className="ws-note" aria-live="polite">
       <p className="ws-mono ws-note-label">IN THE CLOUD · NOT SURE</p>
       <p>{autoAsk.said}</p>
-      <p className="ws-note-status">{asked?.reply ? 'An expert answered.' : AUTO_ASK_STATUS[autoAsk.kind]}</p>
+      <p className="ws-note-status">{asked?.reply ? 'An expert answered.' : autoAskStatus(autoAsk.kind, onStep)}</p>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 /* The Surtrix Workspace (#62): always dark, in the landing page's colors, fonts and pill
-   rules. The app's shared colour variables are set to the Workspace's here, so Ask an
-   Expert and Check saved answers (which use them) match. Every tap target is at least
+   rules. The app's shared colour variables are set to the Workspace's here, so the Ask
+   an Expert panel (which uses them) matches. Every tap target is at least
    44 px tall. */
 
 body:has(main.workspace),
@@ -49,7 +49,7 @@ main.workspace {
   color: #f4efe6;
 }
 
-/* Ask an Expert and Check saved answers, and any other plain button, as pills. */
+/* The Ask an Expert panel's buttons, and any other plain button, as pills. */
 .workspace button {
   display: inline-flex;
   align-items: center;

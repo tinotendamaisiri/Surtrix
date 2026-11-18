@@ -7,6 +7,7 @@ import { NONE_FITS, type SavedAnswer } from './savedAnswerPick.ts'
 // What the chat uses of a learner's question to an expert (Question in questions.ts).
 export type ChatQuestion = {
   id: string
+  stepId: string
   question: string
   // The photo sent with it, as a data URL, or empty.
   frameUrl: string
@@ -132,7 +133,6 @@ export function parseChatReply(text: string, answers: SavedAnswer[]): ChatAnswer
 
 // What the chat holds for this page load, in memory only.
 export type ChatItem = { id: string; at: number } & (
-  | { kind: 'step'; stepId: string; stepNumber: number; title: string }
   | { kind: 'typed'; stepId: string; text: string }
   | { kind: 'thinking'; stepId: string }
   // question: the learner's message it answers, for Ask an expert.
@@ -147,14 +147,8 @@ export function newChatId(): string {
   return `chat-${lastId}`
 }
 
-type StepMark = { stepId: string; stepNumber: number; title: string }
-
-// Adds an item, with a step line first when it is about a different step from the last line.
-export function appendItem(items: ChatItem[], item: ChatItem, step: StepMark): ChatItem[] {
-  const lastStep = items.findLast((i) => i.kind === 'step')
-  const onStep = lastStep?.kind === 'step' && lastStep.stepId === step.stepId
-  const line: ChatItem[] = onStep ? [] : [{ id: newChatId(), at: item.at, kind: 'step', ...step }]
-  return [...items, ...line, item]
+export function appendItem(items: ChatItem[], item: ChatItem): ChatItem[] {
+  return [...items, item]
 }
 
 export function replaceItem(items: ChatItem[], id: string, item: ChatItem): ChatItem[] {
@@ -163,10 +157,10 @@ export function replaceItem(items: ChatItem[], id: string, item: ChatItem): Chat
 
 // An automatic asking update: the item with that id changes in place, or a new one is added.
 // news: the change is news, so it takes the time now and counts as new in the closed chat.
-export function putAuto(items: ChatItem[], auto: AutoAsk, step: StepMark, now: number, news = false): ChatItem[] {
+export function putAuto(items: ChatItem[], auto: AutoAsk, now: number, news = false): ChatItem[] {
   const at = items.find((i) => i.id === auto.id)?.at
   if (at !== undefined) return replaceItem(items, auto.id, { id: auto.id, at: news ? now : at, kind: 'auto', auto })
-  return appendItem(items, { id: auto.id, at: now, kind: 'auto', auto }, step)
+  return appendItem(items, { id: auto.id, at: now, kind: 'auto', auto })
 }
 
 // States that only hold while they are current: once they are not, they are taken out.
@@ -189,12 +183,14 @@ export function chatHistory(items: ChatItem[]): ChatTurn[] {
   return turns.slice(-HISTORY_SIZE)
 }
 
-// What the chat shows: its own items and this learner's questions on the step from
-// Firestore, by time. A question the learner sent shows as theirs; a question the AI sent
-// shows only where this page did not ask it (for example after a reload); every expert reply
-// shows as its own notification.
+// What the chat shows: its own items and this learner's questions on the skill from
+// Firestore, by time, with a step line before each run of entries about one step. A
+// question the learner sent shows as theirs; a question the AI sent shows only where this
+// page did not ask it (for example after a reload); every expert reply shows as its own
+// notification.
 export type ChatEntry =
   | ChatItem
+  | { kind: 'step'; id: string; at: number; stepId: string; stepNumber: number; title: string }
   | { kind: 'asked'; id: string; at: number; question: ChatQuestion }
   | { kind: 'judge-asked'; id: string; at: number; question: ChatQuestion }
   | { kind: 'expert-reply'; id: string; at: number; question: ChatQuestion }
@@ -204,7 +200,17 @@ function timeOf(date: Date | null | undefined): number {
   return date?.getTime() ?? Number.MAX_SAFE_INTEGER
 }
 
-export function chatEntries(items: ChatItem[], questions: ChatQuestion[]): ChatEntry[] {
+function entryStep(entry: ChatEntry): string {
+  if (entry.kind === 'auto') return entry.auto.stepId
+  if (entry.kind === 'asked' || entry.kind === 'judge-asked' || entry.kind === 'expert-reply') return entry.question.stepId
+  return entry.stepId
+}
+
+export function chatEntries(
+  items: ChatItem[],
+  questions: ChatQuestion[],
+  steps: readonly { id: string; title: string }[],
+): ChatEntry[] {
   const tracked = new Set(
     items.flatMap((i) => (i.kind === 'auto' && 'questionId' in i.auto && i.auto.questionId ? [i.auto.questionId] : [])),
   )
@@ -217,7 +223,20 @@ export function chatEntries(items: ChatItem[], questions: ChatQuestion[]): ChatE
     if (q.reply) fromQuestions.push({ kind: 'expert-reply', id: `reply-${q.id}`, at: timeOf(q.reply.answeredAt), question: q })
   }
   // A stable sort keeps the chat's own order for items at the same time.
-  return [...items, ...fromQuestions].sort((a, b) => a.at - b.at)
+  const sorted = [...items, ...fromQuestions].sort((a, b) => a.at - b.at)
+  const entries: ChatEntry[] = []
+  let lineStep: string | null = null
+  for (const entry of sorted) {
+    const stepId = entryStep(entry)
+    if (stepId !== lineStep) {
+      const index = steps.findIndex((s) => s.id === stepId)
+      const title = steps[index]?.title ?? ''
+      entries.push({ kind: 'step', id: `step-line-${entries.length}`, at: entry.at, stepId, stepNumber: index + 1, title })
+      lineStep = stepId
+    }
+    entries.push(entry)
+  }
+  return entries
 }
 
 const NOT_COUNTED: ChatEntry['kind'][] = ['step', 'typed', 'asked', 'thinking']

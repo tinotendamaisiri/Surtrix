@@ -277,19 +277,13 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     setProgress(change)
   }
 
-  // The step line the chat shows above a message about this step.
-  function stepMark(stepId: string) {
-    const index = skill.steps.findIndex((s) => s.id === stepId)
-    return { stepId, stepNumber: index + 1, title: skill.steps[index]?.title ?? '' }
-  }
-
   // Shows an automatic asking state in the chat: a new notification, or the run's own one
   // changed in place.
   function showAutoAsk(auto: AutoAsk) {
     currentAutoIdRef.current = auto.id
     setCurrentAutoId(auto.id)
     // Every state after the check of the saved answers is news for the learner.
-    setChatItems((items) => putAuto(items, auto, stepMark(auto.stepId), Date.now(), auto.kind !== 'picking'))
+    setChatItems((items) => putAuto(items, auto, Date.now(), auto.kind !== 'picking'))
   }
 
   // Changes a run's notification, even once it is no longer the current one. news: the
@@ -329,16 +323,17 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     const message = text.trim()
     if (message === '' || answering || progress.finished) return
     const s = step
-    const mark = stepMark(s.id)
+    const stepNumber = progress.stepIndex + 1
     const history = chatHistory(chatItemsRef.current)
     const thinkingId = newChatId()
     const now = Date.now()
     setChatItems((items) =>
-      appendItem(
-        appendItem(items, { id: newChatId(), at: now, kind: 'typed', stepId: s.id, text: message }, mark),
-        { id: thinkingId, at: now, kind: 'thinking', stepId: s.id },
-        mark,
-      ),
+      appendItem(appendItem(items, { id: newChatId(), at: now, kind: 'typed', stepId: s.id, text: message }), {
+        id: thinkingId,
+        at: now,
+        kind: 'thinking',
+        stepId: s.id,
+      }),
     )
     setAnswering(true)
     const look = watch.look?.stepId === s.id ? watch.look : null
@@ -346,7 +341,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     try {
       const reply = await replyToChat({
         skillTitle: skill.title,
-        stepNumber: mark.stepNumber,
+        stepNumber,
         stepCount: skill.steps.length,
         step: s,
         savedAnswers: saved.kind === 'loaded' ? (saved.byStep[s.id] ?? []) : [],
@@ -457,7 +452,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       if (!onScreenRef.current) return
       // The notification says so even after a step change, as news; the panel opens, in the
       // open chat, only on its step.
-      updateAutoAsk(id, () => ({ id, stepId: s.id, kind: 'failed', said }), true)
+      updateAutoAsk(id, () => ({ id, stepId: s.id, kind: 'failed', said }), stillHere())
       if (stillHere()) {
         openChat()
         setManualOffer(offer)
@@ -550,7 +545,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const experts =
     saved.kind === 'loaded' ? { kind: 'loaded' as const, cards: expertCards(skill.steps, saved.byStep, step.id) } : saved
   const stepQuestions = mine.questions.filter((q) => q.stepId === step.id)
-  const entries = chatEntries(chatItems, mine.questions)
+  const entries = chatEntries(chatItems, mine.questions, skill.steps)
   const currentNotice = chatItems.find((i) => i.id === currentAutoId && i.kind === 'auto' && i.auto.kind === 'notice')
   const markDoneAnyway =
     !progress.finished &&
@@ -796,7 +791,7 @@ function WiringCard({
   if (wiring?.kind === 'failed') {
     return (
       <p className="ws-wiring-line ws-error">
-        The wiring check is not available right now. Ask an Expert or Check saved answers, or Mark done anyway.
+        The wiring check is not available right now. Ask an expert in the chat, or Mark done anyway.
       </p>
     )
   }

@@ -1,5 +1,6 @@
 // A reply to a learner's typed chat message (#74): gemini-3.5-flash-lite in the cloud first,
-// and Gemini Nano on device when the cloud cannot answer (offline, or a failed call). Cloud
+// and Gemini Nano on device when the cloud cannot answer (offline, a failed call, or no
+// answer within 15 seconds). Cloud
 // first because Nano gave unsafe substitute advice in tests on Nov 18 (Tino's decision).
 // On device inference is single turn only (Firebase AI Logic hybrid docs, checked Nov 18),
 // so each message is one call with the recent chat written into the prompt. Text only: no
@@ -17,6 +18,9 @@ import { CHAT_INSTRUCTION, chatPrompt, chatReplySchema, parseChatReply, savedAns
 
 // The fast model, never the one kept for the wiring judgment.
 export const CHAT_CLOUD_MODEL = 'gemini-3.5-flash-lite'
+
+// How long the cloud gets before Nano answers instead (Tino, Nov 18).
+export const CHAT_CLOUD_LIMIT_MS = 15_000
 
 const createOptions: LanguageModelCreateOptions = {
   expectedInputs: [{ type: 'text', languages: ['en'] }],
@@ -51,21 +55,45 @@ function chatModel(context: ChatContext): GenerativeModel {
   })
 }
 
-// The model for the last list of saved answers, so the same step reuses it.
-let lastModel: { key: string; model: GenerativeModel } | null = null
+// Nano alone, for a cloud call that ran out of time: the SDK does not fall back then.
+function deviceModel(context: ChatContext): GenerativeModel {
+  return getGenerativeModel(ai, {
+    mode: InferenceMode.ONLY_ON_DEVICE,
+    onDeviceParams: { createOptions, promptOptions: { responseConstraint: chatReplySchema(context.savedAnswers) } },
+  })
+}
 
-function modelFor(context: ChatContext): GenerativeModel {
+// The models for the last list of saved answers, so the same step reuses them.
+let lastModels: { key: string; hybrid: GenerativeModel; device: GenerativeModel } | null = null
+
+function modelsFor(context: ChatContext) {
   const key = JSON.stringify(savedAnswerIds(context.savedAnswers))
-  if (lastModel?.key !== key) lastModel = { key, model: chatModel(context) }
-  return lastModel.model
+  if (lastModels?.key !== key) lastModels = { key, hybrid: chatModel(context), device: deviceModel(context) }
+  return lastModels
 }
 
 export type ChatReply = { answer: ChatAnswer; source: string; ms: number }
 
-// Throws when no model can answer or the reply is not in the expected shape.
+function timedOut(e: unknown): boolean {
+  return e instanceof Error && e.name === 'AbortError'
+}
+
+// The cloud gets CHAT_CLOUD_LIMIT_MS. When it runs out of time and Chrome has Nano, Nano
+// answers on device. Throws when no model can answer or the reply is not in the expected
+// shape.
 export async function replyToChat(context: ChatContext): Promise<ChatReply> {
   const started = performance.now()
-  const result = await modelFor(context).generateContent(chatPrompt(context))
+  const prompt = chatPrompt(context)
+  const models = modelsFor(context)
+  let result
+  try {
+    result = await models.hybrid.generateContent(prompt, { timeout: CHAT_CLOUD_LIMIT_MS })
+  } catch (e) {
+    // Without Chrome's API the SDK would send even a device only call to the cloud.
+    if (!timedOut(e) || !('LanguageModel' in globalThis)) throw e
+    console.warn('The cloud took too long, answering on device', e)
+    result = await models.device.generateContent(prompt)
+  }
   return {
     answer: parseChatReply(result.response.text(), context.savedAnswers),
     source: result.response.inferenceSource ?? 'unknown',

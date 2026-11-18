@@ -241,6 +241,7 @@ function Entry({ entry, ...props }: { entry: ChatEntry } & EntryProps) {
           autoAsk={entry.auto}
           asked={id ? props.questions.find((q) => q.id === id) : undefined}
           onChoose={entry.id === props.noticeId ? props.onChoose : undefined}
+          onStep={entry.auto.stepId === props.stepId}
         />
       )
     }

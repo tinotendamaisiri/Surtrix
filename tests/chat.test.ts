@@ -132,6 +132,18 @@ test('an automatic asking update changes its notification in place', () => {
   expect(autos[0]).toMatchObject({ at: 10, auto: { kind: 'asking' } })
 })
 
+test('a change that is news moves the notification to now; one that is not keeps its time', () => {
+  const items = putAuto([], asking, step1, 10)
+  expect(putAuto(items, { ...asking, kind: 'still-waiting', questionId: null }, step1, 30, true).find((i) => i.kind === 'auto')?.at).toBe(30)
+  expect(putAuto(items, { ...asking, kind: 'still-waiting', questionId: null }, step1, 30).find((i) => i.kind === 'auto')?.at).toBe(10)
+})
+
+test("the closed bar's preview of a notification is its status, or the saved answer", () => {
+  const preview = (auto: AutoAsk) => chatPreview(chatEntries(putAuto([], auto, step1, 1), []))
+  expect(preview({ ...asking, kind: 'asking', questionId: null })).toBe('Asking an expert…')
+  expect(preview({ ...asking, kind: 'saved', pick: { answer: answers[0], source: 'on_device', ms: 900 } })).toBe('Tino: The long leg.')
+})
+
 test('a notice, a check of saved answers or an "asking below" line goes once it is not current; asking stays', () => {
   for (const kind of ['picking', 'panel-open'] as const) {
     const items = putAuto([], { ...asking, kind }, step1, 10)

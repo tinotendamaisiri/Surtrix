@@ -134,11 +134,9 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     // Cancelled: the "asking below" line no longer holds.
     if (!open) setChatItems((items) => items.filter((i) => !(i.kind === 'auto' && i.auto.kind === 'panel-open')))
   }, [])
-  // This learner's questions on the current step, live: an open one blocks a new automatic one.
-  const [mine, setMine] = useState<{ stepId: string; questions: Question[]; failed?: boolean }>({
-    stepId: '',
-    questions: [],
-  })
+  // This learner's questions on the skill, every step, live (#74): the chat shows them all,
+  // and an open one on a step blocks a new automatic one there.
+  const [mine, setMine] = useState<{ questions: Question[]; failed?: boolean }>({ questions: [] })
   const mineRef = useRef(mine)
   const savedRef = useRef(saved)
   const choiceRef = useRef(autoChoice)
@@ -151,16 +149,15 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     chatItemsRef.current = chatItems
   })
   useEffect(() => {
-    const stepId = step.id
     return watchMyQuestions(
-      { skillId: skill.id, stepId },
-      (questions) => setMine({ stepId, questions }),
+      skill.id,
+      (questions) => setMine({ questions }),
       (e) => {
         console.error('Watching your questions failed', e)
-        setMine({ stepId, questions: [], failed: true })
+        setMine({ questions: [], failed: true })
       },
     )
-  }, [skill.id, step.id])
+  }, [skill.id])
 
   // Counts the cameras now and whenever one is plugged in or out.
   useEffect(() => {
@@ -276,6 +273,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     runRef.current++
     endAutoAsk()
     setManualOffer(null)
+    setAskRequest(null)
     setProgress(change)
   }
 
@@ -290,7 +288,8 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   function showAutoAsk(auto: AutoAsk) {
     currentAutoIdRef.current = auto.id
     setCurrentAutoId(auto.id)
-    setChatItems((items) => putAuto(items, auto, stepMark(auto.stepId), Date.now()))
+    // Every state after the check of the saved answers is news for the learner.
+    setChatItems((items) => putAuto(items, auto, stepMark(auto.stepId), Date.now(), auto.kind !== 'picking'))
   }
 
   // Changes a run's notification, even once it is no longer the current one. news: the
@@ -429,7 +428,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
         return
       }
     }
-    const open = mineRef.current.stepId === s.id ? mineRef.current.questions.find((q) => q.status === 'open') : undefined
+    const open = mineRef.current.questions.find((q) => q.stepId === s.id && q.status === 'open')
     const next = afterNoFit({ panelOpen: panelOpenRef.current, openOnStep: open !== undefined, asked: autoAskedThisSession() })
     // The learner is already asking in the manual panel: their Send is the one question.
     if (next === 'panel-open') {
@@ -550,8 +549,8 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const parts = skillParts(skill.steps)
   const experts =
     saved.kind === 'loaded' ? { kind: 'loaded' as const, cards: expertCards(skill.steps, saved.byStep, step.id) } : saved
-  const myQuestions = mine.stepId === step.id ? mine.questions : []
-  const entries = chatEntries(chatItems, myQuestions)
+  const stepQuestions = mine.questions.filter((q) => q.stepId === step.id)
+  const entries = chatEntries(chatItems, mine.questions)
   const currentNotice = chatItems.find((i) => i.id === currentAutoId && i.kind === 'auto' && i.auto.kind === 'notice')
   const markDoneAnyway =
     !progress.finished &&
@@ -591,8 +590,8 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
               unread={chatOpen ? 0 : unreadCount(entries, chatSeenAt)}
               preview={chatPreview(entries)}
               noticeId={currentNotice ? currentNotice.id : null}
-              questions={myQuestions}
-              questionsFailed={mine.stepId === step.id && mine.failed === true}
+              questions={mine.questions}
+              questionsFailed={mine.failed === true}
               choice={autoChoice}
               onChoose={chooseAutoAsk}
               answering={answering}
@@ -612,7 +611,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
                   judgeOffer={manualOffer}
                   askRequest={askRequest}
                   onPanelChange={onPanelChange}
-                  sendBlocked={manualSendBlocked(autoChoice, myQuestions) ? MANUAL_SEND_BLOCKED : null}
+                  sendBlocked={manualSendBlocked(autoChoice, stepQuestions) ? MANUAL_SEND_BLOCKED : null}
                 />
               }
             />

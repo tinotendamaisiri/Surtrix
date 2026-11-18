@@ -1,6 +1,6 @@
 // The Workspace chat (#74): the prompt for a typed message, the reply's shape and its check,
 // and the thread the chat shows. Pure, so the tests can use it without starting Firebase.
-import type { AutoAsk } from './autoAsk.ts'
+import { AUTO_ASK_STATUS, type AutoAsk } from './autoAsk.ts'
 import type { CoachStep } from './coach.ts'
 import { NONE_FITS, type SavedAnswer } from './savedAnswerPick.ts'
 
@@ -162,9 +162,10 @@ export function replaceItem(items: ChatItem[], id: string, item: ChatItem): Chat
 }
 
 // An automatic asking update: the item with that id changes in place, or a new one is added.
-export function putAuto(items: ChatItem[], auto: AutoAsk, step: StepMark, now: number): ChatItem[] {
+// news: the change is news, so it takes the time now and counts as new in the closed chat.
+export function putAuto(items: ChatItem[], auto: AutoAsk, step: StepMark, now: number, news = false): ChatItem[] {
   const at = items.find((i) => i.id === auto.id)?.at
-  if (at !== undefined) return replaceItem(items, auto.id, { id: auto.id, at, kind: 'auto', auto })
+  if (at !== undefined) return replaceItem(items, auto.id, { id: auto.id, at: news ? now : at, kind: 'auto', auto })
   return appendItem(items, { id: auto.id, at: now, kind: 'auto', auto }, step)
 }
 
@@ -243,7 +244,9 @@ export function chatPreview(entries: ChatEntry[]): string {
     case 'reply-failed':
       return 'The AI could not answer.'
     case 'auto':
-      return last.auto.said
+      if (last.auto.kind === 'notice') return last.auto.said
+      if (last.auto.kind === 'saved') return `${last.auto.pick.answer.expertName}: ${last.auto.pick.answer.answer}`
+      return AUTO_ASK_STATUS[last.auto.kind]
     case 'asked':
       return last.question.question
     case 'judge-asked':

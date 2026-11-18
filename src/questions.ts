@@ -47,6 +47,7 @@ export type Reply = {
 
 export type Question = {
   id: string
+  stepId: string
   question: string
   frameUrl: string
   origin: QuestionOrigin
@@ -146,6 +147,7 @@ function toQuestion(snapshot: DocumentSnapshot): Question {
   const reply = toReply(data.reply)
   return {
     id: snapshot.id,
+    stepId: String(data.stepId ?? ''),
     question: String(data.question ?? ''),
     frameUrl: data.frame instanceof Bytes ? `data:image/jpeg;base64,${data.frame.toBase64()}` : '',
     origin: data.origin === 'judge' ? 'judge' : 'learner',
@@ -162,10 +164,10 @@ function sortTime(question: Question): number {
   return question.createdAt?.getTime() ?? Number.MAX_SAFE_INTEGER
 }
 
-// Calls onChange with this learner's questions for the step, newest first, now and
-// whenever one changes. Returns a function that stops listening.
+// Calls onChange with this learner's questions on the skill, every step, newest first, now
+// and whenever one changes (#74). Returns a function that stops listening.
 export function watchMyQuestions(
-  step: Pick<QuestionStep, 'skillId' | 'stepId'>,
+  skillId: string,
   onChange: (questions: Question[]) => void,
   onError: (error: unknown) => void,
 ): () => void {
@@ -179,8 +181,7 @@ export function watchMyQuestions(
     const mine = query(
       collection(db, 'questions'),
       where('learnerId', '==', learnerId),
-      where('skillId', '==', step.skillId),
-      where('stepId', '==', step.stepId),
+      where('skillId', '==', skillId),
     )
     // Metadata changes too, so a question sent while offline shows as sent once it is.
     stopListening = onSnapshot(

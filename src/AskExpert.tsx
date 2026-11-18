@@ -68,7 +68,8 @@ export default function AskExpert({
   const [lateError, setLateError] = useState(false)
   const [shownStepKey, setShownStepKey] = useState(stepKey)
   const [seenOffer, setSeenOffer] = useState<JudgeOffer | null>(null)
-  const [seenRequest, setSeenRequest] = useState<AskRequest | null>(null)
+  // A request from before the panel was shown again (for example after Start again) is old.
+  const [seenRequest, setSeenRequest] = useState<AskRequest | null>(askRequest)
 
   // State is adjusted while rendering, as React recommends over an effect.
   // A different step drops an unsent question: it would be about the wrong step.

@@ -17,6 +17,17 @@ export type AutoAsk = { id: string; stepId: string; said: string } & (
   | { kind: 'limit' | 'failed' | 'panel-open' }
 )
 
+// What a notification says about the run, for each state that has a status line.
+export const AUTO_ASK_STATUS: Record<Exclude<AutoAsk['kind'], 'notice' | 'saved'>, string> = {
+  picking: 'Checking saved expert answers…',
+  asking: 'Asking an expert…',
+  queued: "An expert will be asked when you're back online.",
+  'still-waiting': 'Still waiting for an expert.',
+  limit: 'The AI has asked 3 experts this session. You can send this one yourself below.',
+  'panel-open': "You're asking an expert below. Send it when you're ready.",
+  failed: 'Could not ask an expert. You can send it yourself below.',
+}
+
 // The learner's choice: on, off, or not made yet (the first time notice shows).
 export type AutoAskChoice = 'on' | 'off' | null
 

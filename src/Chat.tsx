@@ -9,6 +9,7 @@ import type { AutoAskChoice } from './autoAsk.ts'
 import {
   CHAT_LIMIT_TEXT,
   CHAT_MAX_LENGTH,
+  COULD_NOT_ANSWER_TEXT,
   LIMITED_TEXT,
   ON_DEVICE_NOTE,
   type ChatEntry,
@@ -250,7 +251,13 @@ function Entry({ entry, ...props }: { entry: ChatEntry } & EntryProps) {
     case 'reply-failed':
       return (
         <>
-          <p>{entry.limited ? LIMITED_TEXT : 'The AI could not answer right now. Try again, or ask an expert.'}</p>
+          <p>
+            {entry.reason === 'limited'
+              ? LIMITED_TEXT
+              : entry.reason === 'unanswered'
+                ? COULD_NOT_ANSWER_TEXT
+                : 'The AI could not answer right now. Try again, or ask an expert.'}
+          </p>
           {entry.stepId === props.stepId && (
             <button type="button" className="ws-pill ws-pill-gold" onClick={() => props.onAskExpert(entry.question)}>
               Ask an expert
@@ -275,7 +282,7 @@ function Entry({ entry, ...props }: { entry: ChatEntry } & EntryProps) {
         <div className="ws-note">
           <p className="ws-mono ws-note-label">IN THE CLOUD · NOT SURE</p>
           <p>{q.judgeSaid ?? q.question}</p>
-          <p className="ws-note-status">{q.reply ? 'An expert answered.' : 'Waiting for an expert to answer'}</p>
+          <p className="ws-note-status">{q.reply ? 'An expert answered.' : 'Waiting for an expert to answer.'}</p>
         </div>
       )
     }

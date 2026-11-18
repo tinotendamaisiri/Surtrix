@@ -48,6 +48,24 @@ export function countChatMessage(): number {
   return sentThisSession
 }
 
+// A message whose cloud reply was garbled does not count (Tino, Nov 18). Returns the count.
+export function uncountChatMessage(): number {
+  sentThisSession = Math.max(0, sentThisSession - 1)
+  return sentThisSession
+}
+
+// Only this many garbled replies per session go uncounted; after that they count like any
+// message, so they cannot run up cloud calls past the limit (Tino, Nov 18).
+export const FREE_GARBLED_REPLIES = 5
+
+let garbledThisSession = 0
+
+// Notes one more garbled reply; true while it is still one of the free ones.
+export function garbledReplyIsFree(): boolean {
+  garbledThisSession += 1
+  return garbledThisSession <= FREE_GARBLED_REPLIES
+}
+
 export const CHAT_LIMIT_TEXT = `You've reached the limit of ${CHAT_MESSAGE_LIMIT} messages for this session.`
 
 // A cloud answer refused for billing or quota: 429 (prepaid credit used up, a quota or the
@@ -57,6 +75,45 @@ export function isLimitedStatus(status: number | undefined): boolean {
 }
 
 export const LIMITED_TEXT = 'Answers are limited right now.'
+
+// A cloud reply in the wrong shape, or Nano past its time limit.
+export const COULD_NOT_ANSWER_TEXT = 'Could not answer right now.'
+
+// How long Nano gets when it answers in place of the cloud (Tino, Nov 18).
+export const DEVICE_LIMIT_MS = 20_000
+
+// The cloud answered, but not in the expected shape, or it blocked its own reply (for
+// example for safety): never sent on to the device, which might answer what the cloud
+// refused (Tino, Nov 18).
+export class ChatGarbledError extends Error {
+  constructor(cause: unknown) {
+    super('The cloud reply was not in the expected shape, or was blocked.', { cause })
+    this.name = 'ChatGarbledError'
+  }
+}
+
+// The SDK's AIErrorCode.RESPONSE_ERROR: reading a reply the model blocked or could not give.
+const BLOCKED_REPLY_CODE = 'response-error'
+
+export function unusableCloudReply(error: unknown): boolean {
+  return error instanceof ChatReplyError || (error as { code?: unknown } | null)?.code === BLOCKED_REPLY_CODE
+}
+
+export class ChatDeviceTimeoutError extends Error {
+  constructor() {
+    super('The device did not answer in time.')
+    this.name = 'ChatDeviceTimeoutError'
+  }
+}
+
+// The answer, or ChatDeviceTimeoutError once ms have passed; a later answer is dropped.
+export function withDeviceLimit<R>(answer: Promise<R>, ms: number = DEVICE_LIMIT_MS): Promise<R> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const limit = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new ChatDeviceTimeoutError()), ms)
+  })
+  return Promise.race([answer, limit]).finally(() => clearTimeout(timer))
+}
 
 // The HTTP status of a failed cloud call: the SDK's AIError carries it in customErrorData.
 export function cloudStatus(error: unknown): number | undefined {
@@ -73,8 +130,9 @@ export class ChatLimitedError extends Error {
 }
 
 // How a reply is chosen (#74, m): the cloud first. A refusal for billing or quota throws
-// ChatLimitedError and never tries the device. Any other failure has the device answer
-// when it is ready, and is thrown again when it is not.
+// ChatLimitedError, and a reply in the wrong shape or blocked throws ChatGarbledError;
+// neither tries the device. Any other failure has the device answer when it is ready, and is thrown
+// again when it is not.
 export async function cloudThenDevice<R>({
   cloud,
   device,
@@ -91,6 +149,7 @@ export async function cloudThenDevice<R>({
     return await cloud()
   } catch (e) {
     if (isLimitedStatus(statusOf(e))) throw new ChatLimitedError(e)
+    if (unusableCloudReply(e)) throw new ChatGarbledError(e)
     if (!(await deviceReady())) throw e
     console.warn('The cloud could not answer, answering on device', e)
     return device()
@@ -205,14 +264,17 @@ export function parseChatReply(text: string, answers: SavedAnswer[]): ChatAnswer
   return { text: words, savedAnswer, unsure: unsure === true }
 }
 
+export type FailReason = 'limited' | 'unanswered' | 'error'
+
 // What the chat holds for this page load, in memory only.
 export type ChatItem = { id: string; at: number } & (
   | { kind: 'typed'; stepId: string; text: string }
   | { kind: 'thinking'; stepId: string }
   // question: the learner's message it answers, for Ask an expert.
   | { kind: 'reply'; stepId: string; question: string; answer: ChatAnswer; source: string }
-  // limited: refused for billing or quota.
-  | { kind: 'reply-failed'; stepId: string; question: string; limited: boolean }
+  // reason: limited (billing or quota), unanswered (a garbled cloud reply, or Nano out of
+  // time), or error (anything else).
+  | { kind: 'reply-failed'; stepId: string; question: string; reason: FailReason }
   | { kind: 'auto'; auto: AutoAsk }
 )
 
@@ -316,10 +378,38 @@ export function chatEntries(
 
 const NOT_COUNTED: ChatEntry['kind'][] = ['step', 'typed', 'asked', 'thinking']
 
+// Entries timed by the server (an expert's reply, a question); the rest are timed by this
+// browser's clock.
+const SERVER_TIMED: ChatEntry['kind'][] = ['asked', 'judge-asked', 'expert-reply']
+
+const NO_TIME = Number.MAX_SAFE_INTEGER
+
+// When the chat was last seen, as two marks, so server times are only ever compared with
+// server times and the browser's own times with its own clock: a learner's clock that is
+// slow or fast never changes what counts as new. local: this browser's clock then. server:
+// the newest server time the chat had shown by then, or null before it has shown one.
+export type SeenMark = { local: number; server: number | null }
+
 // Replies and notifications that came after the learner last had the chat open. One with
 // no time yet is left out, so it can never stay new for good.
-export function unreadCount(entries: ChatEntry[], seenAt: number): number {
-  return entries.filter((e) => e.at > seenAt && e.at !== Number.MAX_SAFE_INTEGER && !NOT_COUNTED.includes(e.kind)).length
+export function unreadCount(entries: ChatEntry[], seen: SeenMark): number {
+  return entries.filter((e) => {
+    if (NOT_COUNTED.includes(e.kind) || e.at === NO_TIME) return false
+    const mark = SERVER_TIMED.includes(e.kind) ? (seen.server ?? seen.local) : seen.local
+    return e.at > mark
+  }).length
+}
+
+// The mark for now, with these entries in view.
+// A question the server has not confirmed yet carries this browser's estimate of its time,
+// so it never moves the server mark.
+export function seenNow(entries: ChatEntry[], now: number, previous: SeenMark): SeenMark {
+  const server = entries
+    .filter((e) => SERVER_TIMED.includes(e.kind) && e.at !== NO_TIME)
+    .filter((e) => (e.kind === 'asked' || e.kind === 'judge-asked' ? e.question.sent : true))
+    .map((e) => e.at)
+  const newest = server.length > 0 ? Math.max(...server) : null
+  return { local: now, server: newest === null ? previous.server : Math.max(newest, previous.server ?? newest) }
 }
 
 export const EMPTY_PREVIEW = 'Ask about this step'
@@ -337,20 +427,29 @@ function browserStore(): SeenStore | null {
 
 const seenKey = (skillId: string) => `surtrix.chatSeenAt.${skillId}`
 
+function isTime(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+}
+
 // When the learner last had this skill's chat in view, kept in this browser only, so a
 // reply that came while they were away counts as new after a reload. Null when unknown.
-export function readChatSeenAt(skillId: string, store: SeenStore | null = browserStore()): number | null {
+// An older stored single time is read as this browser's mark only.
+export function readChatSeenAt(skillId: string, store: SeenStore | null = browserStore()): SeenMark | null {
   try {
-    const value = Number(store?.getItem(seenKey(skillId)))
-    return Number.isFinite(value) && value > 0 ? value : null
+    const raw = store?.getItem(seenKey(skillId))
+    if (!raw) return null
+    const value: unknown = JSON.parse(raw)
+    if (isTime(value)) return { local: value, server: null }
+    const { local, server } = (value ?? {}) as Record<string, unknown>
+    return isTime(local) ? { local, server: isTime(server) ? server : null } : null
   } catch {
     return null
   }
 }
 
-export function writeChatSeenAt(skillId: string, at: number, store: SeenStore | null = browserStore()) {
+export function writeChatSeenAt(skillId: string, mark: SeenMark, store: SeenStore | null = browserStore()) {
   try {
-    store?.setItem(seenKey(skillId), String(at))
+    store?.setItem(seenKey(skillId), JSON.stringify(mark))
   } catch {
     // Blocked storage: it holds for this page only.
   }
@@ -368,7 +467,11 @@ export function chatPreview(entries: ChatEntry[], stepId: string): string {
     case 'reply':
       return last.answer.text || last.answer.savedAnswer?.answer || ''
     case 'reply-failed':
-      return last.limited ? LIMITED_TEXT : 'The AI could not answer.'
+      return last.reason === 'limited'
+        ? LIMITED_TEXT
+        : last.reason === 'unanswered'
+          ? COULD_NOT_ANSWER_TEXT
+          : 'The AI could not answer.'
     case 'auto':
       if (last.auto.kind === 'notice') return last.auto.said
       if (last.auto.kind === 'saved') return `${last.auto.pick.answer.expertName}: ${last.auto.pick.answer.answer}`

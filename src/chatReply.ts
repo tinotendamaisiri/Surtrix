@@ -10,6 +10,7 @@ import {
   InferenceMode,
   Schema,
   ThinkingLevel,
+  type GenerateContentResult,
   type GenerativeModel,
   type LanguageModelCreateOptions,
 } from 'firebase/ai'
@@ -21,6 +22,7 @@ import {
   cloudStatus,
   cloudThenDevice,
   parseChatReply,
+  withDeviceLimit,
   savedAnswerIds,
   type ChatAnswer,
   type ChatContext,
@@ -96,21 +98,23 @@ async function nanoReady(): Promise<boolean> {
   }
 }
 
-// The cloud gets CHAT_CLOUD_LIMIT_MS; cloudThenDevice decides what happens when it cannot
-// answer. Throws when no model can answer or the reply is not in the expected shape.
+// The cloud gets CHAT_CLOUD_LIMIT_MS and the device DEVICE_LIMIT_MS; cloudThenDevice
+// decides what happens when the cloud cannot answer. Throws when no model can answer or the reply is not in the expected shape.
 export async function replyToChat(context: ChatContext): Promise<ChatReply> {
   const started = performance.now()
   const prompt = chatPrompt(context)
   const models = modelsFor(context)
-  const result = await cloudThenDevice({
-    cloud: () => models.cloud.generateContent(prompt, { timeout: CHAT_CLOUD_LIMIT_MS }),
-    device: () => models.device.generateContent(prompt),
+  // Read inside each path, so a garbled cloud reply is known as one and never goes on to
+  // the device.
+  const read = (result: GenerateContentResult) => ({
+    answer: parseChatReply(result.response.text(), context.savedAnswers),
+    source: result.response.inferenceSource ?? 'unknown',
+  })
+  const reply = await cloudThenDevice({
+    cloud: async () => read(await models.cloud.generateContent(prompt, { timeout: CHAT_CLOUD_LIMIT_MS })),
+    device: async () => read(await withDeviceLimit(models.device.generateContent(prompt))),
     deviceReady: nanoReady,
     statusOf: cloudStatus,
   })
-  return {
-    answer: parseChatReply(result.response.text(), context.savedAnswers),
-    source: result.response.inferenceSource ?? 'unknown',
-    ms: Math.round(performance.now() - started),
-  }
+  return { ...reply, ms: Math.round(performance.now() - started) }
 }

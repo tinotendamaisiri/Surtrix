@@ -159,7 +159,13 @@ export default function Chat({ sectionRef, ...props }: Props) {
           <input
             id="ws-chat-message"
             type="text"
-            placeholder={props.limitReached ? 'Message limit reached' : 'Type, or just talk'}
+            placeholder={
+              props.limitReached
+                ? 'Message limit reached'
+                : props.listening.state === 'unsupported'
+                  ? 'Type a question'
+                  : 'Type, or just talk'
+            }
             autoComplete="off"
             maxLength={CHAT_MAX_LENGTH}
             // While a phrase is being heard, its words show here (settled e).

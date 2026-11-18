@@ -123,6 +123,9 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const listening = useListening((text) => onSpoken(text))
   // Spoken phrases that came while a reply was being made; sent one by one after it.
   const spokenQueue = useRef<string[]>([])
+  // Set when a spoken "done" acts, until the step or the wiring check changes, so two
+  // quick "done"s act once.
+  const doneActingRef = useRef(false)
   // Every step's saved expert answers, loaded once (#31), so they still help offline.
   const saved = useSavedAnswers(skill)
 
@@ -382,7 +385,17 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
         appendItem(items, { id: newChatId(), at: Date.now(), kind: 'typed', stepId: step.id, text, spoken: true, command: true }),
       )
       // Like Mark step done; ignored while a wiring check runs (settled h).
-      if (!checking) void markDone()
+      if (!checking && !doneActingRef.current) {
+        doneActingRef.current = true
+        void markDone()
+      }
+      return
+    }
+    // Past the message limit a question is shown, beside the limit line, and not sent.
+    if (chatLimitReached(chatSent)) {
+      setChatItems((items) =>
+        appendItem(items, { id: newChatId(), at: Date.now(), kind: 'typed', stepId: step.id, text, spoken: true, command: true }),
+      )
       return
     }
     if (answeringRef.current) {
@@ -391,6 +404,11 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     }
     void sendChat(text, true)
   }
+
+  // A new step, or a wiring check starting or ending, lets the next "done" act.
+  useEffect(() => {
+    doneActingRef.current = false
+  }, [progress.stepIndex, progress.finished, wiring])
 
   // The next spoken phrase goes once the reply before it is in.
   useEffect(() => {
@@ -403,7 +421,9 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   async function sendChat(text: string, spoken = false) {
     // Typed and spoken messages keep the same length limit.
     const message = text.trim().slice(0, CHAT_MAX_LENGTH)
-    if (message === '' || answering || answeringRef.current || progress.finished || chatLimitReached(chatSent)) return
+    // The ref, not the rendered state, says whether a reply is being made: a phrase heard
+    // just as a reply lands is never lost between them.
+    if (message === '' || answeringRef.current || progress.finished || chatLimitReached(chatSent)) return
     const s = step
     const stepNumber = progress.stepIndex + 1
     const history = chatHistory(chatItemsRef.current)
@@ -611,6 +631,8 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       if (result.check.verdict === 'correct') {
         const next = index === skill.steps.length - 1 ? FINISHED : skill.steps[index + 1].id
         setWiring({ kind: 'result', ...checked, showOn: next })
+        // A spoken phrase still waiting was about the step just finished.
+        spokenQueue.current = []
         setProgress(markStepDone)
       } else {
         setWiring({ kind: 'result', ...checked, showOn: step.id })

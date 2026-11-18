@@ -42,7 +42,6 @@ export function ListeningToggle({ listening }: { listening: Listening }) {
       <button
         type="button"
         className={`ws-pill ws-listen${on ? ' ws-listen-on' : ''}`}
-        aria-pressed={on}
         onClick={listening.toggle}
         disabled={listening.state === 'unsupported'}
       >
@@ -62,7 +61,7 @@ export function MicButton({ listening }: { listening: Listening }) {
       type="button"
       className={`ws-mic${on ? ' ws-mic-on' : ''}`}
       aria-pressed={on}
-      aria-label={on ? 'Stop listening' : 'Talk'}
+      aria-label="Talk"
       title={listeningProblem(listening.state) ?? undefined}
       onClick={listening.toggle}
       disabled={listening.state === 'unsupported'}

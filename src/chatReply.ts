@@ -1,7 +1,7 @@
 // A reply to a learner's typed chat message (#74): gemini-3.5-flash-lite in the cloud first,
 // and Gemini Nano on device when the cloud cannot answer (offline, a failed call, or no
-// answer within 15 seconds). Cloud
-// first because Nano gave unsafe substitute advice in tests on Nov 18 (Tino's decision).
+// answer within 15 seconds). Cloud first because Nano gave unsafe substitute advice in
+// tests on Nov 18 (Tino's decision).
 // On device inference is single turn only (Firebase AI Logic hybrid docs, checked Nov 18),
 // so each message is one call with the recent chat written into the prompt. Text only: no
 // camera photo goes with it.

@@ -317,13 +317,18 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     writeChatSeenAt(skill.id, now)
   }
 
-  // Leaving the page with the chat open: everything in it was seen.
+  // Whenever the open chat stops being in view (the page closes, the learner leaves the
+  // Workspace, or all steps are done), everything in it was seen up to then.
+  const chatInView = chatOpen && !progress.finished
   useEffect(() => {
-    if (!chatOpen) return
+    if (!chatInView) return
     const seen = () => writeChatSeenAt(skill.id, Date.now())
     window.addEventListener('pagehide', seen)
-    return () => window.removeEventListener('pagehide', seen)
-  }, [chatOpen, skill.id])
+    return () => {
+      window.removeEventListener('pagehide', seen)
+      seen()
+    }
+  }, [chatInView, skill.id])
 
   // Ask an Expert from the chat: the panel opens with the current camera frame.
   function askAnExpert(question: string) {

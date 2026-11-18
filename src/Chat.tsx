@@ -171,7 +171,7 @@ function Entry({ entry, ...props }: { entry: ChatEntry } & EntryProps) {
     case 'step':
       return (
         <p className="ws-mono">
-          STEP {entry.stepNumber} · {entry.title}
+          {entry.stepNumber > 0 ? `STEP ${entry.stepNumber} · ${entry.title}` : 'ANOTHER STEP'}
         </p>
       )
     case 'typed':

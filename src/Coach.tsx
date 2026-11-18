@@ -13,7 +13,9 @@ import {
   newChatId,
   putAuto,
   replaceItem,
+  readChatSeenAt,
   unreadCount,
+  writeChatSeenAt,
   type ChatItem,
 } from './chat.ts'
 import { replyToChat } from './chatReply.ts'
@@ -113,7 +115,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const [chatItems, setChatItems] = useState<ChatItem[]>([])
   const chatItemsRef = useRef(chatItems)
   // When the learner last had the chat open: later replies and notifications count as new.
-  const [chatSeenAt, setChatSeenAt] = useState(() => Date.now())
+  const [chatSeenAt, setChatSeenAt] = useState(() => readChatSeenAt(skill.id) ?? Date.now())
   const [answering, setAnswering] = useState(false)
   // Opens the Ask an Expert panel from the chat.
   const [askRequest, setAskRequest] = useState<AskRequest | null>(null)
@@ -309,9 +311,19 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   }
 
   function closeChat() {
+    const now = Date.now()
     setChatOpen(false)
-    setChatSeenAt(Date.now())
+    setChatSeenAt(now)
+    writeChatSeenAt(skill.id, now)
   }
+
+  // Leaving the page with the chat open: everything in it was seen.
+  useEffect(() => {
+    if (!chatOpen) return
+    const seen = () => writeChatSeenAt(skill.id, Date.now())
+    window.addEventListener('pagehide', seen)
+    return () => window.removeEventListener('pagehide', seen)
+  }, [chatOpen, skill.id])
 
   // Ask an Expert from the chat: the panel opens with the current camera frame.
   function askAnExpert(question: string) {
@@ -452,7 +464,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       if (!onScreenRef.current) return
       // The notification says so even after a step change, as news; the panel opens, in the
       // open chat, only on its step.
-      updateAutoAsk(id, () => ({ id, stepId: s.id, kind: 'failed', said }), stillHere())
+      updateAutoAsk(id, () => ({ id, stepId: s.id, kind: 'failed', said }), true)
       if (stillHere()) {
         openChat()
         setManualOffer(offer)
@@ -583,7 +595,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
               entries={entries}
               stepId={step.id}
               unread={chatOpen ? 0 : unreadCount(entries, chatSeenAt)}
-              preview={chatPreview(entries)}
+              preview={chatPreview(entries, step.id)}
               noticeId={currentNotice ? currentNotice.id : null}
               questions={mine.questions}
               questionsFailed={mine.failed === true}

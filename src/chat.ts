@@ -1,6 +1,6 @@
 // The Workspace chat (#74): the prompt for a typed message, the reply's shape and its check,
 // and the thread the chat shows. Pure, so the tests can use it without starting Firebase.
-import { AUTO_ASK_STATUS, type AutoAsk } from './autoAsk.ts'
+import { autoAskStatus, type AutoAsk } from './autoAsk.ts'
 import type { CoachStep } from './coach.ts'
 import { NONE_FITS, type SavedAnswer } from './savedAnswerPick.ts'
 
@@ -249,8 +249,40 @@ export function unreadCount(entries: ChatEntry[], seenAt: number): number {
 
 export const EMPTY_PREVIEW = 'Ask about this step'
 
-// One line for the closed chat bar: the latest message.
-export function chatPreview(entries: ChatEntry[]): string {
+type SeenStore = { getItem(key: string): string | null; setItem(key: string, value: string): void }
+
+// The browser's localStorage, or null where there is none or it is blocked.
+function browserStore(): SeenStore | null {
+  try {
+    return (globalThis as { localStorage?: SeenStore }).localStorage ?? null
+  } catch {
+    return null
+  }
+}
+
+const seenKey = (skillId: string) => `surtrix.chatSeenAt.${skillId}`
+
+// When the learner last had this skill's chat in view, kept in this browser only, so a
+// reply that came while they were away counts as new after a reload. Null when unknown.
+export function readChatSeenAt(skillId: string, store: SeenStore | null = browserStore()): number | null {
+  try {
+    const value = Number(store?.getItem(seenKey(skillId)))
+    return Number.isFinite(value) && value > 0 ? value : null
+  } catch {
+    return null
+  }
+}
+
+export function writeChatSeenAt(skillId: string, at: number, store: SeenStore | null = browserStore()) {
+  try {
+    store?.setItem(seenKey(skillId), String(at))
+  } catch {
+    // Blocked storage: it holds for this page only.
+  }
+}
+
+// One line for the closed chat bar: the latest message. stepId: the step the learner is on.
+export function chatPreview(entries: ChatEntry[], stepId: string): string {
   const last = entries.findLast((e) => e.kind !== 'step')
   if (!last) return EMPTY_PREVIEW
   switch (last.kind) {
@@ -265,7 +297,7 @@ export function chatPreview(entries: ChatEntry[]): string {
     case 'auto':
       if (last.auto.kind === 'notice') return last.auto.said
       if (last.auto.kind === 'saved') return `${last.auto.pick.answer.expertName}: ${last.auto.pick.answer.answer}`
-      return AUTO_ASK_STATUS[last.auto.kind]
+      return autoAskStatus(last.auto.kind, last.auto.stepId === stepId)
     case 'asked':
       return last.question.question
     case 'judge-asked':

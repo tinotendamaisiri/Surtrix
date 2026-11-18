@@ -19,6 +19,8 @@ import {
   type ChatContext,
   type ChatItem,
   type ChatQuestion,
+  readChatSeenAt,
+  writeChatSeenAt,
 } from '../src/chat.ts'
 import type { SavedAnswer } from '../src/savedAnswerPick.ts'
 
@@ -167,7 +169,7 @@ test('a change that is news moves the notification to now; one that is not keeps
 })
 
 test("the closed bar's preview of a notification is its status, or the saved answer", () => {
-  const preview = (auto: AutoAsk) => chatPreview(chatEntries(putAuto([], auto, 1), [], steps))
+  const preview = (auto: AutoAsk) => chatPreview(chatEntries(putAuto([], auto, 1), [], steps), 's1')
   expect(preview({ ...asking, kind: 'asking', questionId: null })).toBe('Asking an expert…')
   expect(preview({ ...asking, kind: 'saved', pick: { answer: answers[0], source: 'on_device', ms: 900 } })).toBe('Tino: The long leg.')
 })
@@ -234,10 +236,33 @@ test('the unread count is replies and notifications since the chat was last open
 })
 
 test("the closed bar's preview is the latest message, or a prompt to ask", () => {
-  expect(chatPreview([])).toBe(EMPTY_PREVIEW)
+  expect(chatPreview([], 's1')).toBe(EMPTY_PREVIEW)
   expect(EMPTY_PREVIEW).toBe('Ask about this step')
   const items = [typed('t1', 's1', 'Which leg?', 1)]
-  expect(chatPreview(chatEntries(items, [], steps))).toBe('Which leg?')
+  expect(chatPreview(chatEntries(items, [], steps), 's1')).toBe('Which leg?')
   const replied = question({ reply: { text: 'Yes.', expertName: 'Tino', answeredAt: new Date(7) } })
-  expect(chatPreview(chatEntries(items, [replied], steps))).toBe('Tino: Yes.')
+  expect(chatPreview(chatEntries(items, [replied], steps), 's1')).toBe('Tino: Yes.')
+})
+
+test("away from the run's step, the closed bar's preview drops \"below\"", () => {
+  const failed = chatEntries(putAuto([], { ...asking, kind: 'failed' }, 1), [], steps)
+  expect(chatPreview(failed, 's1')).toBe('Could not ask an expert. You can send it yourself below.')
+  expect(chatPreview(failed, 's2')).toBe('Could not ask an expert.')
+})
+
+test("a question from a step the skill no longer has gets a step line with no number", () => {
+  const entries = chatEntries([], [question({ stepId: 'gone' })], steps)
+  expect(entries[0]).toMatchObject({ kind: 'step', stepNumber: 0 })
+})
+
+test('when the chat was last seen is kept per skill in this browser', () => {
+  const kept = new Map<string, string>()
+  const store = { getItem: (k: string) => kept.get(k) ?? null, setItem: (k: string, v: string) => void kept.set(k, v) }
+  expect(readChatSeenAt('sample-led', store)).toBeNull()
+  writeChatSeenAt('sample-led', 1234, store)
+  expect(readChatSeenAt('sample-led', store)).toBe(1234)
+  expect(readChatSeenAt('other-skill', store)).toBeNull()
+  // Blocked or broken storage counts as unknown.
+  expect(readChatSeenAt('sample-led', { getItem: () => { throw new Error('blocked') }, setItem: () => {} })).toBeNull()
+  expect(readChatSeenAt('sample-led', { getItem: () => 'nonsense', setItem: () => {} })).toBeNull()
 })

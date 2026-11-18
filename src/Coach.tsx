@@ -7,6 +7,7 @@ import Chat from './Chat.tsx'
 import {
   appendItem,
   chatEntries,
+  chatLimitReached,
   chatHistory,
   chatPreview,
   dropPassingAuto,
@@ -18,7 +19,7 @@ import {
   writeChatSeenAt,
   type ChatItem,
 } from './chat.ts'
-import { replyToChat } from './chatReply.ts'
+import { ChatLimitedError, replyToChat } from './chatReply.ts'
 import { pickSavedAnswer, useSavedAnswers, type Pick as SavedPick } from './savedAnswers.ts'
 import {
   goBack,
@@ -117,6 +118,8 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   // When the learner last had the chat open: later replies and notifications count as new.
   const [chatSeenAt, setChatSeenAt] = useState(() => readChatSeenAt(skill.id) ?? Date.now())
   const [answering, setAnswering] = useState(false)
+  // Typed messages sent this session (a page load), for the limit.
+  const [chatSent, setChatSent] = useState(0)
   // Opens the Ask an Expert panel from the chat.
   const [askRequest, setAskRequest] = useState<AskRequest | null>(null)
 
@@ -343,7 +346,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   // A typed message: the cloud answers, or Gemini Nano on device when the cloud cannot.
   async function sendChat(text: string) {
     const message = text.trim()
-    if (message === '' || answering || progress.finished) return
+    if (message === '' || answering || progress.finished || chatLimitReached(chatSent)) return
     const s = step
     const stepNumber = progress.stepIndex + 1
     const history = chatHistory(chatItemsRef.current)
@@ -358,6 +361,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       }),
     )
     setAnswering(true)
+    setChatSent((n) => n + 1)
     const look = watch.look?.stepId === s.id ? watch.look : null
     let item: ChatItem
     try {
@@ -374,7 +378,14 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       item = { id: thinkingId, at: Date.now(), kind: 'reply', stepId: s.id, question: message, answer: reply.answer, source: reply.source }
     } catch (e) {
       console.error('The chat could not answer', e)
-      item = { id: thinkingId, at: Date.now(), kind: 'reply-failed', stepId: s.id, question: message }
+      item = {
+        id: thinkingId,
+        at: Date.now(),
+        kind: 'reply-failed',
+        stepId: s.id,
+        question: message,
+        limited: e instanceof ChatLimitedError,
+      }
     }
     if (!onScreenRef.current) return
     setChatItems((items) => replaceItem(items, thinkingId, item))
@@ -612,6 +623,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
               choice={autoChoice}
               onChoose={chooseAutoAsk}
               answering={answering}
+              limitReached={chatLimitReached(chatSent)}
               onSend={(message) => void sendChat(message)}
               onAskExpert={askAnExpert}
               panel={

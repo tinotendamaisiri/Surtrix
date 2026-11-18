@@ -19,6 +19,11 @@ import {
   type ChatContext,
   type ChatItem,
   type ChatQuestion,
+  CHAT_LIMIT_TEXT,
+  chatLimitReached,
+  isLimitedStatus,
+  LIMITED_TEXT,
+  ON_DEVICE_NOTE,
   readChatSeenAt,
   writeChatSeenAt,
 } from '../src/chat.ts'
@@ -195,7 +200,7 @@ test("the model gets the learner's and the AI's messages, with a saved answer's 
   const items: ChatItem[] = [
     typed('t1', 's1', 'Which leg?', 1),
     { id: 'r1', at: 2, kind: 'reply', stepId: 's1', question: 'Which leg?', source: 'on_device', answer: { text: 'An expert said:', savedAnswer: answers[0], unsure: false } },
-    { id: 'f1', at: 3, kind: 'reply-failed', stepId: 's1', question: 'x' },
+    { id: 'f1', at: 3, kind: 'reply-failed', stepId: 's1', question: 'x', limited: false },
   ]
   expect(chatHistory(items)).toEqual([
     { from: 'learner', text: 'Which leg?' },
@@ -265,4 +270,23 @@ test('when the chat was last seen is kept per skill in this browser', () => {
   // Blocked or broken storage counts as unknown.
   expect(readChatSeenAt('sample-led', { getItem: () => { throw new Error('blocked') }, setItem: () => {} })).toBeNull()
   expect(readChatSeenAt('sample-led', { getItem: () => 'nonsense', setItem: () => {} })).toBeNull()
+})
+
+test('the chat takes 30 typed messages per session, then says the limit is reached', () => {
+  expect(chatLimitReached(29)).toBe(false)
+  expect(chatLimitReached(30)).toBe(true)
+  expect(CHAT_LIMIT_TEXT).toBe("You've reached the limit of 30 messages for this session.")
+})
+
+test('only a refusal for billing or quota counts as limited', () => {
+  expect(isLimitedStatus(429)).toBe(true)
+  expect(isLimitedStatus(403)).toBe(true)
+  for (const status of [undefined, 400, 500, 503]) expect(isLimitedStatus(status)).toBe(false)
+})
+
+test("the limited reply and the device note say what Tino asked for, and the preview shows it", () => {
+  expect(LIMITED_TEXT).toBe('Answers are limited right now.')
+  expect(ON_DEVICE_NOTE).toBe('Answered on this device. Check with an expert before risky steps.')
+  const items: ChatItem[] = [{ id: 'f1', at: 1, kind: 'reply-failed', stepId: 's1', question: 'x', limited: true }]
+  expect(chatPreview(chatEntries(items, [], steps), 's1')).toBe(LIMITED_TEXT)
 })

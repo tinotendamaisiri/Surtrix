@@ -6,7 +6,14 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode, type Ref }
 import { InferenceSource } from 'firebase/ai'
 import AutoAskCard from './AutoAskCard.tsx'
 import type { AutoAskChoice } from './autoAsk.ts'
-import { CHAT_MAX_LENGTH, type ChatEntry, type ChatQuestion } from './chat.ts'
+import {
+  CHAT_LIMIT_TEXT,
+  CHAT_MAX_LENGTH,
+  LIMITED_TEXT,
+  ON_DEVICE_NOTE,
+  type ChatEntry,
+  type ChatQuestion,
+} from './chat.ts'
 
 const sourceLabel: Record<string, string> = {
   [InferenceSource.ON_DEVICE]: 'ON DEVICE',
@@ -30,6 +37,8 @@ type Props = {
   choice: AutoAskChoice
   onChoose: (choice: 'on' | 'off') => void
   answering: boolean
+  // The session's message limit is reached: the text box is off.
+  limitReached: boolean
   onSend: (message: string) => void
   // Opens the Ask an Expert panel, with the learner's message when it came from a reply.
   onAskExpert: (question: string) => void
@@ -53,7 +62,7 @@ export default function Chat({ sectionRef, ...props }: Props) {
 
   function send(e: FormEvent) {
     e.preventDefault()
-    if (answering || message.trim() === '') return
+    if (answering || props.limitReached || message.trim() === '') return
     props.onSend(message)
     setMessage('')
   }
@@ -125,6 +134,14 @@ export default function Chat({ sectionRef, ...props }: Props) {
         )}
         {props.panel}
 
+        {props.limitReached && (
+          <div className="ws-chat-limit">
+            <p>{CHAT_LIMIT_TEXT}</p>
+            <button type="button" className="ws-pill ws-pill-gold" onClick={() => props.onAskExpert('')}>
+              Ask an expert
+            </button>
+          </div>
+        )}
         <form className="ws-chat-input" onSubmit={send}>
           <label htmlFor="ws-chat-message" className="ws-visually-hidden">
             Message
@@ -132,13 +149,19 @@ export default function Chat({ sectionRef, ...props }: Props) {
           <input
             id="ws-chat-message"
             type="text"
-            placeholder="Type a question"
+            placeholder={props.limitReached ? 'Message limit reached' : 'Type a question'}
             autoComplete="off"
             maxLength={CHAT_MAX_LENGTH}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
+            disabled={props.limitReached}
           />
-          <button type="submit" className="ws-chat-send" aria-label="Send" disabled={answering || message.trim() === ''}>
+          <button
+            type="submit"
+            className="ws-chat-send"
+            aria-label="Send"
+            disabled={answering || props.limitReached || message.trim() === ''}
+          >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M5 12h14" />
               <path d="m13 6 6 6-6 6" />
@@ -215,6 +238,7 @@ function Entry({ entry, ...props }: { entry: ChatEntry } & EntryProps) {
               </p>
             </div>
           )}
+          {source === InferenceSource.ON_DEVICE && <p className="ws-msg-device">{ON_DEVICE_NOTE}</p>}
           {answer.unsure && entry.stepId === props.stepId && (
             <button type="button" className="ws-pill ws-pill-gold" onClick={() => props.onAskExpert(entry.question)}>
               Ask an expert
@@ -226,7 +250,7 @@ function Entry({ entry, ...props }: { entry: ChatEntry } & EntryProps) {
     case 'reply-failed':
       return (
         <>
-          <p>The AI could not answer right now. Try again, or ask an expert.</p>
+          <p>{entry.limited ? LIMITED_TEXT : 'The AI could not answer right now. Try again, or ask an expert.'}</p>
           {entry.stepId === props.stepId && (
             <button type="button" className="ws-pill ws-pill-gold" onClick={() => props.onAskExpert(entry.question)}>
               Ask an expert

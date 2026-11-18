@@ -733,6 +733,24 @@ main.workspace {
   border-radius: 12px;
 }
 
+.ws-msg-device {
+  color: #a89e8f;
+  font-size: 12px;
+}
+
+.ws-chat-limit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #e8dfd0;
+}
+
+.ws-chat-limit p {
+  margin: 0;
+}
+
 .ws-msg-status {
   color: #a89e8f;
   font-size: 13px;

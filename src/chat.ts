@@ -26,6 +26,27 @@ export const HISTORY_SIZE = 6
 // The longest message a learner can type.
 export const CHAT_MAX_LENGTH = 500
 
+// At most this many typed messages per session (a page load), so the chat cannot run up
+// cloud calls (Tino, Nov 18).
+export const CHAT_MESSAGE_LIMIT = 30
+
+export function chatLimitReached(sent: number): boolean {
+  return sent >= CHAT_MESSAGE_LIMIT
+}
+
+export const CHAT_LIMIT_TEXT = `You've reached the limit of ${CHAT_MESSAGE_LIMIT} messages for this session.`
+
+// A cloud answer refused for billing or quota: 429 (prepaid credit used up, a quota or the
+// spend limit) or 403 (the spend cap). The chat then says so instead of answering on device.
+export function isLimitedStatus(status: number | undefined): boolean {
+  return status === 429 || status === 403
+}
+
+export const LIMITED_TEXT = 'Answers are limited right now.'
+
+// Under every reply that ran on device.
+export const ON_DEVICE_NOTE = 'Answered on this device. Check with an expert before risky steps.'
+
 export const CHAT_INSTRUCTION =
   'You are Surtrix, a coach beside a learner doing a hands on electronics skill. You get the ' +
   'skill, the step the learner is on, saved answers that experts gave on this step, what the ' +
@@ -137,7 +158,8 @@ export type ChatItem = { id: string; at: number } & (
   | { kind: 'thinking'; stepId: string }
   // question: the learner's message it answers, for Ask an expert.
   | { kind: 'reply'; stepId: string; question: string; answer: ChatAnswer; source: string }
-  | { kind: 'reply-failed'; stepId: string; question: string }
+  // limited: refused for billing or quota.
+  | { kind: 'reply-failed'; stepId: string; question: string; limited: boolean }
   | { kind: 'auto'; auto: AutoAsk }
 )
 
@@ -293,7 +315,7 @@ export function chatPreview(entries: ChatEntry[], stepId: string): string {
     case 'reply':
       return last.answer.text || last.answer.savedAnswer?.answer || ''
     case 'reply-failed':
-      return 'The AI could not answer.'
+      return last.limited ? LIMITED_TEXT : 'The AI could not answer.'
     case 'auto':
       if (last.auto.kind === 'notice') return last.auto.said
       if (last.auto.kind === 'saved') return `${last.auto.pick.answer.expertName}: ${last.auto.pick.answer.answer}`

@@ -1,5 +1,6 @@
 // The Workspace chat (#74): the prompt, reading a reply, the thread, the unread count and
 // the closed bar's preview.
+import { AIError, AIErrorCode } from 'firebase/ai'
 import { expect, test } from 'vitest'
 import { autoAskStatus, type AutoAsk } from '../src/autoAsk.ts'
 import {
@@ -19,6 +20,16 @@ import {
   type ChatContext,
   type ChatItem,
   type ChatQuestion,
+  CHAT_LIMIT_TEXT,
+  ChatLimitedError,
+  chatLimitReached,
+  chatSentThisSession,
+  cloudStatus,
+  cloudThenDevice,
+  countChatMessage,
+  isLimitedStatus,
+  LIMITED_TEXT,
+  ON_DEVICE_NOTE,
   readChatSeenAt,
   writeChatSeenAt,
 } from '../src/chat.ts'
@@ -195,7 +206,7 @@ test("the model gets the learner's and the AI's messages, with a saved answer's 
   const items: ChatItem[] = [
     typed('t1', 's1', 'Which leg?', 1),
     { id: 'r1', at: 2, kind: 'reply', stepId: 's1', question: 'Which leg?', source: 'on_device', answer: { text: 'An expert said:', savedAnswer: answers[0], unsure: false } },
-    { id: 'f1', at: 3, kind: 'reply-failed', stepId: 's1', question: 'x' },
+    { id: 'f1', at: 3, kind: 'reply-failed', stepId: 's1', question: 'x', limited: false },
   ]
   expect(chatHistory(items)).toEqual([
     { from: 'learner', text: 'Which leg?' },
@@ -265,4 +276,90 @@ test('when the chat was last seen is kept per skill in this browser', () => {
   // Blocked or broken storage counts as unknown.
   expect(readChatSeenAt('sample-led', { getItem: () => { throw new Error('blocked') }, setItem: () => {} })).toBeNull()
   expect(readChatSeenAt('sample-led', { getItem: () => 'nonsense', setItem: () => {} })).toBeNull()
+})
+
+test('the chat takes 30 typed messages per session, then says the limit is reached', () => {
+  expect(chatLimitReached(29)).toBe(false)
+  expect(chatLimitReached(30)).toBe(true)
+  expect(CHAT_LIMIT_TEXT).toBe("You've reached the limit of 30 messages for this session.")
+})
+
+test('only a refusal for billing or quota counts as limited', () => {
+  expect(isLimitedStatus(429)).toBe(true)
+  expect(isLimitedStatus(403)).toBe(true)
+  for (const status of [undefined, 400, 500, 503]) expect(isLimitedStatus(status)).toBe(false)
+})
+
+test("the limited reply and the device note say what Tino asked for, and the preview shows it", () => {
+  expect(LIMITED_TEXT).toBe('Answers are limited right now.')
+  expect(ON_DEVICE_NOTE).toBe('Answered on this device. Check with an expert before risky steps.')
+  const items: ChatItem[] = [{ id: 'f1', at: 1, kind: 'reply-failed', stepId: 's1', question: 'x', limited: true }]
+  expect(chatPreview(chatEntries(items, [], steps), 's1')).toBe(LIMITED_TEXT)
+})
+
+test('the message count is kept for the page load, not for one screen', () => {
+  const start = chatSentThisSession()
+  expect(countChatMessage()).toBe(start + 1)
+  // A Workspace shown again reads the same count.
+  expect(chatSentThisSession()).toBe(start + 1)
+})
+
+function httpError(status: number) {
+  return Object.assign(new Error(`HTTP ${status}`), { status })
+}
+
+async function choose(cloudError: unknown, ready: boolean) {
+  const calls: string[] = []
+  const result = cloudThenDevice({
+    cloud: async () => {
+      calls.push('cloud')
+      if (cloudError) throw cloudError
+      return 'cloud answer'
+    },
+    device: async () => {
+      calls.push('device')
+      return 'device answer'
+    },
+    deviceReady: async () => {
+      calls.push('ready?')
+      return ready
+    },
+    statusOf: (e) => (e as { status?: number }).status,
+  })
+  return { result: await result.then((r) => r, (e: unknown) => e), calls }
+}
+
+test('a reply comes from the cloud when it answers', async () => {
+  expect(await choose(null, true)).toEqual({ result: 'cloud answer', calls: ['cloud'] })
+})
+
+test('a refusal for billing or quota says answers are limited and never asks the device', async () => {
+  for (const status of [429, 403]) {
+    const { result, calls } = await choose(httpError(status), true)
+    expect(result).toBeInstanceOf(ChatLimitedError)
+    expect(calls).toEqual(['cloud'])
+  }
+})
+
+test('any other cloud failure has the device answer, only when it is ready', async () => {
+  expect(await choose(httpError(500), true)).toEqual({ result: 'device answer', calls: ['cloud', 'ready?', 'device'] })
+  const timeout = Object.assign(new Error('timed out'), { name: 'AbortError' })
+  expect((await choose(timeout, true)).result).toBe('device answer')
+  const notReady = await choose(httpError(500), false)
+  expect(notReady.calls).toEqual(['cloud', 'ready?'])
+  expect((notReady.result as Error).message).toBe('HTTP 500')
+})
+
+test("the status is read from the SDK's own error, so 429 and 403 stay limited", async () => {
+  const sdkError = (status: number) => new AIError(AIErrorCode.FETCH_ERROR, `HTTP ${status}`, { status })
+  expect(cloudStatus(sdkError(429))).toBe(429)
+  expect(cloudStatus(new AIError(AIErrorCode.ERROR, 'Failed to fetch'))).toBeUndefined()
+  expect(cloudStatus(new Error('timed out'))).toBeUndefined()
+  const result = await cloudThenDevice({
+    cloud: () => Promise.reject(sdkError(403)),
+    device: async () => 'device answer',
+    deviceReady: async () => true,
+    statusOf: cloudStatus,
+  }).catch((e: unknown) => e)
+  expect(result).toBeInstanceOf(ChatLimitedError)
 })

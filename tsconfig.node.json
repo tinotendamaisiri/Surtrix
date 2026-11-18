@@ -19,5 +19,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts", "scripts", "tests", "src/worktree.ts", "src/skill.ts", "src/skillDocuments.ts", "src/coach.ts", "src/screenAddress.ts", "src/demoSkill.ts", "src/landingSkills.ts", "src/landingIntent.ts", "src/workspace.ts", "src/autoAsk.ts", "src/chat.ts", "src/voice.ts", "src/savedAnswerPick.ts", "src/firebase-config.ts", "src/watch.ts", "src/wiring.ts"]
+  "include": ["vite.config.ts", "scripts", "tests", "src/worktree.ts", "src/skill.ts", "src/skillDocuments.ts", "src/coach.ts", "src/screenAddress.ts", "src/demoSkill.ts", "src/landingImages.ts", "src/skillCatalog.ts", "src/skillsPage.ts", "src/landingIntent.ts", "src/workspace.ts", "src/autoAsk.ts", "src/chat.ts", "src/voice.ts", "src/savedAnswerPick.ts", "src/firebase-config.ts", "src/watch.ts", "src/wiring.ts"]
 }

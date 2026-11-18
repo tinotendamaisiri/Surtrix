@@ -9,12 +9,16 @@ Built for the Google #BuildHybridAI 2026 hackathon.
 
 The app today has these screens:
 
-* Home is the landing page: what Surtrix does, Try the demo (the demo skill, lighting
-  an LED with a resistor on a breadboard), Create a skill, I am an expert (the expert
-  dashboard) and How it works. Its Skills section has two tabs: All skills, a
-  carousel where only the LED card is a real skill (the others are examples), and My
-  skills, the skills you saved, newest first. The demo skill is stored in Firestore
-  like any saved skill.
+* Home is the landing page: what Surtrix does, Try the demo, Create a skill, I am an
+  expert (the expert dashboard) and How it works (also at `#how-it-works`). Its Skills
+  section shows 44 example skills in two slow carousel rows and a button to the Skills
+  page.
+* The Skills page (`#skills`, and `#skills/mine` for My skills): search, trade chips,
+  the pinned demo skill (lighting an LED with a resistor on a breadboard, the one live
+  skill) and a grid of 44 example skills, which are display only. My skills lists the
+  skills you saved, newest first. The landing and the Skills page read one skills
+  catalog (`src/skillCatalog.ts`). The demo skill is stored in Firestore like any saved
+  skill.
 * The coach (`#coach/{skill id}`) walks you through a skill one step at a time, next
   to a live camera preview. You move with Back and Next. With the camera on, Mark
   step done first has `gemini-4-hydrogen` in the cloud check the wiring against the

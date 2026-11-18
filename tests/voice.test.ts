@@ -30,7 +30,7 @@ test('voice is English, on is on while listening, getting ready or paused, and e
   expect(listeningProblem('blocked')).toBe('Allow the microphone to talk to Surtrix.')
   expect(listeningProblem('failed')).toBe('Voice could not get ready. Try again later.')
   expect(listeningProblem('listening')).toBeNull()
-  for (const s of ['unsupported', 'blocked', 'failed'] as const) expect(listeningProblem(s)).not.toMatch(/[–—]| - /)
+  for (const s of ['unsupported', 'blocked', 'failed'] as const) expect(listeningProblem(s)).not.toMatch(/[\u2013\u2014]| - /)
 })
 
 test('a spoken "done" is not sent to the model as a question; spoken questions are', () => {

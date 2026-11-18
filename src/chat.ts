@@ -268,7 +268,9 @@ export type FailReason = 'limited' | 'unanswered' | 'error'
 
 // What the chat holds for this page load, in memory only.
 export type ChatItem = { id: string; at: number } & (
-  | { kind: 'typed'; stepId: string; text: string }
+  // spoken: said while listening (#80). command: a spoken "done", which finished the step and
+  // is not a question.
+  | { kind: 'typed'; stepId: string; text: string; spoken?: boolean; command?: boolean }
   | { kind: 'thinking'; stepId: string }
   // question: the learner's message it answers, for Ask an expert.
   | { kind: 'reply'; stepId: string; question: string; answer: ChatAnswer; source: string }
@@ -311,7 +313,7 @@ export function dropPassingAuto(items: ChatItem[], id: string | null): ChatItem[
 export function chatHistory(items: ChatItem[]): ChatTurn[] {
   const turns: ChatTurn[] = []
   for (const i of items) {
-    if (i.kind === 'typed') turns.push({ from: 'learner', text: i.text })
+    if (i.kind === 'typed' && !i.command) turns.push({ from: 'learner', text: i.text })
     else if (i.kind === 'reply') {
       const said = [i.answer.text, i.answer.savedAnswer?.answer].filter(Boolean).join(' ')
       turns.push({ from: 'ai', text: said })

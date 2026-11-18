@@ -628,6 +628,7 @@ main.workspace {
 
 .ws-chat-head-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
@@ -645,7 +646,7 @@ main.workspace {
 }
 
 .workspace .ws-chat-head-actions .ws-pill {
-  padding: 0 14px;
+  padding: 0 12px;
   font-size: 13px;
 }
 
@@ -1109,6 +1110,101 @@ main.workspace {
   color: #a89e8f;
 }
 
+/* Voice (#80): the Listening toggle, the chat mics and the LISTENING tag. */
+.workspace .ws-listen {
+  color: #a89e8f;
+}
+
+.workspace .ws-listen-on {
+  color: #f9d440;
+  border-color: rgba(249, 212, 64, 0.55);
+  font-weight: 600;
+}
+
+.ws-listen-problem {
+  margin: 0;
+  font-size: 12px;
+  color: #a89e8f;
+}
+
+.ws-wave {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 12px;
+}
+
+.ws-wave i {
+  display: block;
+  width: 2px;
+  border-radius: 2px;
+  background: #f9d440;
+  animation: ws-wave 1s ease-in-out infinite;
+}
+
+.ws-wave i:nth-child(1) {
+  height: 5px;
+}
+
+.ws-wave i:nth-child(2) {
+  height: 11px;
+  animation-delay: 0.15s;
+}
+
+.ws-wave i:nth-child(3) {
+  height: 7px;
+  animation-delay: 0.3s;
+}
+
+.ws-wave i:nth-child(4) {
+  height: 10px;
+  animation-delay: 0.45s;
+}
+
+@keyframes ws-wave {
+  50% {
+    transform: scaleY(0.4);
+  }
+}
+
+.workspace .ws-mic {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 236, 205, 0.16);
+  background: transparent;
+  color: #a89e8f;
+  cursor: pointer;
+}
+
+.workspace .ws-mic-on {
+  background: #f9d440;
+  border-color: #f9d440;
+  color: #0b1e3c;
+}
+
+.workspace .ws-mic:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ws-chat-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.workspace .ws-listen-tag {
+  padding: 4px 7px;
+  letter-spacing: 1px;
+}
+
 /* Right column */
 
 .ws-right {
@@ -1453,5 +1549,9 @@ main.workspace {
 
   .ws-bar i {
     transition: none;
+  }
+
+  .ws-wave i {
+    animation: none;
   }
 }

@@ -163,12 +163,15 @@ internals.
   closed, fix, fixes, fixed, resolve, resolves or resolved next to an issue number,
   in any sentence, including plans and instructions for later. Refer to an issue
   only as "Part of #N". When a sentence has to talk about closing, leave the number
-  out ("close the issue by hand once live is checked"). GitHub closes a linked issue
-  on merge into main whatever the words around it (it did so to #74 on Nov 18).
+  out ("close the issue by hand once live is checked"). GitHub closes an issue on
+  merge into main when one of those words comes directly before its number, even
+  inside a sentence about doing it later (as with #74 on Nov 18).
 * Before opening or editing a PR, and before every commit, search its text for those
-  words next to `#` and a number. After opening a PR, `gh pr view N --json
-  closingIssuesReferences` must list nothing; if it lists an issue, fix the text
-  before anything else.
+  words, in any capitalisation, before `#N`, `owner/repo#N`, a full issue link or
+  `Closes: #N`. After opening a PR, `gh pr view N --json closingIssuesReferences`
+  must list nothing; if it lists an issue, fix the text before anything else. That
+  check covers the PR's title and description, not its commits, so the search before
+  each commit is the guard for commit messages.
 * An issue is closed by hand, with a comment, once its release is deployed and
   checked.
 * After opening a PR, switch the local repo back to main. Once it is merged, pull

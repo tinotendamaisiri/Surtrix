@@ -67,7 +67,8 @@ export default function Chat({ sectionRef, ...props }: Props) {
 
   function send(e: FormEvent) {
     e.preventDefault()
-    if (answering || props.limitReached || message.trim() === '') return
+    // While words are being heard the box shows them, so Send waits.
+    if (answering || props.limitReached || props.listening.heard !== '' || message.trim() === '') return
     props.onSend(message)
     setMessage('')
   }
@@ -172,7 +173,7 @@ export default function Chat({ sectionRef, ...props }: Props) {
             type="submit"
             className="ws-chat-send"
             aria-label="Send"
-            disabled={answering || props.limitReached || message.trim() === ''}
+            disabled={answering || props.limitReached || props.listening.heard !== '' || message.trim() === ''}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M5 12h14" />

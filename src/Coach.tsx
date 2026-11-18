@@ -10,6 +10,7 @@ import {
   ChatDeviceTimeoutError,
   ChatGarbledError,
   ChatLimitedError,
+  CHAT_MAX_LENGTH,
   chatLimitReached,
   garbledReplyIsFree,
   chatSentThisSession,
@@ -140,6 +141,8 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const entriesRef = useRef<ChatEntry[]>([])
   const chatSeenRef = useRef(chatSeenAt)
   const [answering, setAnswering] = useState(false)
+  // Set at once when a reply starts, so phrases heard close together queue (#80).
+  const answeringRef = useRef(false)
   // Typed messages sent this session (a page load), for the limit.
   const [chatSent, setChatSent] = useState(chatSentThisSession)
   // Opens the Ask an Expert panel from the chat.
@@ -303,6 +306,8 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     endAutoAsk()
     setManualOffer(null)
     setAskRequest(null)
+    // A spoken phrase still waiting was about the step being left.
+    spokenQueue.current = []
     setProgress(change)
   }
 
@@ -380,7 +385,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       if (!checking) void markDone()
       return
     }
-    if (answering) {
+    if (answeringRef.current) {
       spokenQueue.current.push(text)
       return
     }
@@ -389,15 +394,16 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
 
   // The next spoken phrase goes once the reply before it is in.
   useEffect(() => {
-    if (answering || spokenQueue.current.length === 0) return
+    if (answering || answeringRef.current || spokenQueue.current.length === 0) return
     const next = spokenQueue.current.shift()!
     void sendChat(next, true)
   })
 
   // spoken: said while listening, so it is labelled YOU SAID.
   async function sendChat(text: string, spoken = false) {
-    const message = text.trim()
-    if (message === '' || answering || progress.finished || chatLimitReached(chatSent)) return
+    // Typed and spoken messages keep the same length limit.
+    const message = text.trim().slice(0, CHAT_MAX_LENGTH)
+    if (message === '' || answering || answeringRef.current || progress.finished || chatLimitReached(chatSent)) return
     const s = step
     const stepNumber = progress.stepIndex + 1
     const history = chatHistory(chatItemsRef.current)
@@ -411,6 +417,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
         stepId: s.id,
       }),
     )
+    answeringRef.current = true
     setAnswering(true)
     setChatSent(countChatMessage())
     const look = watch.look?.stepId === s.id ? watch.look : null
@@ -442,6 +449,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
           e instanceof ChatLimitedError ? 'limited' : garbled || e instanceof ChatDeviceTimeoutError ? 'unanswered' : 'error',
       }
     }
+    answeringRef.current = false
     if (!onScreenRef.current) return
     setChatItems((items) => replaceItem(items, thinkingId, item))
     setAnswering(false)

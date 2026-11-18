@@ -59,6 +59,9 @@ export function useListening(onPhrase: (text: string) => void): Listening {
   const onPhraseRef = useRef(onPhrase)
   // Whether the learner wants it on; the recogniser running now, if any.
   const wantRef = useRef(false)
+  // True once the language pack is ready for this time listening was turned on, so a tab
+  // shown again during the download never starts listening early.
+  const readyRef = useRef(false)
   const recognitionRef = useRef<Recognition | null>(null)
   useEffect(() => {
     onPhraseRef.current = onPhrase
@@ -132,6 +135,7 @@ export function useListening(onPhrase: (text: string) => void): Listening {
       return
     }
     wantRef.current = true
+    readyRef.current = false
     setState('preparing')
     try {
       if ((await C.available(PACK)) === 'unavailable') {
@@ -153,6 +157,7 @@ export function useListening(onPhrase: (text: string) => void): Listening {
       return
     }
     if (!wantRef.current) return
+    readyRef.current = true
     begin(C)
   }
 
@@ -171,7 +176,7 @@ export function useListening(onPhrase: (text: string) => void): Listening {
   useEffect(() => {
     const onVisibility = () => {
       const C = onDeviceRecognition()
-      if (!wantRef.current || !C) return
+      if (!wantRef.current || !readyRef.current || !C) return
       if (document.visibilityState === 'hidden') {
         stopRecognition()
         setState('paused')

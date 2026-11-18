@@ -7,6 +7,8 @@ import Chat from './Chat.tsx'
 import {
   appendItem,
   chatEntries,
+  ChatDeviceTimeoutError,
+  ChatGarbledError,
   ChatLimitedError,
   chatLimitReached,
   chatSentThisSession,
@@ -18,9 +20,13 @@ import {
   putAuto,
   replaceItem,
   readChatSeenAt,
+  seenNow,
+  uncountChatMessage,
   unreadCount,
   writeChatSeenAt,
+  type ChatEntry,
   type ChatItem,
+  type SeenMark,
 } from './chat.ts'
 import { replyToChat } from './chatReply.ts'
 import { pickSavedAnswer, useSavedAnswers, type Pick as SavedPick } from './savedAnswers.ts'
@@ -119,7 +125,12 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const [chatItems, setChatItems] = useState<ChatItem[]>([])
   const chatItemsRef = useRef(chatItems)
   // When the learner last had the chat open: later replies and notifications count as new.
-  const [chatSeenAt, setChatSeenAt] = useState(() => readChatSeenAt(skill.id) ?? Date.now())
+  const [chatSeenAt, setChatSeenAt] = useState<SeenMark>(
+    () => readChatSeenAt(skill.id) ?? { local: Date.now(), server: null },
+  )
+  // What the chat shows and when it was last seen, for marking it seen when it leaves view.
+  const entriesRef = useRef<ChatEntry[]>([])
+  const chatSeenRef = useRef(chatSeenAt)
   const [answering, setAnswering] = useState(false)
   // Typed messages sent this session (a page load), for the limit.
   const [chatSent, setChatSent] = useState(chatSentThisSession)
@@ -155,6 +166,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     savedRef.current = saved
     choiceRef.current = autoChoice
     chatItemsRef.current = chatItems
+    chatSeenRef.current = chatSeenAt
   })
   useEffect(() => {
     return watchMyQuestions(
@@ -318,10 +330,10 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   }
 
   function closeChat() {
-    const now = Date.now()
+    const mark = seenNow(entriesRef.current, Date.now(), chatSeenRef.current)
     setChatOpen(false)
-    setChatSeenAt(now)
-    writeChatSeenAt(skill.id, now)
+    setChatSeenAt(mark)
+    writeChatSeenAt(skill.id, mark)
   }
 
   // Whenever the open chat stops being in view (the page closes, the learner leaves the
@@ -329,7 +341,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const chatInView = chatOpen && !progress.finished
   useEffect(() => {
     if (!chatInView) return
-    const seen = () => writeChatSeenAt(skill.id, Date.now())
+    const seen = () => writeChatSeenAt(skill.id, seenNow(entriesRef.current, Date.now(), chatSeenRef.current))
     // Phones can close a hidden tab without pagehide, so going hidden counts too.
     const hidden = () => document.visibilityState === 'hidden' && seen()
     window.addEventListener('pagehide', seen)
@@ -381,13 +393,17 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       item = { id: thinkingId, at: Date.now(), kind: 'reply', stepId: s.id, question: message, answer: reply.answer, source: reply.source }
     } catch (e) {
       console.error('The chat could not answer', e)
+      const garbled = e instanceof ChatGarbledError
+      // A garbled cloud reply does not count toward the limit.
+      if (garbled) setChatSent(uncountChatMessage())
       item = {
         id: thinkingId,
         at: Date.now(),
         kind: 'reply-failed',
         stepId: s.id,
         question: message,
-        limited: e instanceof ChatLimitedError,
+        reason:
+          e instanceof ChatLimitedError ? 'limited' : garbled || e instanceof ChatDeviceTimeoutError ? 'unanswered' : 'error',
       }
     }
     if (!onScreenRef.current) return
@@ -582,6 +598,9 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     saved.kind === 'loaded' ? { kind: 'loaded' as const, cards: expertCards(skill.steps, saved.byStep, step.id) } : saved
   const stepQuestions = mine.questions.filter((q) => q.stepId === step.id)
   const entries = chatEntries(chatItems, mine.questions, skill.steps)
+  useEffect(() => {
+    entriesRef.current = entries
+  })
   const currentNotice = chatItems.find((i) => i.id === currentAutoId && i.kind === 'auto' && i.auto.kind === 'notice')
   const markDoneAnyway =
     !progress.finished &&

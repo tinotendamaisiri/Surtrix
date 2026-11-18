@@ -20,6 +20,13 @@ import {
   type ChatContext,
   type ChatItem,
   type ChatQuestion,
+  ChatDeviceTimeoutError,
+  ChatGarbledError,
+  ChatReplyError as ReplyShapeError,
+  COULD_NOT_ANSWER_TEXT,
+  seenNow,
+  uncountChatMessage,
+  withDeviceLimit,
   CHAT_LIMIT_TEXT,
   ChatLimitedError,
   chatLimitReached,
@@ -206,7 +213,7 @@ test("the model gets the learner's and the AI's messages, with a saved answer's 
   const items: ChatItem[] = [
     typed('t1', 's1', 'Which leg?', 1),
     { id: 'r1', at: 2, kind: 'reply', stepId: 's1', question: 'Which leg?', source: 'on_device', answer: { text: 'An expert said:', savedAnswer: answers[0], unsure: false } },
-    { id: 'f1', at: 3, kind: 'reply-failed', stepId: 's1', question: 'x', limited: false },
+    { id: 'f1', at: 3, kind: 'reply-failed', stepId: 's1', question: 'x', reason: 'error' },
   ]
   expect(chatHistory(items)).toEqual([
     { from: 'learner', text: 'Which leg?' },
@@ -242,8 +249,8 @@ test('the unread count is replies and notifications since the chat was last open
   // The reply at 21, the notification at 23 and the expert reply at 25; not the typed
   // message, the step lines, the learner's question, the thinking line, the old reply or
   // the question with no time yet.
-  expect(unreadCount(entries, 10)).toBe(3)
-  expect(unreadCount(entries, 30)).toBe(0)
+  expect(unreadCount(entries, { local: 10, server: 10 })).toBe(3)
+  expect(unreadCount(entries, { local: 30, server: 30 })).toBe(0)
 })
 
 test("the closed bar's preview is the latest message, or a prompt to ask", () => {
@@ -270,8 +277,10 @@ test('when the chat was last seen is kept per skill in this browser', () => {
   const kept = new Map<string, string>()
   const store = { getItem: (k: string) => kept.get(k) ?? null, setItem: (k: string, v: string) => void kept.set(k, v) }
   expect(readChatSeenAt('sample-led', store)).toBeNull()
-  writeChatSeenAt('sample-led', 1234, store)
-  expect(readChatSeenAt('sample-led', store)).toBe(1234)
+  writeChatSeenAt('sample-led', { local: 1234, server: 1200 }, store)
+  expect(readChatSeenAt('sample-led', store)).toEqual({ local: 1234, server: 1200 })
+  // A single time stored by an earlier build is this browser's mark only.
+  expect(readChatSeenAt('sample-led', { getItem: () => '999', setItem: () => {} })).toEqual({ local: 999, server: null })
   expect(readChatSeenAt('other-skill', store)).toBeNull()
   // Blocked or broken storage counts as unknown.
   expect(readChatSeenAt('sample-led', { getItem: () => { throw new Error('blocked') }, setItem: () => {} })).toBeNull()
@@ -293,7 +302,7 @@ test('only a refusal for billing or quota counts as limited', () => {
 test("the limited reply and the device note say what Tino asked for, and the preview shows it", () => {
   expect(LIMITED_TEXT).toBe('Answers are limited right now.')
   expect(ON_DEVICE_NOTE).toBe('Answered on this device. Check with an expert before risky steps.')
-  const items: ChatItem[] = [{ id: 'f1', at: 1, kind: 'reply-failed', stepId: 's1', question: 'x', limited: true }]
+  const items: ChatItem[] = [{ id: 'f1', at: 1, kind: 'reply-failed', stepId: 's1', question: 'x', reason: 'limited' }]
   expect(chatPreview(chatEntries(items, [], steps), 's1')).toBe(LIMITED_TEXT)
 })
 
@@ -362,4 +371,50 @@ test("the status is read from the SDK's own error, so 429 and 403 stay limited",
     statusOf: cloudStatus,
   }).catch((e: unknown) => e)
   expect(result).toBeInstanceOf(ChatLimitedError)
+})
+
+test('a garbled cloud reply could not be answered, never goes to the device, and is not counted', async () => {
+  const calls: string[] = []
+  const result = await cloudThenDevice({
+    cloud: async () => {
+      calls.push('cloud')
+      throw new ReplyShapeError('{"reply":')
+    },
+    device: async () => {
+      calls.push('device')
+      return 'device answer'
+    },
+    deviceReady: async () => true,
+    statusOf: cloudStatus,
+  }).catch((e: unknown) => e)
+  expect(result).toBeInstanceOf(ChatGarbledError)
+  expect(calls).toEqual(['cloud'])
+  const before = chatSentThisSession()
+  countChatMessage()
+  expect(uncountChatMessage()).toBe(before)
+  const items: ChatItem[] = [{ id: 'f1', at: 1, kind: 'reply-failed', stepId: 's1', question: 'x', reason: 'unanswered' }]
+  expect(chatPreview(chatEntries(items, [], steps), 's1')).toBe(COULD_NOT_ANSWER_TEXT)
+  expect(COULD_NOT_ANSWER_TEXT).toBe('Could not answer right now.')
+})
+
+test('the device gets its own time limit; an answer in time comes through', async () => {
+  await expect(withDeviceLimit(new Promise(() => {}), 20)).rejects.toBeInstanceOf(ChatDeviceTimeoutError)
+  await expect(withDeviceLimit(Promise.resolve('answer'), 20)).resolves.toBe('answer')
+})
+
+test("what counts as new does not depend on the learner's clock", () => {
+  const reply = (answeredAt: number) =>
+    question({ id: `q${answeredAt}`, status: 'answered', reply: { text: 'Yes.', expertName: 'Tino', answeredAt: new Date(answeredAt) } })
+  // Server time 1000: the learner sees reply A and closes the chat. Their clock says 700 (slow).
+  const seen = seenNow(chatEntries([], [reply(1000)], steps), 700, { local: 0, server: null })
+  expect(seen).toEqual({ local: 700, server: 1000 })
+  // A, already seen, does not come back as new although the learner's clock is behind it.
+  expect(unreadCount(chatEntries([], [reply(1000)], steps), seen)).toBe(0)
+  // B comes at server time 1100 while the chat is closed: new.
+  expect(unreadCount(chatEntries([], [reply(1000), reply(1100)], steps), seen)).toBe(1)
+  // The same with a fast clock (5000): B at server time 1100 still counts as new.
+  const fast = seenNow(chatEntries([], [reply(1000)], steps), 5000, { local: 0, server: null })
+  expect(unreadCount(chatEntries([], [reply(1000), reply(1100)], steps), fast)).toBe(1)
+  // With no server time shown yet, the server mark stays as it was.
+  expect(seenNow([], 800, { local: 1, server: 900 })).toEqual({ local: 800, server: 900 })
 })

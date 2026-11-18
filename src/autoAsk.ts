@@ -2,6 +2,39 @@
 // choice, remembered in this browser, the limit per session, and what to do when no saved
 // answer fits.
 
+import type { SavedAnswer } from './savedAnswerPick.ts'
+
+// What the chat (#74) shows of one automatic run. id: the chat item it is shown as; an
+// update keeps it, so the notification changes in place.
+export type AutoAsk = { id: string; stepId: string; said: string } & (
+  // offer: the check's words and the photo it judged, as a base64 JPEG.
+  | { kind: 'notice'; offer: { said: string; frame: string }; index: number }
+  | { kind: 'picking' }
+  // pick: the saved answer that fits, and which model picked it, in how long.
+  | { kind: 'saved'; pick: { answer: SavedAnswer; source: string; ms: number } }
+  // questionId: the question being waited on, once known.
+  | { kind: 'asking' | 'queued' | 'still-waiting'; questionId: string | null }
+  | { kind: 'limit' | 'failed' | 'panel-open' }
+)
+
+// What a notification says about the run, for each state that has a status line.
+export const AUTO_ASK_STATUS: Record<Exclude<AutoAsk['kind'], 'notice' | 'saved'>, string> = {
+  picking: 'Checking saved expert answers…',
+  asking: 'Asking an expert…',
+  queued: "An expert will be asked when you're back online.",
+  'still-waiting': 'Still waiting for an expert.',
+  limit: 'The AI has asked 3 experts this session. You can send this one yourself below.',
+  'panel-open': "You're asking an expert below. Send it when you're ready.",
+  failed: 'Could not ask an expert. You can send it yourself below.',
+}
+
+// The status line where the learner is no longer on the run's step: there is no panel
+// "below" there, so only the first sentence is kept.
+export function autoAskStatus(kind: Exclude<AutoAsk['kind'], 'notice' | 'saved'>, onStep: boolean): string {
+  const text = AUTO_ASK_STATUS[kind]
+  return onStep ? text : text.replace(/\. .*$/, '.')
+}
+
 // The learner's choice: on, off, or not made yet (the first time notice shows).
 export type AutoAskChoice = 'on' | 'off' | null
 

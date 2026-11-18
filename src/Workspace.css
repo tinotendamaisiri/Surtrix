@@ -1,6 +1,6 @@
 /* The Surtrix Workspace (#62): always dark, in the landing page's colors, fonts and pill
-   rules. The app's shared colour variables are set to the Workspace's here, so Ask an
-   Expert and Check saved answers (which use them) match. Every tap target is at least
+   rules. The app's shared colour variables are set to the Workspace's here, so the Ask
+   an Expert panel (which uses them) matches. Every tap target is at least
    44 px tall. */
 
 body:has(main.workspace),
@@ -49,7 +49,7 @@ main.workspace {
   color: #f4efe6;
 }
 
-/* Ask an Expert and Check saved answers, and any other plain button, as pills. */
+/* The Ask an Expert panel's buttons, and any other plain button, as pills. */
 .workspace button {
   display: inline-flex;
   align-items: center;
@@ -313,6 +313,13 @@ main.workspace {
   align-items: start;
 }
 
+/* The chat open widens the left column to 380 px, where the camera keeps enough room. */
+@media (min-width: 1300px) {
+  .ws-grid-chat {
+    grid-template-columns: 380px minmax(0, 1fr) 380px;
+  }
+}
+
 /* Left column */
 
 .ws-left {
@@ -320,6 +327,14 @@ main.workspace {
   flex-direction: column;
   gap: 18px;
   padding: 22px 14px 14px;
+  /* As tall as the row, so the chat bar sits at the bottom. */
+  align-self: stretch;
+}
+
+/* Open, the chat is as tall as the camera and its controls, and its messages scroll. */
+.ws-grid-chat .ws-left {
+  height: calc(clamp(480px, calc(100vh - 180px), 760px) + 58px);
+  box-sizing: border-box;
 }
 
 .ws-section {
@@ -520,48 +535,303 @@ main.workspace {
   color: #0b1e3c;
 }
 
-/* "Not sure?" until the chat (Issue B) replaces it. */
-.ws-notsure {
-  margin-top: 8px;
-  padding: 14px 12px 4px;
+/* The chat (#74), pinned at the bottom of the left column. Open, it fills the column. */
+.ws-left-lists {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.ws-left-lists[hidden],
+.ws-chatbar[hidden],
+.ws-chat-body[hidden] {
+  display: none;
+}
+
+.ws-chat {
+  margin-top: auto;
+}
+
+.ws-chat-open {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ws-chatbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0 0 10px;
   border-top: 1px solid rgba(255, 236, 205, 0.08);
 }
 
-.ws-notsure-title {
-  margin: 0 0 10px;
+.ws-chat-icon {
+  flex: none;
+  color: #f9d440;
+}
+
+.ws-chatbar-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.ws-chatbar-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
   font-size: 14px;
   font-weight: 600;
 }
 
-.ws-notsure .ask-entry {
+.ws-chat-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #f9d440;
+  color: #0b1e3c;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ws-chatbar-preview {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #a89e8f;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ws-chat-body {
+  flex: 1;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+.ws-chat-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 0 10px 6px;
+  border-bottom: 1px solid rgba(255, 236, 205, 0.08);
+}
+
+.ws-chat-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.workspace .ws-chat-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.ws-chat-head-actions {
+  display: flex;
   gap: 8px;
 }
 
-.ws-notsure .ask-panel,
-.ws-notsure .my-questions li {
+.workspace .ws-chat-head-actions .ws-pill {
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+.workspace .ws-pill-gold {
+  color: #f9d440;
+  border-color: rgba(249, 212, 64, 0.55);
+  font-weight: 600;
+}
+
+.workspace .ws-pill-gold:hover:not(:disabled) {
+  background: rgba(249, 212, 64, 0.1);
+}
+
+.ws-chat-messages {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 80px;
+  margin: 0;
+  padding: 4px 2px;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.ws-chat-step {
+  align-self: center;
+}
+
+.workspace .ws-chat-step .ws-mono {
+  margin: 0;
+  font-size: 10px;
+  color: #a89e8f;
+}
+
+.ws-msg {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: 88%;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border-radius: 18px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.ws-msg p {
+  margin: 0;
+}
+
+.ws-msg-you {
+  align-self: flex-end;
+  background: rgba(249, 212, 64, 0.14);
+  border: 1px solid rgba(249, 212, 64, 0.28);
+  border-bottom-right-radius: 6px;
+  color: #f4efe6;
+}
+
+.ws-msg-ai {
+  align-self: flex-start;
+  background: rgba(255, 236, 205, 0.06);
+  border: 1px solid rgba(255, 236, 205, 0.1);
+  border-bottom-left-radius: 6px;
+  color: #e8dfd0;
+}
+
+.workspace .ws-msg-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: #a89e8f;
+}
+
+.ws-msg-you .ws-msg-label {
+  align-self: flex-end;
+}
+
+.ws-msg-photo {
+  width: 100%;
+  max-height: 140px;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.ws-msg-status {
+  color: #a89e8f;
+  font-size: 13px;
+}
+
+.ws-msg-saved {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(249, 212, 64, 0.07);
+  border: 1px solid rgba(249, 212, 64, 0.3);
+  font-size: 13px;
+}
+
+.ws-msg .ws-pill {
+  margin-top: 6px;
+}
+
+.ws-chat-error {
+  margin: 0;
+  font-size: 13px;
+}
+
+/* The Ask an Expert panel takes the room it needs, leaving the messages at least 80 px,
+   and scrolls inside past that, so the text box below it always stays in the column. */
+.ws-chat .ask-expert {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.ws-chat .ask-panel {
+  gap: 10px;
+  padding: 14px;
   border-radius: 16px;
 }
 
-.ws-notsure .ask-panel h2 {
+.ws-chat .ask-panel h2 {
   font-size: 16px;
 }
 
-.ws-notsure .my-questions li {
-  grid-template-columns: minmax(0, 1fr);
+/* On wide screens the open chat has a fixed height, so the photo is smaller there. It is
+   scaled, never cropped: the learner sees all of what the expert will see. */
+@media (min-width: 1101px) {
+  .ws-chat .ask-panel img {
+    max-height: 120px;
+    object-fit: contain;
+  }
 }
 
-.ws-notsure textarea {
+.ws-chat textarea {
   border-radius: 14px;
 }
 
-/* The AI asking an expert by itself (#65), in the Not sure? row until the chat exists. */
-.ws-autoask {
+.ws-chat-input {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 236, 205, 0.08);
+}
+
+.ws-chat-input input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 236, 205, 0.14);
+  background: rgba(15, 11, 7, 0.5);
+  color: #f4efe6;
+  font: 14px Inter, sans-serif;
+}
+
+.ws-chat-input input::placeholder {
+  color: #8c8274;
+}
+
+.ws-chat-send {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 236, 205, 0.16);
+  background: transparent;
+  color: #f4efe6;
+  cursor: pointer;
+}
+
+.ws-chat-send:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .ws-note {
@@ -1070,6 +1340,14 @@ main.workspace {
 
   .ws-left {
     order: 3;
+  }
+
+  .ws-grid-chat .ws-left {
+    height: auto;
+  }
+
+  .ws-chat-messages {
+    max-height: 60vh;
   }
 
   .ws-camera {

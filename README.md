@@ -22,22 +22,21 @@ The app today has these screens:
   move; if it cannot tell, Ask an Expert opens with its words. After any of those, or
   a failed check, Mark done anyway moves on. A check that takes over 8 seconds lets
   you carry on while it runs; at 30 seconds it gives up, and a failed check points to
-  the step's saved answers and Ask an Expert. With the camera off, Mark step done
+  Ask an Expert in the chat. With the camera off, Mark step done
   moves on unchecked. While the camera is on, Gemini Nano in Chrome on a computer
   watches the bench on device: it says which of the step's parts it sees and whether
   an LED is lit. An answer takes about 2 to 4 seconds and the next look starts 3
   seconds later, so it answers about every 5 to 7 seconds. The first answer takes
   longer while Chrome loads the model. It never calls the cloud and never moves
-  the step. Elsewhere the coach says watching needs Chrome on a computer. Ask an
-  Expert sends the current camera frame and your question about the step to a human
-  expert, and lists your questions for the step with the expert's reply as soon as
-  it arrives.
-  In the same panel, Check saved answers picks the saved expert answer for the step
-  that fits your question, or says none fits: on device with Gemini Nano first, also
-  offline, and with `gemini-3.5-flash-lite` in the cloud when Nano is not available.
-  It shows which path answered. Saved answers load when the coach opens, so they
-  still help if the network drops. When no model can answer, it lists the step's
-  saved answers.
+  the step. Elsewhere the coach says watching needs Chrome on a computer.
+  The chat, at the bottom of the left column, answers typed questions about the
+  step with `gemini-3.5-flash-lite` in the cloud first, and with Gemini Nano on device
+  when the cloud cannot answer (offline, a failed call, or no answer in 15 seconds).
+  Each reply says where it ran, quotes a saved expert answer when one fits, and
+  offers Ask an expert when it is not sure. Only text goes with a message. Ask an
+  Expert, in the chat, sends the current camera frame and your question about the
+  step to a human expert. Your questions, the AI asking an expert by itself, and
+  every expert reply show in the chat as they happen.
 * The expert dashboard (`#expert`): an expert signs in with Google and sees every
   open question with the learner's photo and step, oldest first, and replies. The
   reply reaches the learner live and is saved under the skill's step. Only Google

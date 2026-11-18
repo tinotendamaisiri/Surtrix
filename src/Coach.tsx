@@ -1,9 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { InferenceSource } from 'firebase/ai'
-import AskExpert, { type JudgeOffer } from './AskExpert.tsx'
+import AskExpert, { type AskRequest, type JudgeOffer } from './AskExpert.tsx'
 import { useBenchWatch, type BenchWatch } from './benchWatch.ts'
 import { grabFrameBase64 } from './cameraFrame.ts'
-import type { StepSavedAnswers } from './SavedAnswerPicker.tsx'
+import Chat from './Chat.tsx'
+import {
+  appendItem,
+  chatEntries,
+  chatHistory,
+  chatPreview,
+  dropPassingAuto,
+  newChatId,
+  putAuto,
+  replaceItem,
+  readChatSeenAt,
+  unreadCount,
+  writeChatSeenAt,
+  type ChatItem,
+} from './chat.ts'
+import { replyToChat } from './chatReply.ts'
 import { pickSavedAnswer, useSavedAnswers, type Pick as SavedPick } from './savedAnswers.ts'
 import {
   goBack,
@@ -33,9 +48,9 @@ import {
   readAutoAskChoice,
   uncountAutoAsk,
   writeAutoAskChoice,
+  type AutoAsk,
   type AutoAskChoice,
 } from './autoAsk.ts'
-import AutoAskCard, { type AutoAsk } from './AutoAskCard.tsx'
 import { ExpertsCard, PartsList, StepList, WorkspaceShell, WorkspaceTopBar } from './WorkspacePanels.tsx'
 
 // Where a wiring check result shows: under a step (by id), or on the All steps done screen.
@@ -91,15 +106,24 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const watch = useBenchWatch(videoRef, cameraOn && !progress.finished, step.id, step.parts)
   // Every step's saved expert answers, loaded once (#31), so they still help offline.
   const saved = useSavedAnswers(skill)
-  const stepSaved: StepSavedAnswers =
-    saved.kind === 'loaded' ? { kind: 'loaded', answers: saved.byStep[step.id] ?? [] } : saved
 
-  // Where Ask an Expert sits. On stacked layouts it is below the step, so an unsure
-  // verdict that opens it scrolls it into view.
-  const notSureRef = useRef<HTMLElement>(null)
+  // The chat (#74). On stacked layouts it is below the step, so an unsure verdict that
+  // opens it scrolls it into view.
+  const chatRef = useRef<HTMLElement>(null)
+  const [chatOpen, setChatOpen] = useState(false)
+  // What the chat holds for this page load, in memory only.
+  const [chatItems, setChatItems] = useState<ChatItem[]>([])
+  const chatItemsRef = useRef(chatItems)
+  // When the learner last had the chat open: later replies and notifications count as new.
+  const [chatSeenAt, setChatSeenAt] = useState(() => readChatSeenAt(skill.id) ?? Date.now())
+  const [answering, setAnswering] = useState(false)
+  // Opens the Ask an Expert panel from the chat.
+  const [askRequest, setAskRequest] = useState<AskRequest | null>(null)
 
-  // The AI asking an expert by itself when the wiring check is unsure (#65).
-  const [autoAsk, setAutoAsk] = useState<AutoAsk | null>(null)
+  // The AI asking an expert by itself when the wiring check is unsure (#65): the chat item
+  // of the current run, which changes in place as the run goes on.
+  const [currentAutoId, setCurrentAutoId] = useState<string | null>(null)
+  const currentAutoIdRef = useRef<string | null>(null)
   // Opens the manual Ask an Expert panel with the check's words and photo: when automatic
   // asking is off, past the limit, or when asking failed.
   const [manualOffer, setManualOffer] = useState<JudgeOffer | null>(null)
@@ -110,10 +134,11 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const onPanelChange = useCallback((open: boolean) => {
     panelOpenRef.current = open
     // Cancelled: the "asking below" line no longer holds.
-    if (!open) setAutoAsk((a) => (a?.kind === 'panel-open' ? null : a))
+    if (!open) setChatItems((items) => items.filter((i) => !(i.kind === 'auto' && i.auto.kind === 'panel-open')))
   }, [])
-  // This learner's questions on the current step, live: an open one blocks a new automatic one.
-  const [mine, setMine] = useState<{ stepId: string; questions: Question[] }>({ stepId: '', questions: [] })
+  // This learner's questions on the skill, every step, live (#74): the chat shows them all,
+  // and an open one on a step blocks a new automatic one there.
+  const [mine, setMine] = useState<{ questions: Question[]; failed?: boolean }>({ questions: [] })
   const mineRef = useRef(mine)
   const savedRef = useRef(saved)
   const choiceRef = useRef(autoChoice)
@@ -123,15 +148,19 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     mineRef.current = mine
     savedRef.current = saved
     choiceRef.current = autoChoice
+    chatItemsRef.current = chatItems
   })
   useEffect(() => {
-    const stepId = step.id
     return watchMyQuestions(
-      { skillId: skill.id, stepId },
-      (questions) => setMine({ stepId, questions }),
-      (e) => console.error('Watching your questions failed', e),
+      skill.id,
+      (questions) => setMine({ questions }),
+      (e) => {
+        console.error('Watching your questions failed', e)
+        // The last list stays, so its rules and the chat keep working.
+        setMine((m) => ({ questions: m.questions, failed: true }))
+      },
     )
-  }, [skill.id, step.id])
+  }, [skill.id])
 
   // Counts the cameras now and whenever one is plugged in or out.
   useEffect(() => {
@@ -245,9 +274,111 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     endWiringCheck()
     setWiring(null)
     runRef.current++
-    setAutoAsk(null)
+    endAutoAsk()
     setManualOffer(null)
+    setAskRequest(null)
     setProgress(change)
+  }
+
+  // Shows an automatic asking state in the chat: a new notification, or the run's own one
+  // changed in place.
+  function showAutoAsk(auto: AutoAsk) {
+    currentAutoIdRef.current = auto.id
+    setCurrentAutoId(auto.id)
+    // Every state after the check of the saved answers is news for the learner.
+    setChatItems((items) => putAuto(items, auto, Date.now(), auto.kind !== 'picking'))
+  }
+
+  // Changes a run's notification, even once it is no longer the current one. news: the
+  // change is news for the learner, so it counts as new in the closed chat.
+  function updateAutoAsk(id: string, change: (auto: AutoAsk) => AutoAsk, news = false) {
+    const now = Date.now()
+    setChatItems((items) =>
+      items.map((i) => (i.id === id && i.kind === 'auto' ? { ...i, at: news ? now : i.at, auto: change(i.auto) } : i)),
+    )
+  }
+
+  // The current run stops being current. A notice not answered, a check of the saved answers
+  // and an "asking below" line only hold while current, so they are taken out.
+  function endAutoAsk() {
+    const id = currentAutoIdRef.current
+    currentAutoIdRef.current = null
+    setCurrentAutoId(null)
+    setChatItems((items) => dropPassingAuto(items, id))
+  }
+
+  function openChat() {
+    setChatOpen(true)
+  }
+
+  function closeChat() {
+    const now = Date.now()
+    setChatOpen(false)
+    setChatSeenAt(now)
+    writeChatSeenAt(skill.id, now)
+  }
+
+  // Whenever the open chat stops being in view (the page closes, the learner leaves the
+  // Workspace, or all steps are done), everything in it was seen up to then.
+  const chatInView = chatOpen && !progress.finished
+  useEffect(() => {
+    if (!chatInView) return
+    const seen = () => writeChatSeenAt(skill.id, Date.now())
+    // Phones can close a hidden tab without pagehide, so going hidden counts too.
+    const hidden = () => document.visibilityState === 'hidden' && seen()
+    window.addEventListener('pagehide', seen)
+    document.addEventListener('visibilitychange', hidden)
+    return () => {
+      window.removeEventListener('pagehide', seen)
+      document.removeEventListener('visibilitychange', hidden)
+      seen()
+    }
+  }, [chatInView, skill.id])
+
+  // Ask an Expert from the chat: the panel opens with the current camera frame.
+  function askAnExpert(question: string) {
+    setAskRequest({ question, frame: cameraOn ? grabFrameBase64(videoRef.current) : null })
+  }
+
+  // A typed message: the cloud answers, or Gemini Nano on device when the cloud cannot.
+  async function sendChat(text: string) {
+    const message = text.trim()
+    if (message === '' || answering || progress.finished) return
+    const s = step
+    const stepNumber = progress.stepIndex + 1
+    const history = chatHistory(chatItemsRef.current)
+    const thinkingId = newChatId()
+    const now = Date.now()
+    setChatItems((items) =>
+      appendItem(appendItem(items, { id: newChatId(), at: now, kind: 'typed', stepId: s.id, text: message }), {
+        id: thinkingId,
+        at: now,
+        kind: 'thinking',
+        stepId: s.id,
+      }),
+    )
+    setAnswering(true)
+    const look = watch.look?.stepId === s.id ? watch.look : null
+    let item: ChatItem
+    try {
+      const reply = await replyToChat({
+        skillTitle: skill.title,
+        stepNumber,
+        stepCount: skill.steps.length,
+        step: s,
+        savedAnswers: saved.kind === 'loaded' ? (saved.byStep[s.id] ?? []) : [],
+        benchRead: look ? describeBenchAnswer(look.answer) : null,
+        history,
+        message,
+      })
+      item = { id: thinkingId, at: Date.now(), kind: 'reply', stepId: s.id, question: message, answer: reply.answer, source: reply.source }
+    } catch (e) {
+      console.error('The chat could not answer', e)
+      item = { id: thinkingId, at: Date.now(), kind: 'reply-failed', stepId: s.id, question: message }
+    }
+    if (!onScreenRef.current) return
+    setChatItems((items) => replaceItem(items, thinkingId, item))
+    setAnswering(false)
   }
 
   function questionStep(s: CoachStep, index: number) {
@@ -265,11 +396,13 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   // asking is off, else let the AI ask.
   function handleUnsure(s: CoachStep, index: number, offer: JudgeOffer) {
     setUnsureCount((n) => n + 1)
+    // The chat opens by itself when the AI is unsure: that is when the learner is needed.
+    openChat()
     // An open Ask an Expert panel takes this check's photo and words (#69).
     if (panelOpenRef.current) setManualOffer(offer)
     const choice = choiceRef.current ?? readAutoAskChoice()
     if (choice === null) {
-      setAutoAsk({ stepId: s.id, kind: 'notice', said: offer.said, offer, index })
+      showAutoAsk({ id: newChatId(), stepId: s.id, kind: 'notice', said: offer.said, offer, index })
       return
     }
     if (choice === 'off') {
@@ -284,51 +417,53 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     setAutoChoice(choice)
     choiceRef.current = choice
     // Answering the first time notice decides this verdict too.
-    if (autoAsk?.kind !== 'notice' || autoAsk.stepId !== step.id) return
-    const { offer, index } = autoAsk
-    if (choice === 'on') void runAutoAsk(step, index, offer)
+    const current = chatItems.find((i) => i.id === currentAutoId)
+    if (current?.kind !== 'auto' || current.auto.kind !== 'notice' || current.auto.stepId !== step.id) return
+    const { offer, index, id } = current.auto
+    if (choice === 'on') void runAutoAsk(step, index, offer, id)
     else {
-      setAutoAsk(null)
+      endAutoAsk()
       setManualOffer(offer)
     }
   }
 
   // The saved answers first; if none fits, a question with the photo, the step and the
   // AI's own words, unless one is already open on this step or the limit is reached.
-  async function runAutoAsk(s: CoachStep, index: number, offer: JudgeOffer) {
+  // id: the notification to change, the notice's when the learner just chose.
+  async function runAutoAsk(s: CoachStep, index: number, offer: JudgeOffer, id: string = newChatId()) {
     const run = ++runRef.current
     const stillHere = () => onScreenRef.current && runRef.current === run
     const said = offer.said
-    setAutoAsk({ stepId: s.id, kind: 'picking', said })
+    showAutoAsk({ id, stepId: s.id, kind: 'picking', said })
     const current = savedRef.current
     const answers = current.kind === 'loaded' ? (current.byStep[s.id] ?? []) : []
     if (answers.length > 0) {
       const result = await checkSavedAnswers(() => pickSavedAnswer(s.title, said, answers))
       if (!stillHere()) return
       if (result.kind === 'picked' && result.pick.answer) {
-        setAutoAsk({ stepId: s.id, kind: 'saved', said, pick: result.pick as SavedPick & { answer: NonNullable<SavedPick['answer']> } })
+        showAutoAsk({ id, stepId: s.id, kind: 'saved', said, pick: result.pick as SavedPick & { answer: NonNullable<SavedPick['answer']> } })
         return
       }
     }
-    const open = mineRef.current.stepId === s.id ? mineRef.current.questions.find((q) => q.status === 'open') : undefined
+    const open = mineRef.current.questions.find((q) => q.stepId === s.id && q.status === 'open')
     const next = afterNoFit({ panelOpen: panelOpenRef.current, openOnStep: open !== undefined, asked: autoAskedThisSession() })
     // The learner is already asking in the manual panel: their Send is the one question.
     if (next === 'panel-open') {
-      setAutoAsk({ stepId: s.id, kind: 'panel-open', said })
+      showAutoAsk({ id, stepId: s.id, kind: 'panel-open', said })
       return
     }
     if (next === 'still-waiting') {
-      setAutoAsk({ stepId: s.id, kind: 'still-waiting', said, questionId: open?.id ?? null })
+      showAutoAsk({ id, stepId: s.id, kind: 'still-waiting', said, questionId: open?.id ?? null })
       return
     }
     if (next === 'limit') {
-      setAutoAsk({ stepId: s.id, kind: 'limit', said })
+      showAutoAsk({ id, stepId: s.id, kind: 'limit', said })
       setManualOffer(offer)
       return
     }
     // The learner may have switched it off while the saved answers were checked.
     if ((choiceRef.current ?? readAutoAskChoice()) !== 'on') {
-      setAutoAsk(null)
+      endAutoAsk()
       setManualOffer(offer)
       return
     }
@@ -336,22 +471,28 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     const failed = (e: unknown) => {
       console.error('Could not ask an expert', e)
       uncountAutoAsk()
-      if (!stillHere()) return
-      setAutoAsk({ stepId: s.id, kind: 'failed', said })
-      setManualOffer(offer)
+      if (!onScreenRef.current) return
+      // The notification says so even after a step change, as news; the panel opens, in the
+      // open chat, only on its step.
+      updateAutoAsk(id, () => ({ id, stepId: s.id, kind: 'failed', said }), true)
+      if (stillHere()) {
+        openChat()
+        setManualOffer(offer)
+      }
     }
-    setAutoAsk({ stepId: s.id, kind: navigator.onLine ? 'asking' : 'queued', said, questionId: null })
+    showAutoAsk({ id, stepId: s.id, kind: navigator.onLine ? 'asking' : 'queued', said, questionId: null })
     try {
-      const { id, saved: sent } = await askExpert({
+      const { id: questionId, saved: sent } = await askExpert({
         step: questionStep(s, index),
         question: AUTO_QUESTION,
         frameBase64: offer.frame,
         judgeSaid: said,
       })
-      if (stillHere()) setAutoAsk((a) => (a?.stepId === s.id && 'questionId' in a ? { ...a, questionId: id } : a))
+      // The notification keeps its question after a step change, so the chat links them.
+      if (onScreenRef.current) updateAutoAsk(id, (a) => ('questionId' in a ? { ...a, questionId } : a))
       // Offline, the question waits in Firestore's queue and goes once back online.
       sent.then(() => {
-        if (stillHere()) setAutoAsk((a) => (a?.stepId === s.id && a.kind === 'queued' ? { ...a, kind: 'asking' } : a))
+        if (onScreenRef.current) updateAutoAsk(id, (a) => (a.kind === 'queued' ? { ...a, kind: 'asking' } : a))
       }, failed)
     } catch (e) {
       failed(e)
@@ -387,7 +528,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     // A new check stops an automatic run from the last verdict, which may still be picking:
     // its photo is out of date, and a correct verdict moves on without a step change.
     runRef.current++
-    setAutoAsk(null)
+    endAutoAsk()
     try {
       const result = await checkWiring(step, frame, controller.signal)
       if (!stillCurrent()) return
@@ -411,12 +552,12 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
 
   const here = progress.finished ? FINISHED : step.id
   const shownResult = wiring?.kind === 'result' && wiring.showOn === here ? wiring : null
-  // An unsure verdict is shown in the Not sure? row. On stacked layouts that row is below
-  // the step, so it scrolls into view.
+  // An unsure verdict is shown in the chat. On stacked layouts the chat is below the step,
+  // so it scrolls into view.
   useEffect(() => {
     if (unsureCount === 0 || !window.matchMedia('(max-width: 1100px)').matches) return
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    notSureRef.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
+    chatRef.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
   }, [unsureCount])
   const isFirst = progress.stepIndex === 0
   const isLast = progress.stepIndex === skill.steps.length - 1
@@ -425,6 +566,9 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const parts = skillParts(skill.steps)
   const experts =
     saved.kind === 'loaded' ? { kind: 'loaded' as const, cards: expertCards(skill.steps, saved.byStep, step.id) } : saved
+  const stepQuestions = mine.questions.filter((q) => q.stepId === step.id)
+  const entries = chatEntries(chatItems, mine.questions, skill.steps)
+  const currentNotice = chatItems.find((i) => i.id === currentAutoId && i.kind === 'auto' && i.auto.kind === 'notice')
   const markDoneAnyway =
     !progress.finished &&
     (wiring?.kind === 'failed' || (checking && wiring.slow) || (shownResult && shownResult.showOn === shownResult.stepId))
@@ -441,42 +585,53 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
         />
       }
     >
-      <div className="ws-grid">
-        <aside className="ws-left ws-panel" aria-label="Parts and steps">
-          <PartsList skillId={skill.id} parts={parts} />
-          <StepList
-            steps={skill.steps}
-            progress={progress}
-            disabled={holding}
-            onGo={(index) => move((p) => goToStep(p, index))}
-          />
+      <div className={`ws-grid${chatOpen && !progress.finished ? ' ws-grid-chat' : ''}`}>
+        <aside className="ws-left ws-panel" aria-label={chatOpen && !progress.finished ? 'Chat' : 'Parts and steps'}>
+          <div className="ws-left-lists" hidden={chatOpen && !progress.finished}>
+            <PartsList skillId={skill.id} parts={parts} />
+            <StepList
+              steps={skill.steps}
+              progress={progress}
+              disabled={holding}
+              onGo={(index) => move((p) => goToStep(p, index))}
+            />
+          </div>
           {!progress.finished && (
-            <section className="ws-notsure" aria-label="Not sure?" ref={notSureRef}>
-              <p className="ws-notsure-title">Not sure?</p>
-              <AutoAskCard
-                autoAsk={autoAsk?.stepId === step.id ? autoAsk : null}
-                questions={mine.stepId === step.id ? mine.questions : []}
-                choice={autoChoice}
-                onChoose={chooseAutoAsk}
-              />
-              <AskExpert
-                step={{
-                  skillId: skill.id,
-                  skillTitle: skill.title,
-                  stepId: step.id,
-                  stepNumber: progress.stepIndex + 1,
-                  stepTitle: step.title,
-                  stepInstruction: step.instruction,
-                }}
-                captureFrame={() => (cameraOn ? grabFrameBase64(videoRef.current) : null)}
-                savedAnswers={stepSaved}
-                judgeOffer={manualOffer}
-                onPanelChange={onPanelChange}
-                sendBlocked={
-                  mine.stepId === step.id && manualSendBlocked(autoChoice, mine.questions) ? MANUAL_SEND_BLOCKED : null
-                }
-              />
-            </section>
+            <Chat
+              sectionRef={chatRef}
+              open={chatOpen}
+              onOpen={openChat}
+              onClose={closeChat}
+              entries={entries}
+              stepId={step.id}
+              unread={chatOpen ? 0 : unreadCount(entries, chatSeenAt)}
+              preview={chatPreview(entries, step.id)}
+              noticeId={currentNotice ? currentNotice.id : null}
+              questions={mine.questions}
+              questionsFailed={mine.failed === true}
+              choice={autoChoice}
+              onChoose={chooseAutoAsk}
+              answering={answering}
+              onSend={(message) => void sendChat(message)}
+              onAskExpert={askAnExpert}
+              panel={
+                <AskExpert
+                  step={{
+                    skillId: skill.id,
+                    skillTitle: skill.title,
+                    stepId: step.id,
+                    stepNumber: progress.stepIndex + 1,
+                    stepTitle: step.title,
+                    stepInstruction: step.instruction,
+                  }}
+                  captureFrame={() => (cameraOn ? grabFrameBase64(videoRef.current) : null)}
+                  judgeOffer={manualOffer}
+                  askRequest={askRequest}
+                  onPanelChange={onPanelChange}
+                  sendBlocked={manualSendBlocked(autoChoice, stepQuestions) ? MANUAL_SEND_BLOCKED : null}
+                />
+              }
+            />
           )}
         </aside>
 
@@ -658,7 +813,7 @@ function WiringCard({
   if (wiring?.kind === 'failed') {
     return (
       <p className="ws-wiring-line ws-error">
-        The wiring check is not available right now. Ask an Expert or Check saved answers, or Mark done anyway.
+        The wiring check is not available right now. Ask an expert in the chat, or Mark done anyway.
       </p>
     )
   }

@@ -155,17 +155,10 @@ describe('reading questions', () => {
     await assertFails(getDoc(doc(testEnv.unauthenticatedContext().firestore(), 'questions/asked-by-learner-1')))
   })
 
-  test('a learner can list their own questions for a step, as the coach does', async () => {
+  test('a learner can list their own questions on a skill, as the Workspace does', async () => {
     const db = learner('learner-1')
     await assertSucceeds(
-      getDocs(
-        query(
-          collection(db, 'questions'),
-          where('learnerId', '==', 'learner-1'),
-          where('skillId', '==', 'sample-led'),
-          where('stepId', '==', 'step-2'),
-        ),
-      ),
+      getDocs(query(collection(db, 'questions'), where('learnerId', '==', 'learner-1'), where('skillId', '==', 'sample-led'))),
     )
   })
 

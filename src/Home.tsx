@@ -1,24 +1,21 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
+import { useEffect, useRef, type ReactNode, type RefObject } from 'react'
 import './Landing.css'
 import LandingFooter from './LandingFooter.tsx'
-import { HERO_IMAGE, HERO_SMALL_IMAGE, landingSkills, type LandingSkill } from './landingSkills.ts'
-import MySkills from './MySkills.tsx'
-import { coachHash } from './screenAddress.ts'
-import { DEMO_SKILL_ID } from './demoSkill.ts'
-import { nextSkillsTab, takeSkillsTab } from './landingIntent.ts'
+import { HERO_IMAGE, HERO_SMALL_IMAGE } from './landingImages.ts'
+import { exampleSkills, type CatalogSkill } from './skillCatalog.ts'
+import { cardTag, exampleLine, landingRows } from './skillsPage.ts'
+import { SKILLS_HASH } from './screenAddress.ts'
 import Wordmark from './Wordmark.tsx'
 
 // Home is the landing page (#51): the approved design rebuilt in the app's own React and
 // CSS. The app routes by the address hash (screenAddress.ts), so the menu scrolls to its
 // sections with scrollIntoView and never changes the address.
-export default function Home() {
-  const skillsRef = useRef<HTMLElement>(null)
+// section: opened at `#how-it-works` (#83), scrolled to How it works.
+export default function Home({ section }: { section?: 'how' }) {
   const howRef = useRef<HTMLElement>(null)
-  // Arriving from "Back to skills" (#59): open on its tab, scrolled to the Skills section.
-  const [arrivalTab] = useState(() => nextSkillsTab())
   useEffect(() => {
-    if (takeSkillsTab()) skillsRef.current?.scrollIntoView({ block: 'start' })
-  }, [])
+    if (section === 'how') howRef.current?.scrollIntoView({ block: 'start' })
+  }, [section])
 
   return (
     <main className="landing">
@@ -31,9 +28,7 @@ export default function Home() {
               <button type="button" onClick={() => scrollToSection(howRef)}>
                 How it works
               </button>
-              <button type="button" onClick={() => scrollToSection(skillsRef)}>
-                Skills
-              </button>
+              <a href={SKILLS_HASH}>Skills</a>
             </nav>
             <a className="landing-pill landing-pill-expert" href="#expert">
               I am an expert
@@ -51,7 +46,7 @@ export default function Home() {
             real expert when the AI is not sure.
           </p>
           <div className="landing-actions">
-            <a className="landing-pill landing-pill-yellow" href={coachHash(DEMO_SKILL_ID)}>
+            <a className="landing-pill landing-pill-yellow" href={SKILLS_HASH}>
               Try the demo
             </a>
             <a className="landing-pill landing-pill-outline" href="#new-skill">
@@ -61,9 +56,9 @@ export default function Home() {
         </div>
       </section>
 
-      <SkillsSection sectionRef={skillsRef} initialTab={arrivalTab ?? 'all'} />
+      <SkillsSection />
       <HowItWorks sectionRef={howRef} />
-      <LandingFooter onHow={() => scrollToSection(howRef)} onSkills={() => scrollToSection(skillsRef)} />
+      <LandingFooter onHow={() => scrollToSection(howRef)} />
     </main>
   )
 }
@@ -110,47 +105,13 @@ function HeroPhoto() {
   )
 }
 
-type Tab = 'all' | 'mine'
-const tabs: { id: Tab; label: string }[] = [
-  { id: 'all', label: 'All skills' },
-  { id: 'mine', label: 'My skills' },
-]
-
-function SkillsSection({ sectionRef, initialTab }: { sectionRef: RefObject<HTMLElement | null>; initialTab: Tab }) {
-  const [tab, setTab] = useState<Tab>(initialTab)
-  const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({})
-
-  function onTabKey(event: KeyboardEvent) {
-    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
-    event.preventDefault()
-    const next: Tab = tab === 'all' ? 'mine' : 'all'
-    setTab(next)
-    tabRefs.current[next]?.focus()
-  }
-
+// The landing's Skills section (#83): two rows of all 44 example skills from the skills
+// catalog, sliding slowly in opposite directions, and a button to the Skills page.
+function SkillsSection() {
+  const [top, bottom] = landingRows(exampleSkills)
   return (
-    <section className="landing-skills" ref={sectionRef}>
+    <section className="landing-skills">
       <div className="landing-glow" aria-hidden="true" />
-      <div className="landing-tabs" role="tablist" aria-label="Skills">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            ref={(el) => {
-              tabRefs.current[t.id] = el
-            }}
-            type="button"
-            role="tab"
-            id={`landing-tab-${t.id}`}
-            aria-selected={tab === t.id}
-            aria-controls="landing-panel"
-            tabIndex={tab === t.id ? 0 : -1}
-            onClick={() => setTab(t.id)}
-            onKeyDown={onTabKey}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
       <div className="landing-section-head">
         <h2>
           Every procedure becomes a skill
@@ -158,29 +119,32 @@ function SkillsSection({ sectionRef, initialTab }: { sectionRef: RefObject<HTMLE
           <span className="landing-gradient">verified by experts.</span>
         </h2>
         <p>
-          Skills checked by real experts across the trades: auto mechanics, welding, HVAC, plumbing, electrical work, phone
-          and laptop repair, bike repair, 3D printing, drones, soldering and machine assembly. Or create your own from any
-          procedure.
+          Skills checked by real experts, from auto mechanics, welding and electronics to cooking, home repair, first aid,
+          crafts and lab science. Or create your own from any procedure.
         </p>
       </div>
-      <div role="tabpanel" id="landing-panel" aria-labelledby={`landing-tab-${tab}`}>
-        {tab === 'all' ? <Carousel /> : <MySkills />}
+      <Carousel skills={top} />
+      <Carousel skills={bottom} reverse />
+      <div className="landing-see-all">
+        <a className="landing-pill landing-pill-outline" href={SKILLS_HASH}>
+          See all {exampleSkills.length} skills
+        </a>
       </div>
     </section>
   )
 }
 
-// Two copies of the cards side by side, sliding left by one copy per loop, so the loop
-// never shows a seam. The second copy is hidden from screen readers and, with reduced
-// motion, from view.
-function Carousel() {
+// Two copies of the cards side by side, sliding by one copy per loop, so the loop never
+// shows a seam. The second copy is hidden from screen readers and, with reduced motion,
+// from view. reverse: the row slides right.
+function Carousel({ skills, reverse = false }: { skills: CatalogSkill[]; reverse?: boolean }) {
   return (
     <div className="landing-marquee">
-      <ul className="landing-track">
-        {landingSkills.map((skill) => (
+      <ul className={`landing-track${reverse ? ' landing-track-reverse' : ''}`}>
+        {skills.map((skill) => (
           <SkillCard key={skill.image} skill={skill} />
         ))}
-        {landingSkills.map((skill) => (
+        {skills.map((skill) => (
           <SkillCard key={`copy-${skill.image}`} skill={skill} copy />
         ))}
       </ul>
@@ -188,39 +152,30 @@ function Carousel() {
   )
 }
 
-function SkillCard({ skill, copy = false }: { skill: LandingSkill; copy?: boolean }) {
-  const content = (
-    <>
-      <div className="landing-card-photo" style={{ backgroundImage: `url(/landing/${skill.image})` }}>
-        <div className="landing-card-top">
-          <span className="landing-trade">
-            <i aria-hidden="true" />
-            {skill.trade}
-          </span>
-          {skill.href ? <span className="landing-live">LIVE DEMO</span> : <span className="landing-verified">✓ VERIFIED</span>}
-        </div>
-      </div>
-      <div className="landing-card-body">
-        <h3>{skill.title}</h3>
-        <p>{skill.text}</p>
-        <span className="landing-ticks">
-          <Tick>Verified by {skill.verifiedBy}</Tick>
-          <Tick>{skill.stepCount} steps</Tick>
-        </span>
-      </div>
-    </>
-  )
+// An example skill: display only, not a link (settled j).
+function SkillCard({ skill, copy = false }: { skill: CatalogSkill; copy?: boolean }) {
   return (
     <li className={copy ? 'landing-card-copy' : undefined} aria-hidden={copy || undefined}>
-      {skill.href ? (
-        // Out of the tab order (#59): the carousel slides it off screen, and the demo is
-        // reachable by keyboard from the hero and the footer. Still clickable.
-        <a className="landing-card" href={skill.href} tabIndex={-1}>
-          {content}
-        </a>
-      ) : (
-        <div className="landing-card">{content}</div>
-      )}
+      <div className="landing-card">
+        <div className="landing-card-photo" style={{ backgroundImage: `url(/landing/${skill.image})` }}>
+          <div className="landing-card-top">
+            <span className="landing-trade">
+              <i aria-hidden="true" />
+              {skill.trade}
+            </span>
+            <span className="landing-verified">{cardTag(skill)}</span>
+          </div>
+        </div>
+        <div className="landing-card-body">
+          <h3>{skill.title}</h3>
+          <p>{skill.description}</p>
+          <span className="landing-ticks">
+            <Tick>Verified by {skill.expert}</Tick>
+            <Tick>{skill.steps} steps</Tick>
+          </span>
+          <p className="landing-card-example">{exampleLine(skill)}</p>
+        </div>
+      </div>
     </li>
   )
 }

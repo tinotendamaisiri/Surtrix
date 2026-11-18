@@ -4,8 +4,8 @@ import { listMySkills, type SkillSummary } from './skills.ts'
 
 type State = { kind: 'loading' } | { kind: 'loaded'; skills: SkillSummary[] } | { kind: 'failed' }
 
-// The My skills tab on home (#51): the skills this learner saved, newest first, each
-// opening its coach. It loads only when the tab is opened.
+// The Skills page's My skills tab (#83, `#skills/mine`): the skills this learner saved,
+// newest first, as simple cards that open their coach. It loads when the tab is opened.
 export default function MySkills() {
   const [state, setState] = useState<State>({ kind: 'loading' })
 
@@ -23,34 +23,37 @@ export default function MySkills() {
     }
   }, [])
 
-  if (state.kind === 'loading') return <p className="landing-myskills-note">Loading your skills</p>
+  if (state.kind === 'loading') return <p className="skills-mine-note">Loading your skills</p>
   if (state.kind === 'failed') {
-    return <p className="landing-myskills-note landing-error">Could not load your skills. Reload the page to try again.</p>
+    return <p className="skills-mine-note skills-error">Could not load your skills. Reload the page to try again.</p>
   }
   if (state.skills.length === 0) {
     return (
-      <div className="landing-myskills-empty">
-        <p className="landing-myskills-note">You have not saved a skill yet.</p>
-        <a className="landing-pill landing-pill-yellow" href="#new-skill">
+      <div className="skills-mine-empty">
+        <p className="skills-mine-note">You have not saved a skill yet.</p>
+        <a className="skills-btn skills-btn-primary" href="#new-skill">
           Create a skill
         </a>
       </div>
     )
   }
   return (
-    <ul className="landing-myskills">
+    <ul className="skills-grid skills-mine">
       {state.skills.map((skill) => (
         <li key={skill.id}>
-          <a className="landing-myskill" href={coachHash(skill.id)}>
-            <h3>{skill.title}</h3>
-            <span className="landing-ticks">
-              <span className="landing-tick-line">
-                <span className="landing-tick" aria-hidden="true">
-                  ✓
-                </span>
+          <a className="skills-card skills-mine-card" href={coachHash(skill.id)}>
+            <div className="skills-cbody">
+              <h3>{skill.title}</h3>
+              <span className="skills-steps">
                 {skill.stepCount} {skill.stepCount === 1 ? 'step' : 'steps'}
               </span>
-            </span>
+              <span className="skills-start">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M7 4.5v15l13-7.5z" />
+                </svg>
+                Start
+              </span>
+            </div>
           </a>
         </li>
       ))}

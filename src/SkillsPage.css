@@ -1,0 +1,615 @@
+/* The Skills page (#83), from the approved design: always dark, in the landing page's
+   colors, fonts and pill rules. Every tap target is at least 44 px. */
+
+body:has(main.skills-page) {
+  background: #0f0b07;
+  color-scheme: dark;
+}
+
+main.skills-page {
+  max-width: none;
+  margin: 0;
+  padding: 0 0 80px;
+  display: block;
+  min-height: 100vh;
+  background: #0f0b07;
+  color: #f4efe6;
+  font-family: Inter, system-ui, sans-serif;
+  text-align: left;
+}
+
+.skills-page a {
+  color: #f4efe6;
+}
+
+.skills-page a:hover {
+  color: #f9d440;
+}
+
+.skills-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Header */
+
+.skills-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 22px 48px;
+  border-bottom: 1px solid rgba(255, 236, 205, 0.08);
+}
+
+.skills-home {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.skills-home .wordmark {
+  display: block;
+  width: 140px;
+  height: auto;
+}
+
+.skills-nav {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(15, 11, 7, 0.55);
+  border: 1px solid rgba(255, 236, 205, 0.12);
+}
+
+.skills-page .skills-navpill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  text-decoration: none;
+  color: #cfc6b8;
+  font-size: 14px;
+}
+
+.skills-page .skills-navpill:hover {
+  background: rgba(255, 236, 205, 0.08);
+  color: #f4efe6;
+}
+
+.skills-page .skills-navpill-on,
+.skills-page .skills-navpill-on:hover {
+  background: rgba(249, 212, 64, 0.12);
+  color: #f9d440;
+}
+
+.skills-header-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Buttons: every one a pill. */
+
+.skills-page .skills-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 236, 205, 0.18);
+  background: transparent;
+  color: #f4efe6;
+  font: 500 14px Inter, sans-serif;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.skills-page .skills-btn:hover {
+  background: rgba(255, 236, 205, 0.08);
+  color: #f4efe6;
+}
+
+.skills-page .skills-btn-gold {
+  color: #f9d440;
+  border-color: rgba(249, 212, 64, 0.55);
+  font-weight: 600;
+}
+
+.skills-page .skills-btn-gold:hover {
+  background: rgba(249, 212, 64, 0.1);
+  color: #f9d440;
+}
+
+.skills-page .skills-btn-primary {
+  background: #f9d440;
+  border-color: #f9d440;
+  color: #0b1e3c;
+  font-weight: 600;
+}
+
+.skills-page .skills-btn-primary:hover {
+  background: #fbdd62;
+  color: #0b1e3c;
+}
+
+/* Heading and tabs */
+
+.skills-wrap {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 48px;
+}
+
+.skills-intro {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin: 56px 0 28px;
+}
+
+.skills-intro h1 {
+  margin: 0;
+  font-family: Montserrat, sans-serif;
+  font-weight: 700;
+  font-size: clamp(28px, 5vw, 40px);
+  line-height: 1.15;
+  letter-spacing: -1px;
+}
+
+.skills-intro p {
+  margin: 10px 0 0;
+  font-size: 16px;
+  color: #a89e8f;
+}
+
+.skills-tabs {
+  display: flex;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 236, 205, 0.12);
+}
+
+.skills-page .skills-tab {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: 999px;
+  color: #cfc6b8;
+  font: 600 14px Inter, sans-serif;
+  text-decoration: none;
+}
+
+.skills-page .skills-tab[aria-current='page'],
+.skills-page .skills-tab[aria-current='page']:hover {
+  background: #f9d440;
+  color: #0b1e3c;
+}
+
+/* Search and chips */
+
+.skills-search {
+  display: flex;
+  gap: 10px;
+}
+
+.skills-search input {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  box-sizing: border-box;
+  padding: 0 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 236, 205, 0.16);
+  background: rgba(255, 244, 225, 0.04);
+  color: #f4efe6;
+  font: 15px Inter, sans-serif;
+}
+
+.skills-search input::placeholder {
+  color: #8c8274;
+}
+
+.skills-page .skills-search .skills-btn {
+  min-height: 48px;
+}
+
+.skills-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 18px 0 32px;
+}
+
+.skills-page .skills-chip {
+  flex: none;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 236, 205, 0.12);
+  background: transparent;
+  color: #cfc6b8;
+  font: 13px Inter, sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.skills-page .skills-chip:hover {
+  border-color: rgba(249, 212, 64, 0.45);
+  color: #f4efe6;
+}
+
+.skills-page .skills-chip-on,
+.skills-page .skills-chip-on:hover {
+  background: #f9d440;
+  border-color: #f9d440;
+  color: #0b1e3c;
+  font-weight: 600;
+}
+
+/* Pinned row */
+
+.skills-pinned {
+  margin-bottom: 36px;
+}
+
+.skills-pinlabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: #f9d440;
+}
+
+/* Results */
+
+.skills-results {
+  scroll-margin-top: 16px;
+}
+
+.skills-results-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px 20px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.skills-results-head h2 {
+  margin: 0;
+  font-family: Montserrat, sans-serif;
+  font-weight: 600;
+  font-size: 20px;
+}
+
+.skills-count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 4px 14px;
+  margin: 0;
+  font-size: 13px;
+  color: #a89e8f;
+}
+
+.skills-note {
+  font-size: 12px;
+  color: #8c8274;
+}
+
+.skills-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Cards */
+
+.skills-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255, 244, 225, 0.05), rgba(255, 244, 225, 0.02));
+  border: 1px solid rgba(255, 236, 205, 0.1);
+  text-decoration: none;
+}
+
+/* Only cards that open something react to the pointer. */
+.skills-page a.skills-card {
+  transition:
+    border-color 0.2s,
+    transform 0.2s;
+}
+
+.skills-page a.skills-card:hover {
+  border-color: rgba(249, 212, 64, 0.35);
+  transform: translateY(-2px);
+  color: #f4efe6;
+}
+
+.skills-card-live {
+  border-color: rgba(249, 212, 64, 0.3);
+}
+
+.skills-cover {
+  position: relative;
+  height: 130px;
+  background-size: cover;
+  background-position: center;
+}
+
+.skills-cover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(15, 11, 7, 0) 55%, rgba(20, 16, 11, 0.85));
+}
+
+.skills-tag,
+.skills-live {
+  position: absolute;
+  z-index: 1;
+  left: 12px;
+  top: 12px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+}
+
+.skills-tag {
+  background: rgba(15, 11, 7, 0.7);
+  color: #f9d440;
+  border: 1px solid rgba(249, 212, 64, 0.4);
+  backdrop-filter: blur(6px);
+}
+
+.skills-live {
+  background: #f9d440;
+  color: #0b1e3c;
+}
+
+.skills-cbody {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 14px 16px 16px;
+}
+
+.skills-meta {
+  margin: 0;
+  font-size: 13px;
+  color: #a89e8f;
+}
+
+.skills-card h3 {
+  margin: 6px 0;
+  font-family: Montserrat, sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.25;
+  color: #f4efe6;
+}
+
+.skills-desc {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #a89e8f;
+}
+
+.skills-by {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: #a89e8f;
+}
+
+.skills-vb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  background: #f9d440;
+  color: #0b1e3c;
+  font-size: 9px;
+  font-weight: 700;
+  vertical-align: 1px;
+}
+
+.skills-steps {
+  align-self: flex-start;
+  margin-top: 10px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(249, 212, 64, 0.22);
+  background: rgba(249, 212, 64, 0.1);
+  color: #f9d440;
+  font-size: 12px;
+}
+
+.skills-example {
+  margin: auto 0 0;
+  padding-top: 14px;
+  font-size: 12px;
+  color: #8c8274;
+}
+
+/* The full width Start on a live card: the whole card is the link. */
+.skills-start {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-sizing: border-box;
+  min-height: 44px;
+  margin-top: auto;
+  border-radius: 999px;
+  background: #f9d440;
+  color: #0b1e3c;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.skills-cbody .skills-steps + .skills-start {
+  margin-top: 14px;
+}
+
+.skills-card-live .skills-cbody .skills-start {
+  margin-top: auto;
+}
+
+.skills-card-live .skills-steps {
+  margin-bottom: 14px;
+}
+
+.skills-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 48px 20px;
+  border: 1px dashed rgba(255, 236, 205, 0.16);
+  border-radius: 22px;
+  text-align: center;
+  color: #a89e8f;
+}
+
+.skills-page .skills-empty a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 2px;
+  color: #f9d440;
+}
+
+/* My skills */
+
+.skills-mine-card .skills-cbody h3 {
+  margin-top: 0;
+}
+
+.skills-mine-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 40px 0;
+}
+
+.skills-mine-note {
+  margin: 0;
+  text-align: center;
+  font-size: 16px;
+  color: #a89e8f;
+}
+
+.skills-error {
+  color: #f2b8b5;
+}
+
+@media (max-width: 1100px) {
+  .skills-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .skills-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Phones: one column, the header centered, and the chips in one row that scrolls
+   sideways inside itself with faded edges (settled o). */
+@media (max-width: 700px) {
+  .skills-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .skills-wrap {
+    padding: 0 20px;
+  }
+
+  .skills-header {
+    padding: 20px;
+    justify-content: center;
+  }
+
+  .skills-intro {
+    margin-top: 36px;
+  }
+
+  .skills-search input {
+    padding: 0 16px;
+    font-size: 14px;
+  }
+
+  /* The magnifier alone on phones, so the box has room; "Search" stays its name. */
+  .skills-page .skills-search .skills-btn {
+    width: 48px;
+    padding: 0;
+  }
+
+  .skills-search-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .skills-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin-left: -20px;
+    margin-right: -20px;
+    padding: 0 20px;
+    scrollbar-width: none;
+    mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent);
+  }
+
+  .skills-chips::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skills-page a.skills-card {
+    transition: none;
+  }
+
+  .skills-page a.skills-card:hover {
+    transform: none;
+  }
+}

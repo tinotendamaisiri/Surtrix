@@ -54,6 +54,18 @@ export function uncountChatMessage(): number {
   return sentThisSession
 }
 
+// Only this many garbled replies per session go uncounted; after that they count like any
+// message, so they cannot run up cloud calls past the limit (Tino, Nov 18).
+export const FREE_GARBLED_REPLIES = 5
+
+let garbledThisSession = 0
+
+// Notes one more garbled reply; true while it is still one of the free ones.
+export function garbledReplyIsFree(): boolean {
+  garbledThisSession += 1
+  return garbledThisSession <= FREE_GARBLED_REPLIES
+}
+
 export const CHAT_LIMIT_TEXT = `You've reached the limit of ${CHAT_MESSAGE_LIMIT} messages for this session.`
 
 // A cloud answer refused for billing or quota: 429 (prepaid credit used up, a quota or the
@@ -70,12 +82,21 @@ export const COULD_NOT_ANSWER_TEXT = 'Could not answer right now.'
 // How long Nano gets when it answers in place of the cloud (Tino, Nov 18).
 export const DEVICE_LIMIT_MS = 20_000
 
-// The cloud answered, but not in the expected shape: never sent on to the device.
+// The cloud answered, but not in the expected shape, or it blocked its own reply (for
+// example for safety): never sent on to the device, which might answer what the cloud
+// refused (Tino, Nov 18).
 export class ChatGarbledError extends Error {
   constructor(cause: unknown) {
-    super('The cloud reply was not in the expected shape.', { cause })
+    super('The cloud reply was not in the expected shape, or was blocked.', { cause })
     this.name = 'ChatGarbledError'
   }
+}
+
+// The SDK's AIErrorCode.RESPONSE_ERROR: reading a reply the model blocked or could not give.
+const BLOCKED_REPLY_CODE = 'response-error'
+
+export function unusableCloudReply(error: unknown): boolean {
+  return error instanceof ChatReplyError || (error as { code?: unknown } | null)?.code === BLOCKED_REPLY_CODE
 }
 
 export class ChatDeviceTimeoutError extends Error {
@@ -109,8 +130,8 @@ export class ChatLimitedError extends Error {
 }
 
 // How a reply is chosen (#74, m): the cloud first. A refusal for billing or quota throws
-// ChatLimitedError, and a reply in the wrong shape throws ChatGarbledError; neither tries
-// the device. Any other failure has the device answer when it is ready, and is thrown
+// ChatLimitedError, and a reply in the wrong shape or blocked throws ChatGarbledError;
+// neither tries the device. Any other failure has the device answer when it is ready, and is thrown
 // again when it is not.
 export async function cloudThenDevice<R>({
   cloud,
@@ -128,7 +149,7 @@ export async function cloudThenDevice<R>({
     return await cloud()
   } catch (e) {
     if (isLimitedStatus(statusOf(e))) throw new ChatLimitedError(e)
-    if (e instanceof ChatReplyError) throw new ChatGarbledError(e)
+    if (unusableCloudReply(e)) throw new ChatGarbledError(e)
     if (!(await deviceReady())) throw e
     console.warn('The cloud could not answer, answering on device', e)
     return device()
@@ -380,8 +401,13 @@ export function unreadCount(entries: ChatEntry[], seen: SeenMark): number {
 }
 
 // The mark for now, with these entries in view.
+// A question the server has not confirmed yet carries this browser's estimate of its time,
+// so it never moves the server mark.
 export function seenNow(entries: ChatEntry[], now: number, previous: SeenMark): SeenMark {
-  const server = entries.filter((e) => SERVER_TIMED.includes(e.kind) && e.at !== NO_TIME).map((e) => e.at)
+  const server = entries
+    .filter((e) => SERVER_TIMED.includes(e.kind) && e.at !== NO_TIME)
+    .filter((e) => (e.kind === 'asked' || e.kind === 'judge-asked' ? e.question.sent : true))
+    .map((e) => e.at)
   const newest = server.length > 0 ? Math.max(...server) : null
   return { local: now, server: newest === null ? previous.server : Math.max(newest, previous.server ?? newest) }
 }

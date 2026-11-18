@@ -11,6 +11,7 @@ import {
   ChatGarbledError,
   ChatLimitedError,
   chatLimitReached,
+  garbledReplyIsFree,
   chatSentThisSession,
   countChatMessage,
   chatHistory,
@@ -394,8 +395,8 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     } catch (e) {
       console.error('The chat could not answer', e)
       const garbled = e instanceof ChatGarbledError
-      // A garbled cloud reply does not count toward the limit.
-      if (garbled) setChatSent(uncountChatMessage())
+      // A garbled or blocked cloud reply does not count toward the limit, up to a few.
+      if (garbled && garbledReplyIsFree()) setChatSent(uncountChatMessage())
       item = {
         id: thinkingId,
         at: Date.now(),

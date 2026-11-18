@@ -23,6 +23,9 @@ import {
   ChatDeviceTimeoutError,
   ChatGarbledError,
   ChatReplyError as ReplyShapeError,
+  FREE_GARBLED_REPLIES,
+  garbledReplyIsFree,
+  unusableCloudReply,
   COULD_NOT_ANSWER_TEXT,
   seenNow,
   uncountChatMessage,
@@ -417,4 +420,39 @@ test("what counts as new does not depend on the learner's clock", () => {
   expect(unreadCount(chatEntries([], [reply(1000), reply(1100)], steps), fast)).toBe(1)
   // With no server time shown yet, the server mark stays as it was.
   expect(seenNow([], 800, { local: 1, server: 900 })).toEqual({ local: 800, server: 900 })
+})
+
+test("a question the server has not confirmed never moves the server mark", () => {
+  // Asked offline with a learner clock 10 minutes fast: its time is the browser's estimate.
+  const unconfirmed = question({ id: 'qx', sent: false, createdAt: new Date(601_000) })
+  const seen = seenNow(chatEntries([], [unconfirmed], steps), 601_000, { local: 0, server: 1000 })
+  expect(seen.server).toBe(1000)
+  // The expert's reply at server time 2000 still counts as new.
+  const replied = question({ id: 'qx', sent: true, createdAt: new Date(1500), status: 'answered', reply: { text: 'Yes.', expertName: 'Tino', answeredAt: new Date(2000) } })
+  expect(unreadCount(chatEntries([], [replied], steps), seen)).toBe(1)
+})
+
+test('a cloud reply blocked for safety is unusable, like a garbled one, and never reaches the device', async () => {
+  const blocked = Object.assign(new Error('Response error: SAFETY'), { code: 'response-error' })
+  expect(unusableCloudReply(blocked)).toBe(true)
+  expect(unusableCloudReply(new ReplyShapeError('{'))).toBe(true)
+  expect(unusableCloudReply(new Error('Failed to fetch'))).toBe(false)
+  const calls: string[] = []
+  const result = await cloudThenDevice({
+    cloud: () => Promise.reject(blocked),
+    device: async () => {
+      calls.push('device')
+      return 'device answer'
+    },
+    deviceReady: async () => true,
+    statusOf: cloudStatus,
+  }).catch((e: unknown) => e)
+  expect(result).toBeInstanceOf(ChatGarbledError)
+  expect(calls).toEqual([])
+})
+
+test('only the first 5 garbled replies in a session go uncounted', () => {
+  expect(FREE_GARBLED_REPLIES).toBe(5)
+  const free = Array.from({ length: 7 }, () => garbledReplyIsFree())
+  expect(free).toEqual([true, true, true, true, true, false, false])
 })

@@ -5,6 +5,8 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode, type Ref } from 'react'
 import { InferenceSource } from 'firebase/ai'
 import AutoAskCard from './AutoAskCard.tsx'
+import { ListeningTag, MicButton } from './Listening.tsx'
+import type { Listening } from './useListening.ts'
 import type { AutoAskChoice } from './autoAsk.ts'
 import {
   CHAT_LIMIT_TEXT,
@@ -40,6 +42,8 @@ type Props = {
   answering: boolean
   // The session's message limit is reached: the text box is off.
   limitReached: boolean
+  // Voice (#80): one listening state for both mics and the tag.
+  listening: Listening
   onSend: (message: string) => void
   // Opens the Ask an Expert panel, with the learner's message when it came from a reply.
   onAskExpert: (question: string) => void
@@ -83,6 +87,7 @@ export default function Chat({ sectionRef, ...props }: Props) {
           </p>
           <p className="ws-chatbar-preview">{preview}</p>
         </div>
+        <MicButton listening={props.listening} />
         <button type="button" className="ws-pill" onClick={props.onOpen}>
           Open
         </button>
@@ -91,7 +96,10 @@ export default function Chat({ sectionRef, ...props }: Props) {
       <div className="ws-chat-body" hidden={!open}>
         <div className="ws-chat-head">
           <div className="ws-chat-head-row">
-            <h2>Chat</h2>
+            <div className="ws-chat-title">
+              <h2>Chat</h2>
+              <ListeningTag listening={props.listening} />
+            </div>
             <div className="ws-chat-head-actions">
               <button type="button" className="ws-pill ws-pill-gold" onClick={() => props.onAskExpert('')}>
                 Ask an Expert
@@ -150,13 +158,16 @@ export default function Chat({ sectionRef, ...props }: Props) {
           <input
             id="ws-chat-message"
             type="text"
-            placeholder={props.limitReached ? 'Message limit reached' : 'Type a question'}
+            placeholder={props.limitReached ? 'Message limit reached' : 'Type, or just talk'}
             autoComplete="off"
             maxLength={CHAT_MAX_LENGTH}
-            value={message}
+            // While a phrase is being heard, its words show here (settled e).
+            value={props.listening.heard || message}
             onChange={(e) => setMessage(e.target.value)}
+            readOnly={props.listening.heard !== ''}
             disabled={props.limitReached}
           />
+          <MicButton listening={props.listening} />
           <button
             type="submit"
             className="ws-chat-send"
@@ -201,7 +212,7 @@ function Entry({ entry, ...props }: { entry: ChatEntry } & EntryProps) {
     case 'typed':
       return (
         <>
-          <p className="ws-mono ws-msg-label">YOU TYPED</p>
+          <p className="ws-mono ws-msg-label">{entry.spoken ? 'YOU SAID' : 'YOU TYPED'}</p>
           <p>{entry.text}</p>
         </>
       )

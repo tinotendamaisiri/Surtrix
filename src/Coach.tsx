@@ -30,6 +30,9 @@ import {
   type SeenMark,
 } from './chat.ts'
 import { replyToChat } from './chatReply.ts'
+import { ListeningToggle } from './Listening.tsx'
+import { useListening } from './useListening.ts'
+import { spokenAction } from './voice.ts'
 import { pickSavedAnswer, useSavedAnswers, type Pick as SavedPick } from './savedAnswers.ts'
 import {
   goBack,
@@ -115,6 +118,10 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const attemptRef = useRef(0)
   const runningRef = useRef<{ controller: AbortController; timers: ReturnType<typeof setTimeout>[] } | null>(null)
   const watch = useBenchWatch(videoRef, cameraOn && !progress.finished, step.id, step.parts)
+  // Talking to the Workspace (#80): each finished phrase, recognised on the device.
+  const listening = useListening((text) => onSpoken(text))
+  // Spoken phrases that came while a reply was being made; sent one by one after it.
+  const spokenQueue = useRef<string[]>([])
   // Every step's saved expert answers, loaded once (#31), so they still help offline.
   const saved = useSavedAnswers(skill)
 
@@ -360,7 +367,35 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   }
 
   // A typed message: the cloud answers, or Gemini Nano on device when the cloud cannot.
-  async function sendChat(text: string) {
+  // A finished spoken phrase: "done" finishes the step, a phrase of 3 words or more goes to
+  // the chat like typing, anything shorter is let go (settled e and g).
+  function onSpoken(text: string) {
+    const action = spokenAction(text)
+    if (action === 'ignore' || progress.finished) return
+    if (action === 'done') {
+      setChatItems((items) =>
+        appendItem(items, { id: newChatId(), at: Date.now(), kind: 'typed', stepId: step.id, text, spoken: true, command: true }),
+      )
+      // Like Mark step done; ignored while a wiring check runs (settled h).
+      if (!checking) void markDone()
+      return
+    }
+    if (answering) {
+      spokenQueue.current.push(text)
+      return
+    }
+    void sendChat(text, true)
+  }
+
+  // The next spoken phrase goes once the reply before it is in.
+  useEffect(() => {
+    if (answering || spokenQueue.current.length === 0) return
+    const next = spokenQueue.current.shift()!
+    void sendChat(next, true)
+  })
+
+  // spoken: said while listening, so it is labelled YOU SAID.
+  async function sendChat(text: string, spoken = false) {
     const message = text.trim()
     if (message === '' || answering || progress.finished || chatLimitReached(chatSent)) return
     const s = step
@@ -369,7 +404,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     const thinkingId = newChatId()
     const now = Date.now()
     setChatItems((items) =>
-      appendItem(appendItem(items, { id: newChatId(), at: now, kind: 'typed', stepId: s.id, text: message }), {
+      appendItem(appendItem(items, { id: newChatId(), at: now, kind: 'typed', stepId: s.id, text: message, spoken }), {
         id: thinkingId,
         at: now,
         kind: 'thinking',
@@ -647,6 +682,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
               onChoose={chooseAutoAsk}
               answering={answering}
               limitReached={chatLimitReached(chatSent)}
+              listening={listening}
               onSend={(message) => void sendChat(message)}
               onAskExpert={askAnExpert}
               panel={
@@ -724,6 +760,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
                 Switch camera
               </button>
             )}
+            <ListeningToggle listening={listening} />
             <p className="ws-privacy">Video and voice stay on this device.</p>
           </div>
           {cameraError && <p className="ws-error">Could not open the camera. Check the browser has permission to use it.</p>}

@@ -2,6 +2,21 @@
 // choice, remembered in this browser, the limit per session, and what to do when no saved
 // answer fits.
 
+import type { SavedAnswer } from './savedAnswerPick.ts'
+
+// What the chat (#74) shows of one automatic run. id: the chat item it is shown as; an
+// update keeps it, so the notification changes in place.
+export type AutoAsk = { id: string; stepId: string; said: string } & (
+  // offer: the check's words and the photo it judged, as a base64 JPEG.
+  | { kind: 'notice'; offer: { said: string; frame: string }; index: number }
+  | { kind: 'picking' }
+  // pick: the saved answer that fits, and which model picked it, in how long.
+  | { kind: 'saved'; pick: { answer: SavedAnswer; source: string; ms: number } }
+  // questionId: the question being waited on, once known.
+  | { kind: 'asking' | 'queued' | 'still-waiting'; questionId: string | null }
+  | { kind: 'limit' | 'failed' | 'panel-open' }
+)
+
 // The learner's choice: on, off, or not made yet (the first time notice shows).
 export type AutoAskChoice = 'on' | 'off' | null
 

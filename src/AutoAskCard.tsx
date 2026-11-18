@@ -1,55 +1,24 @@
-// The Not sure? row's card for the AI asking an expert by itself (#65): the first time
-// notice, what the AI is doing about an unsure check, the saved answer it found or the
-// expert's reply, and the "Ask experts for me" toggle. Issue B moves this into the chat.
+// The chat's notification for the AI asking an expert by itself (#65, #74): the first time
+// notice, what the AI is doing about an unsure check, and the saved answer it found. The
+// expert's reply shows as its own notification in the chat.
 import { InferenceSource } from 'firebase/ai'
-import type { JudgeOffer } from './AskExpert.tsx'
-import type { AutoAskChoice } from './autoAsk.ts'
-import type { Question } from './questions.ts'
-import type { Pick } from './savedAnswers.ts'
+import type { AutoAsk } from './autoAsk.ts'
+import type { ChatQuestion } from './chat.ts'
 
-export type AutoAsk = { stepId: string; said: string } & (
-  | { kind: 'notice'; offer: JudgeOffer; index: number }
-  | { kind: 'picking' }
-  | { kind: 'saved'; pick: Pick & { answer: NonNullable<Pick['answer']> } }
-  // questionId: the question being waited on, once known; only its reply shows here.
-  | { kind: 'asking' | 'queued' | 'still-waiting'; questionId: string | null }
-  | { kind: 'limit' | 'failed' | 'panel-open' }
-)
-
-const sourceText: Record<string, string> = {
+const sourceLabel: Record<string, string> = {
   [InferenceSource.ON_DEVICE]: 'ON DEVICE',
-  [InferenceSource.IN_CLOUD]: 'CLOUD',
+  [InferenceSource.IN_CLOUD]: 'IN THE CLOUD',
 }
 
 type Props = {
-  autoAsk: AutoAsk | null
-  // This learner's questions on the step, newest first, live.
-  questions: Question[]
-  choice: AutoAskChoice
-  onChoose: (choice: 'on' | 'off') => void
+  autoAsk: AutoAsk
+  // The question it is waiting on, from this learner's questions on the step, if known.
+  asked: ChatQuestion | undefined
+  // Only the current notice takes a choice.
+  onChoose?: (choice: 'on' | 'off') => void
 }
 
-export default function AutoAskCard({ autoAsk, questions, choice, onChoose }: Props) {
-  return (
-    <div className="ws-autoask">
-      {autoAsk && <Status autoAsk={autoAsk} questions={questions} onChoose={onChoose} />}
-      <button
-        type="button"
-        role="switch"
-        aria-checked={choice === 'on'}
-        className="ws-switch"
-        onClick={() => onChoose(choice === 'on' ? 'off' : 'on')}
-      >
-        <span className="ws-switch-track" aria-hidden="true">
-          <i />
-        </span>
-        Ask experts for me
-      </button>
-    </div>
-  )
-}
-
-function Status({ autoAsk, questions, onChoose }: { autoAsk: AutoAsk; questions: Question[]; onChoose: Props['onChoose'] }) {
+export default function AutoAskCard({ autoAsk, asked, onChoose }: Props) {
   if (autoAsk.kind === 'notice') {
     return (
       <div className="ws-note" role="region" aria-label="Ask experts for me">
@@ -59,14 +28,16 @@ function Status({ autoAsk, questions, onChoose }: { autoAsk: AutoAsk; questions:
           When the AI is not sure, Surtrix can ask a Surtrix expert for you. A photo of your bench and this step go to
           the expert. You can turn this off at any time.
         </p>
-        <div className="ws-note-actions">
-          <button type="button" className="ws-pill ws-pill-yellow" onClick={() => onChoose('on')}>
-            Ask experts for me
-          </button>
-          <button type="button" className="ws-pill" onClick={() => onChoose('off')}>
-            Not now
-          </button>
-        </div>
+        {onChoose && (
+          <div className="ws-note-actions">
+            <button type="button" className="ws-pill ws-pill-yellow" onClick={() => onChoose('on')}>
+              Ask experts for me
+            </button>
+            <button type="button" className="ws-pill" onClick={() => onChoose('off')}>
+              Not now
+            </button>
+          </div>
+        )}
       </div>
     )
   }
@@ -81,22 +52,8 @@ function Status({ autoAsk, questions, onChoose }: { autoAsk: AutoAsk; questions:
           From <b>{answer.expertName}</b>
           <span className="ws-mono">
             {' '}
-            · {sourceText[source] ?? source.toUpperCase()} · {ms.toLocaleString('en-US')} MS
+            · {sourceLabel[source] ?? source.toUpperCase()} · {ms.toLocaleString('en-US')} MS
           </span>
-        </p>
-      </div>
-    )
-  }
-
-  // The question being waited on: its reply, and only its reply, shows here once it comes.
-  const asked = 'questionId' in autoAsk && autoAsk.questionId ? questions.find((q) => q.id === autoAsk.questionId) : undefined
-  if (asked?.reply) {
-    return (
-      <div className="ws-note">
-        <p className="ws-mono ws-note-label">REAL EXPERT · ANSWERED</p>
-        <p>{asked.reply.text}</p>
-        <p className="ws-note-meta">
-          From <b>{asked.reply.expertName}</b>
         </p>
       </div>
     )
@@ -115,7 +72,7 @@ function Status({ autoAsk, questions, onChoose }: { autoAsk: AutoAsk; questions:
     <div className="ws-note" aria-live="polite">
       <p className="ws-mono ws-note-label">IN THE CLOUD · NOT SURE</p>
       <p>{autoAsk.said}</p>
-      <p className="ws-note-status">{text[autoAsk.kind]}</p>
+      <p className="ws-note-status">{asked?.reply ? 'An expert answered.' : text[autoAsk.kind]}</p>
     </div>
   )
 }

@@ -228,11 +228,40 @@ main.skills-page {
   min-height: 48px;
 }
 
+/* The trade chips (settled p): All fixed at the left, then one row that slides sideways,
+   with faded edges, and scrolls by hand. The page itself never scrolls sideways. */
 .skills-chips {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
   margin: 18px 0 32px;
+}
+
+.skills-chip-row {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 0 24px;
+  scrollbar-width: none;
+  cursor: grab;
+  mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 48px), transparent);
+}
+
+.skills-chip-row::-webkit-scrollbar {
+  display: none;
+}
+
+.skills-chip-row:active {
+  cursor: grabbing;
+}
+
+.skills-chip-copy {
+  display: flex;
+  flex: none;
+  gap: 8px;
 }
 
 .skills-page .skills-chip {
@@ -589,19 +618,6 @@ main.skills-page {
     white-space: nowrap;
   }
 
-  .skills-chips {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    margin-left: -20px;
-    margin-right: -20px;
-    padding: 0 20px;
-    scrollbar-width: none;
-    mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent);
-  }
-
-  .skills-chips::-webkit-scrollbar {
-    display: none;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

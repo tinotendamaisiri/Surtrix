@@ -47,3 +47,14 @@ export function landingRows<T>(skills: readonly T[]): [T[], T[]] {
 
 export const PLACEHOLDER_NOTE =
   'Example skills: expert names, steps and times are placeholders until experts publish real skills.'
+
+// The trade chip row's slide (#83, p): pixels a second, about as slow as the landing rows.
+export const CHIP_SLIDE_SPEED = 24
+
+// Where the sliding chip row is after `seconds`. The row holds the chips twice, so when it
+// has moved one copy's width it starts that copy again and the loop never shows a seam.
+export function chipRowPosition(position: number, seconds: number, loopWidth: number, speed = CHIP_SLIDE_SPEED): number {
+  if (loopWidth <= 0) return position
+  const next = position + seconds * speed
+  return next >= loopWidth ? next - loopWidth : next
+}

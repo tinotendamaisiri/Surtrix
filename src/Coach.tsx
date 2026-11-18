@@ -7,7 +7,10 @@ import Chat from './Chat.tsx'
 import {
   appendItem,
   chatEntries,
+  ChatLimitedError,
   chatLimitReached,
+  chatSentThisSession,
+  countChatMessage,
   chatHistory,
   chatPreview,
   dropPassingAuto,
@@ -19,7 +22,7 @@ import {
   writeChatSeenAt,
   type ChatItem,
 } from './chat.ts'
-import { ChatLimitedError, replyToChat } from './chatReply.ts'
+import { replyToChat } from './chatReply.ts'
 import { pickSavedAnswer, useSavedAnswers, type Pick as SavedPick } from './savedAnswers.ts'
 import {
   goBack,
@@ -119,7 +122,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const [chatSeenAt, setChatSeenAt] = useState(() => readChatSeenAt(skill.id) ?? Date.now())
   const [answering, setAnswering] = useState(false)
   // Typed messages sent this session (a page load), for the limit.
-  const [chatSent, setChatSent] = useState(0)
+  const [chatSent, setChatSent] = useState(chatSentThisSession)
   // Opens the Ask an Expert panel from the chat.
   const [askRequest, setAskRequest] = useState<AskRequest | null>(null)
 
@@ -361,7 +364,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       }),
     )
     setAnswering(true)
-    setChatSent((n) => n + 1)
+    setChatSent(countChatMessage())
     const look = watch.look?.stepId === s.id ? watch.look : null
     let item: ChatItem
     try {

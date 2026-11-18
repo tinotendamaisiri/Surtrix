@@ -1,7 +1,7 @@
 // A reply to a learner's typed chat message (#74): gemini-3.5-flash-lite in the cloud first,
 // and Gemini Nano on device when the cloud cannot answer (offline, a failed call, or no
-// answer within 15 seconds), but never after a refusal for billing or quota. Cloud first because Nano gave unsafe substitute advice in
-// tests on Nov 18 (Tino's decision).
+// answer within 15 seconds), but never after a refusal for billing or quota. Cloud first
+// because Nano gave unsafe substitute advice in tests on Nov 18 (Tino's decision).
 // On device inference is single turn only (Firebase AI Logic hybrid docs, checked Nov 18),
 // so each message is one call with the recent chat written into the prompt. Text only: no
 // camera photo goes with it.
@@ -19,7 +19,7 @@ import {
   CHAT_INSTRUCTION,
   chatPrompt,
   chatReplySchema,
-  isLimitedStatus,
+  cloudThenDevice,
   parseChatReply,
   savedAnswerIds,
   type ChatAnswer,
@@ -83,14 +83,6 @@ function modelsFor(context: ChatContext) {
 
 export type ChatReply = { answer: ChatAnswer; source: string; ms: number }
 
-// The cloud refused for billing or quota: the chat says answers are limited.
-export class ChatLimitedError extends Error {
-  constructor(cause: unknown) {
-    super('The cloud refused the chat for billing or quota.', { cause })
-    this.name = 'ChatLimitedError'
-  }
-}
-
 type LanguageModelAvailability = { availability(options: LanguageModelCreateOptions): Promise<string> }
 
 // Nano can answer now: never a download wait. Without Chrome's API the SDK would send even a
@@ -104,23 +96,18 @@ async function nanoReady(): Promise<boolean> {
   }
 }
 
-// The cloud gets CHAT_CLOUD_LIMIT_MS. A refusal for billing or quota throws
-// ChatLimitedError, never Nano. Any other failure (offline, out of time, a server error)
-// has Nano answer on device when it is ready. Throws when no model can answer or the reply
-// is not in the expected shape.
+// The cloud gets CHAT_CLOUD_LIMIT_MS; cloudThenDevice decides what happens when it cannot
+// answer. Throws when no model can answer or the reply is not in the expected shape.
 export async function replyToChat(context: ChatContext): Promise<ChatReply> {
   const started = performance.now()
   const prompt = chatPrompt(context)
   const models = modelsFor(context)
-  let result
-  try {
-    result = await models.cloud.generateContent(prompt, { timeout: CHAT_CLOUD_LIMIT_MS })
-  } catch (e) {
-    if (isLimitedStatus(e instanceof AIError ? e.customErrorData?.status : undefined)) throw new ChatLimitedError(e)
-    if (!(await nanoReady())) throw e
-    console.warn('The cloud could not answer, answering on device', e)
-    result = await models.device.generateContent(prompt)
-  }
+  const result = await cloudThenDevice({
+    cloud: () => models.cloud.generateContent(prompt, { timeout: CHAT_CLOUD_LIMIT_MS }),
+    device: () => models.device.generateContent(prompt),
+    deviceReady: nanoReady,
+    statusOf: (e) => (e instanceof AIError ? e.customErrorData?.status : undefined),
+  })
   return {
     answer: parseChatReply(result.response.text(), context.savedAnswers),
     source: result.response.inferenceSource ?? 'unknown',

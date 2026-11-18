@@ -20,7 +20,11 @@ import {
   type ChatItem,
   type ChatQuestion,
   CHAT_LIMIT_TEXT,
+  ChatLimitedError,
   chatLimitReached,
+  chatSentThisSession,
+  cloudThenDevice,
+  countChatMessage,
   isLimitedStatus,
   LIMITED_TEXT,
   ON_DEVICE_NOTE,
@@ -289,4 +293,57 @@ test("the limited reply and the device note say what Tino asked for, and the pre
   expect(ON_DEVICE_NOTE).toBe('Answered on this device. Check with an expert before risky steps.')
   const items: ChatItem[] = [{ id: 'f1', at: 1, kind: 'reply-failed', stepId: 's1', question: 'x', limited: true }]
   expect(chatPreview(chatEntries(items, [], steps), 's1')).toBe(LIMITED_TEXT)
+})
+
+test('the message count is kept for the page load, not for one screen', () => {
+  const start = chatSentThisSession()
+  expect(countChatMessage()).toBe(start + 1)
+  // A Workspace shown again reads the same count.
+  expect(chatSentThisSession()).toBe(start + 1)
+})
+
+function httpError(status: number) {
+  return Object.assign(new Error(`HTTP ${status}`), { status })
+}
+
+async function choose(cloudError: unknown, ready: boolean) {
+  const calls: string[] = []
+  const result = cloudThenDevice({
+    cloud: async () => {
+      calls.push('cloud')
+      if (cloudError) throw cloudError
+      return 'cloud answer'
+    },
+    device: async () => {
+      calls.push('device')
+      return 'device answer'
+    },
+    deviceReady: async () => {
+      calls.push('ready?')
+      return ready
+    },
+    statusOf: (e) => (e as { status?: number }).status,
+  })
+  return { result: await result.then((r) => r, (e: unknown) => e), calls }
+}
+
+test('a reply comes from the cloud when it answers', async () => {
+  expect(await choose(null, true)).toEqual({ result: 'cloud answer', calls: ['cloud'] })
+})
+
+test('a refusal for billing or quota says answers are limited and never asks the device', async () => {
+  for (const status of [429, 403]) {
+    const { result, calls } = await choose(httpError(status), true)
+    expect(result).toBeInstanceOf(ChatLimitedError)
+    expect(calls).toEqual(['cloud'])
+  }
+})
+
+test('any other cloud failure has the device answer, only when it is ready', async () => {
+  expect(await choose(httpError(500), true)).toEqual({ result: 'device answer', calls: ['cloud', 'ready?', 'device'] })
+  const timeout = Object.assign(new Error('timed out'), { name: 'AbortError' })
+  expect((await choose(timeout, true)).result).toBe('device answer')
+  const notReady = await choose(httpError(500), false)
+  expect(notReady.calls).toEqual(['cloud', 'ready?'])
+  expect((notReady.result as Error).message).toBe('HTTP 500')
 })

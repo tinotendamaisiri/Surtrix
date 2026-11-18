@@ -34,6 +34,20 @@ export function chatLimitReached(sent: number): boolean {
   return sent >= CHAT_MESSAGE_LIMIT
 }
 
+// Kept for the page load, like the limit of automatic expert questions, so leaving the
+// Workspace and coming back, or opening another skill, does not start the count again.
+let sentThisSession = 0
+
+export function chatSentThisSession(): number {
+  return sentThisSession
+}
+
+// Counts one typed message and returns the new count.
+export function countChatMessage(): number {
+  sentThisSession += 1
+  return sentThisSession
+}
+
 export const CHAT_LIMIT_TEXT = `You've reached the limit of ${CHAT_MESSAGE_LIMIT} messages for this session.`
 
 // A cloud answer refused for billing or quota: 429 (prepaid credit used up, a quota or the
@@ -43,6 +57,39 @@ export function isLimitedStatus(status: number | undefined): boolean {
 }
 
 export const LIMITED_TEXT = 'Answers are limited right now.'
+
+// The cloud refused for billing or quota: the chat says answers are limited.
+export class ChatLimitedError extends Error {
+  constructor(cause: unknown) {
+    super('The cloud refused the chat for billing or quota.', { cause })
+    this.name = 'ChatLimitedError'
+  }
+}
+
+// How a reply is chosen (#74, m): the cloud first. A refusal for billing or quota throws
+// ChatLimitedError and never tries the device. Any other failure has the device answer
+// when it is ready, and is thrown again when it is not.
+export async function cloudThenDevice<R>({
+  cloud,
+  device,
+  deviceReady,
+  statusOf,
+}: {
+  cloud: () => Promise<R>
+  device: () => Promise<R>
+  deviceReady: () => Promise<boolean>
+  // The HTTP status of a cloud failure, if it has one.
+  statusOf: (error: unknown) => number | undefined
+}): Promise<R> {
+  try {
+    return await cloud()
+  } catch (e) {
+    if (isLimitedStatus(statusOf(e))) throw new ChatLimitedError(e)
+    if (!(await deviceReady())) throw e
+    console.warn('The cloud could not answer, answering on device', e)
+    return device()
+  }
+}
 
 // Under every reply that ran on device.
 export const ON_DEVICE_NOTE = 'Answered on this device. Check with an expert before risky steps.'

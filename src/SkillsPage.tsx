@@ -4,6 +4,7 @@
 // saved skills.
 import { useRef, useState, type FormEvent } from 'react'
 import MySkills from './MySkills.tsx'
+import TradeChips from './TradeChips.tsx'
 import { exampleSkills, pinnedSkill, type CatalogSkill } from './skillCatalog.ts'
 import { HOW_IT_WORKS_HASH, MY_SKILLS_HASH, SKILLS_HASH, type SkillsTab } from './screenAddress.ts'
 import {
@@ -37,12 +38,6 @@ export default function SkillsPage({ tab }: { tab: SkillsTab }) {
   function applySearch(event: FormEvent) {
     event.preventDefault()
     resultsRef.current?.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' })
-  }
-
-  function pickTrade(name: string, chip: HTMLButtonElement) {
-    setTrade(name)
-    // In the one row on phones, the picked chip scrolls into view (settled o).
-    chip.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'nearest', inline: 'center' })
   }
 
   return (
@@ -110,19 +105,7 @@ export default function SkillsPage({ tab }: { tab: SkillsTab }) {
               </button>
             </form>
 
-            <div className="skills-chips" role="group" aria-label="Trades">
-              {chips.map((name) => (
-                <button
-                  key={name}
-                  type="button"
-                  className={`skills-chip${name === trade ? ' skills-chip-on' : ''}`}
-                  aria-pressed={name === trade}
-                  onClick={(e) => pickTrade(name, e.currentTarget)}
-                >
-                  {name}
-                </button>
-              ))}
-            </div>
+            <TradeChips trades={chips.filter((c) => c !== ALL_TRADES)} picked={trade} onPick={setTrade} />
 
             {pinnedShown && (
               <section className="skills-pinned" aria-label="Quick to test">

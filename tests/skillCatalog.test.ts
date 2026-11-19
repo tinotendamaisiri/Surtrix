@@ -6,6 +6,8 @@ import { HERO_IMAGE, HERO_SMALL_IMAGE } from '../src/landingImages.ts'
 import { exampleSkills, pinnedSkill } from '../src/skillCatalog.ts'
 import {
   ALL_TRADES,
+  CHIP_SLIDE_SPEED,
+  chipRowPosition,
   cardTag,
   countText,
   exampleLine,
@@ -98,4 +100,14 @@ test('the count, the step text and the placeholder note read as designed, with n
   for (const s of [pinnedSkill, ...exampleSkills]) {
     for (const text of [s.trade, s.title, s.description, s.expert, s.time]) expect(text).not.toMatch(/[\u2013\u2014]| - /)
   }
+})
+
+test('the chip row slides slowly and loops without a seam', () => {
+  expect(CHIP_SLIDE_SPEED).toBeGreaterThan(0)
+  expect(CHIP_SLIDE_SPEED).toBeLessThan(60)
+  expect(chipRowPosition(100, 1, 1000, 24)).toBe(124)
+  // Past one copy's width it starts that copy again, at the same point in it.
+  expect(chipRowPosition(990, 1, 1000, 24)).toBe(14)
+  // Nothing to loop over yet: it stays where it is.
+  expect(chipRowPosition(50, 1, 0, 24)).toBe(50)
 })

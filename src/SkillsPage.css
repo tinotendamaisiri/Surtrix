@@ -247,7 +247,7 @@ main.skills-page {
   padding: 0 24px;
   scrollbar-width: none;
   cursor: grab;
-  mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 48px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
 }
 
 .skills-chip-row::-webkit-scrollbar {
@@ -617,7 +617,6 @@ main.skills-page {
     clip: rect(0 0 0 0);
     white-space: nowrap;
   }
-
 }
 
 @media (prefers-reduced-motion: reduce) {

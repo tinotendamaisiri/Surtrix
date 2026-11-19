@@ -249,6 +249,8 @@ main.skills-page {
   margin: -6px 0;
   scrollbar-width: none;
   cursor: grab;
+  /* A drag moves the row; it never selects the chip names as text. */
+  user-select: none;
   mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
 }
 
@@ -585,8 +587,7 @@ main.skills-page {
   }
 }
 
-/* Phones: one column, the header centered, and the chips in one row that scrolls
-   sideways inside itself with faded edges (settled o). */
+/* Phones: one column, the header centered, and room for the search box. */
 @media (max-width: 700px) {
   .skills-grid {
     grid-template-columns: minmax(0, 1fr);

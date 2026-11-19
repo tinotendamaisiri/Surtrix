@@ -244,7 +244,9 @@ main.skills-page {
   display: flex;
   gap: 8px;
   overflow-x: auto;
-  padding: 0 24px;
+  /* Room above and below for the keyboard focus ring, which the row would clip. */
+  padding: 6px 24px;
+  margin: -6px 0;
   scrollbar-width: none;
   cursor: grab;
   mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
@@ -275,6 +277,11 @@ main.skills-page {
   font: 13px Inter, sans-serif;
   white-space: nowrap;
   cursor: pointer;
+}
+
+.skills-page .skills-chip:focus-visible {
+  outline: 2px solid #f9d440;
+  outline-offset: 2px;
 }
 
 .skills-page .skills-chip:hover {

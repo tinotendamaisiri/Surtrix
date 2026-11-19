@@ -35,7 +35,9 @@ export default function TradeChips({ trades, picked, onPick }: Props) {
   const finger = useRef(false)
   const focus = useRef(false)
   const handUntil = useRef(0)
-  // Where the slide last put the row, to tell its own moves from a hand scroll.
+  // The slide's own position, kept exactly: some browsers (Safari) store a scroll position
+  // in whole pixels, so adding a fraction of a pixel to the row's own value would never
+  // move it. It takes the row's value back only after a hand scroll.
   const written = useRef(0)
   const drag = useRef<{ x: number; left: number; moved: boolean } | null>(null)
   const sliding = !still && picked === ALL_TRADES
@@ -56,7 +58,7 @@ export default function TradeChips({ trades, picked, onPick }: Props) {
       const canLoop = loopWidth > 0 && row.scrollWidth - row.clientWidth >= loopWidth
       const held = hover.current || finger.current || focus.current || now < handUntil.current
       if (canLoop && !held) {
-        written.current = chipRowPosition(row.scrollLeft, seconds, loopWidth)
+        written.current = chipRowPosition(written.current, seconds, loopWidth)
         row.scrollLeft = written.current
       }
       frame = requestAnimationFrame(step)
@@ -79,10 +81,13 @@ export default function TradeChips({ trades, picked, onPick }: Props) {
     row.scrollTo({ left: chip.offsetLeft - (row.clientWidth - chip.offsetWidth) / 2, behavior: still ? 'auto' : 'smooth' })
   }, [picked, still])
 
-  // Any scroll the slide did not make is a hand scroll.
+  // Any scroll the slide did not make is a hand scroll: the slide holds, then carries on
+  // from where the hand left the row.
   function onScroll() {
     const row = rowRef.current
-    if (row && Math.abs(row.scrollLeft - written.current) > 2) handUntil.current = performance.now() + HAND_PAUSE_MS
+    if (!row || Math.abs(row.scrollLeft - written.current) <= 2) return
+    handUntil.current = performance.now() + HAND_PAUSE_MS
+    written.current = row.scrollLeft
   }
 
   function onPointerDown(event: PointerEvent<HTMLDivElement>) {
@@ -122,6 +127,8 @@ export default function TradeChips({ trades, picked, onPick }: Props) {
       className={`skills-chip${trade === picked ? ' skills-chip-on' : ''}`}
       aria-pressed={copy ? undefined : trade === picked}
       tabIndex={copy ? -1 : undefined}
+      // A click on the hidden copy picks without moving focus into it.
+      onMouseDown={copy ? (e) => e.preventDefault() : undefined}
       onClick={() => pick(trade)}
     >
       {trade}
@@ -157,12 +164,13 @@ export default function TradeChips({ trades, picked, onPick }: Props) {
         onTouchStart={() => {
           finger.current = true
         }}
-        onTouchEnd={() => {
-          finger.current = false
+        onTouchEnd={(e) => {
+          // Still held while another finger is on it.
+          finger.current = e.touches.length > 0
           handUntil.current = performance.now() + HAND_PAUSE_MS
         }}
-        onTouchCancel={() => {
-          finger.current = false
+        onTouchCancel={(e) => {
+          finger.current = e.touches.length > 0
         }}
         // Keyboard focus holds the row; a mouse click on a chip also focuses it, which
         // must not stop the row for good.

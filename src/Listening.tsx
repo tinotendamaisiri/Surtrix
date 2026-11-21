@@ -2,7 +2,7 @@
 // in the chat, and the LISTENING tag. All three controls turn the same listening on and
 // off (settled f).
 import type { Listening } from './useListening.ts'
-import { listeningOn, listeningProblem } from './voice.ts'
+import { listeningOn, listeningProblem, NO_CHECK_LINE, voiceNoteText, type VoiceNote } from './voice.ts'
 
 function Wave() {
   return (
@@ -32,11 +32,50 @@ function label(listening: Listening): string {
   return listeningOn(listening.state) ? 'Listening' : 'Not listening'
 }
 
+// A message was heard and waits for its silence or its check: no words, only this sign
+// (settled l).
+// The copy under the camera is the one read out; the chat's copy only shows.
+export function HeardYou({ heard, announce = true }: { heard: boolean; announce?: boolean }) {
+  return (
+    <span className="ws-heard" role={announce ? 'status' : undefined} aria-hidden={announce ? undefined : true}>
+      {heard && (
+        <>
+          <i className="ws-dot" aria-hidden="true" />
+          Heard you
+        </>
+      )}
+    </span>
+  )
+}
+
+// The quiet note after a spoken message that did not go; it fades (settled n, o).
+export function VoiceNoteLine({ note }: { note: { note: VoiceNote; id: number } | null }) {
+  return (
+    <p className="ws-voice-note" role="status">
+      {note && (
+        <span key={note.id} className="ws-voice-note-text">
+          {voiceNoteText(note.note)}
+        </span>
+      )}
+    </p>
+  )
+}
+
+type ToggleProps = {
+  listening: Listening
+  // A message heard and not yet sent or let go.
+  heard: boolean
+  // A quiet note to show here: only while the chat is closed (settled p).
+  note: { note: VoiceNote; id: number } | null
+  // This device cannot run the voice check, so questions need typing (settled o).
+  noVoiceCheck: boolean
+}
+
 // Under the camera: "Listening" with moving bars, or a grey "Not listening" with a crossed
 // out mic, and the reason when voice cannot run.
-export function ListeningToggle({ listening }: { listening: Listening }) {
+export function ListeningToggle({ listening, heard, note, noVoiceCheck }: ToggleProps) {
   const on = listeningOn(listening.state)
-  const problem = listeningProblem(listening.state)
+  const problem = listeningProblem(listening.state) ?? (on && noVoiceCheck ? NO_CHECK_LINE : null)
   return (
     <>
       <button
@@ -48,7 +87,9 @@ export function ListeningToggle({ listening }: { listening: Listening }) {
         {on ? <Wave /> : <MicIcon crossed />}
         {label(listening)}
       </button>
+      {on && <HeardYou heard={heard} />}
       {problem && <p className="ws-listen-problem">{problem}</p>}
+      <VoiceNoteLine note={note} />
     </>
   )
 }

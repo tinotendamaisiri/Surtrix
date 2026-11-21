@@ -5,8 +5,9 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode, type Ref } from 'react'
 import { InferenceSource } from 'firebase/ai'
 import AutoAskCard from './AutoAskCard.tsx'
-import { ListeningTag, MicButton } from './Listening.tsx'
+import { HeardYou, ListeningTag, MicButton, VoiceNoteLine } from './Listening.tsx'
 import type { Listening } from './useListening.ts'
+import type { VoiceNote } from './voice.ts'
 import type { AutoAskChoice } from './autoAsk.ts'
 import {
   CHAT_LIMIT_TEXT,
@@ -44,6 +45,10 @@ type Props = {
   limitReached: boolean
   // Voice (#80): one listening state for both mics and the tag.
   listening: Listening
+  // A spoken message heard and not yet sent or let go: a sign with no words (settled l).
+  heard: boolean
+  // The quiet note after a spoken message that did not go (settled n, o).
+  voiceNote: { note: VoiceNote; id: number } | null
   onSend: (message: string) => void
   // Opens the Ask an Expert panel, with the learner's message when it came from a reply.
   onAskExpert: (question: string) => void
@@ -67,8 +72,7 @@ export default function Chat({ sectionRef, ...props }: Props) {
 
   function send(e: FormEvent) {
     e.preventDefault()
-    // While words are being heard the box shows them, so Send waits.
-    if (answering || props.limitReached || props.listening.heard !== '' || message.trim() === '') return
+    if (answering || props.limitReached || message.trim() === '') return
     props.onSend(message)
     setMessage('')
   }
@@ -152,6 +156,10 @@ export default function Chat({ sectionRef, ...props }: Props) {
             </button>
           </div>
         )}
+        <div className="ws-chat-voice">
+          <HeardYou heard={props.heard} announce={false} />
+          <VoiceNoteLine note={open ? props.voiceNote : null} />
+        </div>
         <form className="ws-chat-input" onSubmit={send}>
           <label htmlFor="ws-chat-message" className="ws-visually-hidden">
             Message
@@ -168,10 +176,9 @@ export default function Chat({ sectionRef, ...props }: Props) {
             }
             autoComplete="off"
             maxLength={CHAT_MAX_LENGTH}
-            // While a phrase is being heard, its words show here (settled e).
-            value={props.listening.heard || message}
+            // Words still being heard never show here (settled l).
+            value={message}
             onChange={(e) => setMessage(e.target.value)}
-            readOnly={props.listening.heard !== ''}
             disabled={props.limitReached}
           />
           <MicButton listening={props.listening} />
@@ -179,7 +186,7 @@ export default function Chat({ sectionRef, ...props }: Props) {
             type="submit"
             className="ws-chat-send"
             aria-label="Send"
-            disabled={answering || props.limitReached || props.listening.heard !== '' || message.trim() === ''}
+            disabled={answering || props.limitReached || message.trim() === ''}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M5 12h14" />

@@ -1127,6 +1127,66 @@ main.workspace {
   color: #a89e8f;
 }
 
+/* A spoken message heard and waiting: a sign with no words (#80, settled l). */
+.ws-heard {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #f9d440;
+}
+
+.ws-heard:empty {
+  display: none;
+}
+
+.ws-heard .ws-dot {
+  animation: ws-heard-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes ws-heard-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* The quiet note after a spoken message that did not go: it fades (settled n, o). */
+.ws-voice-note {
+  margin: 0;
+  flex-basis: 100%;
+  font-size: 12px;
+  color: #a89e8f;
+}
+
+.ws-voice-note:empty {
+  display: none;
+}
+
+.ws-voice-note-text {
+  animation: ws-voice-note-fade 6s ease-in forwards;
+}
+
+@keyframes ws-voice-note-fade {
+  0%,
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.ws-chat-voice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ws-chat-voice .ws-voice-note,
+.ws-chat-voice .ws-heard {
+  padding-top: 8px;
+}
+
 .ws-wave {
   display: inline-flex;
   align-items: center;
@@ -1552,6 +1612,11 @@ main.workspace {
   }
 
   .ws-wave i {
+    animation: none;
+  }
+
+  .ws-heard .ws-dot,
+  .ws-voice-note-text {
     animation: none;
   }
 }

@@ -10,6 +10,7 @@ import {
   ChatDeviceTimeoutError,
   ChatGarbledError,
   ChatLimitedError,
+  CHAT_MAX_LENGTH,
   chatLimitReached,
   garbledReplyIsFree,
   chatSentThisSession,
@@ -30,6 +31,10 @@ import {
   type SeenMark,
 } from './chat.ts'
 import { replyToChat } from './chatReply.ts'
+import { ListeningToggle } from './Listening.tsx'
+import { checkTopic, prepareTopicCheck, topicCheckPossible } from './topicCheck.ts'
+import { useListening } from './useListening.ts'
+import { listeningOn, spokenAction, VOICE_NOTE_MS, type VoiceNote } from './voice.ts'
 import { pickSavedAnswer, useSavedAnswers, type Pick as SavedPick } from './savedAnswers.ts'
 import {
   goBack,
@@ -109,12 +114,39 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const [wiring, setWiring] = useState<Wiring | null>(null)
   const step = skill.steps[progress.stepIndex]
   const checking = wiring?.kind === 'checking'
+  const finishedRef = useRef(progress.finished)
   // Held only until the deadline: then Back, Next and Mark done anyway work again.
   const holding = checking && !wiring.slow
   // The running wiring check: its number, its cancel switch and its two timers (#9).
   const attemptRef = useRef(0)
   const runningRef = useRef<{ controller: AbortController; timers: ReturnType<typeof setTimeout>[] } | null>(null)
   const watch = useBenchWatch(videoRef, cameraOn && !progress.finished, step.id, step.parts)
+  // Talking to the Workspace (#80): each spoken message, recognised on the device. Turning
+  // listening on starts loading Nano for the voice check (settled o).
+  const listening = useListening(
+    (text) => onSpoken(text),
+    () => {
+      prepareTopicCheck()
+      void topicCheckPossible().then((possible) => setNoVoiceCheck(!possible))
+    },
+  )
+  // Spoken messages Nano passed, waiting for the reply before them; sent one by one.
+  // stops: listening's stop count when it was heard; an older one means listening stopped
+  // since, and it never goes.
+  const spokenQueue = useRef<{ text: string; stepId: string; stops: number }[]>([])
+  // Spoken messages are checked one at a time, in the order they were said.
+  const voiceCheckRef = useRef<Promise<void>>(Promise.resolve())
+  // How many spoken messages Nano is checking now: "heard you" shows meanwhile.
+  const [voiceChecking, setVoiceChecking] = useState(0)
+  // The quiet note after a spoken message that did not go, until it fades.
+  const [voiceNote, setVoiceNote] = useState<{ note: VoiceNote; id: number } | null>(null)
+  // This device cannot run the voice check: spoken questions need typing here.
+  const [noVoiceCheck, setNoVoiceCheck] = useState(false)
+  // The step on screen now, for a check that finishes after the learner moved on.
+  const stepIdRef = useRef('')
+  // Set when a spoken "done" acts, until the step or the wiring check changes, so two
+  // quick "done"s act once.
+  const doneActingRef = useRef(false)
   // Every step's saved expert answers, loaded once (#31), so they still help offline.
   const saved = useSavedAnswers(skill)
 
@@ -133,6 +165,8 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const entriesRef = useRef<ChatEntry[]>([])
   const chatSeenRef = useRef(chatSeenAt)
   const [answering, setAnswering] = useState(false)
+  // Set at once when a reply starts, so phrases heard close together queue (#80).
+  const answeringRef = useRef(false)
   // Typed messages sent this session (a page load), for the limit.
   const [chatSent, setChatSent] = useState(chatSentThisSession)
   // Opens the Ask an Expert panel from the chat.
@@ -296,6 +330,8 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     endAutoAsk()
     setManualOffer(null)
     setAskRequest(null)
+    // A spoken message still waiting was about the step being left.
+    dropSpokenQueue()
     setProgress(change)
   }
 
@@ -359,23 +395,135 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     setAskRequest({ question, frame: cameraOn ? grabFrameBase64(videoRef.current) : null })
   }
 
-  // A typed message: the cloud answers, or Gemini Nano on device when the cloud cannot.
-  async function sendChat(text: string) {
-    const message = text.trim()
-    if (message === '' || answering || progress.finished || chatLimitReached(chatSent)) return
+  // A spoken message (#80): "done" finishes the step (settled g); anything else goes to the
+  // chat like typing only once Nano on this device has passed it as talk about the task
+  // (settled m to p). Its words show only then.
+  function onSpoken(text: string) {
+    if (progress.finished) return
+    if (spokenAction(text) === 'done') {
+      setChatItems((items) =>
+        appendItem(items, { id: newChatId(), at: Date.now(), kind: 'typed', stepId: step.id, text, spoken: true, command: true }),
+      )
+      // Like Mark step done; ignored while a wiring check runs (settled h).
+      if (!checking && !doneActingRef.current) {
+        doneActingRef.current = true
+        void markDone()
+      }
+      return
+    }
+    const stepId = step.id
+    const stops = listening.stops()
+    const context = {
+      skillTitle: skill.title,
+      step: { title: step.title, instruction: step.instruction, parts: step.parts },
+      lastReply: chatHistory(chatItemsRef.current).findLast((turn) => turn.from === 'ai')?.text ?? null,
+    }
+    setVoiceChecking((n) => n + 1)
+    voiceCheckRef.current = voiceCheckRef.current
+      .then(async () => {
+        // The count goes down last, so the render it causes sends what was queued, and it
+        // always goes down, so "Heard you" never stays on.
+        try {
+          const verdict = await checkTopic(context, text)
+          // Listening stopped since: the message goes nowhere, with no note (settled r).
+          if (!onScreenRef.current || listening.stops() !== stops) return
+          // A question about a step already left goes nowhere, with a note; other talk from
+          // then needs no note on the new step (Tino, Nov 21).
+          if (stepIdRef.current !== stepId || finishedRef.current) {
+            if (verdict === 'about the task') showVoiceNote('left')
+            return
+          }
+          if (verdict !== 'about the task') {
+            showVoiceNote(verdict === 'other talk' ? 'dropped' : 'unchecked')
+            return
+          }
+          spokenQueue.current.push({ text, stepId, stops })
+        } finally {
+          if (onScreenRef.current) setVoiceChecking((n) => n - 1)
+        }
+      })
+      .catch((e) => console.error('The voice check failed', e))
+  }
+
+  // A spoken message heard and not yet sent or let go, shown only while listening is on.
+  const heardYou = listeningOn(listening.state) && (listening.waiting || voiceChecking > 0)
+
+  // Spoken words still waiting for their silence or for a reply are dropped when their step
+  // is left, with a note (Tino, Nov 21).
+  function dropSpokenQueue() {
+    const heard = listening.drop()
+    if (spokenQueue.current.length === 0 && !heard) return
+    spokenQueue.current = []
+    showVoiceNote('left')
+  }
+
+  const voiceNoteTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  function showVoiceNote(note: VoiceNote) {
+    clearTimeout(voiceNoteTimer.current)
+    setVoiceNote({ note, id: Date.now() })
+    voiceNoteTimer.current = setTimeout(() => setVoiceNote(null), VOICE_NOTE_MS)
+  }
+  useEffect(() => () => clearTimeout(voiceNoteTimer.current), [])
+
+  // What is on screen now, for a voice check that finishes later.
+  useEffect(() => {
+    stepIdRef.current = step.id
+    finishedRef.current = progress.finished
+  })
+
+  // A new step, or a wiring check starting or ending, lets the next "done" act.
+  useEffect(() => {
+    doneActingRef.current = false
+  }, [progress.stepIndex, progress.finished, wiring])
+
+  // The next spoken message goes once the reply before it is in, and the chat opens so the
+  // reply is seen (settled p). Past the message limit it is shown, beside the limit line,
+  // and not sent; the chat opens for that too (Tino, Nov 21).
+  useEffect(() => {
+    if (answering || answeringRef.current) return
+    let next = spokenQueue.current.shift()
+    let left = false
+    // Listening stopped since: dropped with no note. A step left: dropped with a note.
+    while (next && (next.stops !== listening.stops() || next.stepId !== step.id || progress.finished)) {
+      if (next.stops === listening.stops()) left = true
+      next = spokenQueue.current.shift()
+    }
+    if (left) showVoiceNote('left')
+    if (!next) return
+    setChatOpen(true)
+    if (chatLimitReached(chatSent)) {
+      const { text, stepId } = next
+      setChatItems((items) =>
+        appendItem(items, { id: newChatId(), at: Date.now(), kind: 'typed', stepId, text, spoken: true, command: true }),
+      )
+      return
+    }
+    void sendChat(next.text, true)
+    // A message joins the queue just before voiceChecking goes down, so that change runs this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [answering, voiceChecking, step.id, progress.finished, chatSent, listening.state])
+
+  // spoken: said while listening, so it is labelled YOU SAID.
+  async function sendChat(text: string, spoken = false) {
+    // Typed and spoken messages keep the same length limit.
+    const message = text.trim().slice(0, CHAT_MAX_LENGTH)
+    // The ref, not the rendered state, says whether a reply is being made: a phrase heard
+    // just as a reply lands is never lost between them.
+    if (message === '' || answeringRef.current || progress.finished || chatLimitReached(chatSent)) return
     const s = step
     const stepNumber = progress.stepIndex + 1
     const history = chatHistory(chatItemsRef.current)
     const thinkingId = newChatId()
     const now = Date.now()
     setChatItems((items) =>
-      appendItem(appendItem(items, { id: newChatId(), at: now, kind: 'typed', stepId: s.id, text: message }), {
+      appendItem(appendItem(items, { id: newChatId(), at: now, kind: 'typed', stepId: s.id, text: message, spoken }), {
         id: thinkingId,
         at: now,
         kind: 'thinking',
         stepId: s.id,
       }),
     )
+    answeringRef.current = true
     setAnswering(true)
     setChatSent(countChatMessage())
     const look = watch.look?.stepId === s.id ? watch.look : null
@@ -407,6 +555,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
           e instanceof ChatLimitedError ? 'limited' : garbled || e instanceof ChatDeviceTimeoutError ? 'unanswered' : 'error',
       }
     }
+    answeringRef.current = false
     if (!onScreenRef.current) return
     setChatItems((items) => replaceItem(items, thinkingId, item))
     setAnswering(false)
@@ -568,6 +717,8 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       if (result.check.verdict === 'correct') {
         const next = index === skill.steps.length - 1 ? FINISHED : skill.steps[index + 1].id
         setWiring({ kind: 'result', ...checked, showOn: next })
+        // A spoken message still waiting was about the step just finished.
+        dropSpokenQueue()
         setProgress(markStepDone)
       } else {
         setWiring({ kind: 'result', ...checked, showOn: step.id })
@@ -647,6 +798,9 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
               onChoose={chooseAutoAsk}
               answering={answering}
               limitReached={chatLimitReached(chatSent)}
+              listening={listening}
+              heard={heardYou}
+              voiceNote={voiceNote}
               onSend={(message) => void sendChat(message)}
               onAskExpert={askAnExpert}
               panel={
@@ -724,6 +878,12 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
                 Switch camera
               </button>
             )}
+            <ListeningToggle
+              listening={listening}
+              heard={heardYou}
+              note={chatInView ? null : voiceNote}
+              noVoiceCheck={noVoiceCheck}
+            />
             <p className="ws-privacy">Video and voice stay on this device.</p>
           </div>
           {cameraError && <p className="ws-error">Could not open the camera. Check the browser has permission to use it.</p>}

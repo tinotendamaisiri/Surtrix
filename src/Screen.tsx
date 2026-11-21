@@ -1,21 +1,55 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import CaptureTest from './CaptureTest.tsx'
 import ExpertDashboard from './ExpertDashboard.tsx'
 import Home from './Home.tsx'
 import NewSkill from './NewSkill.tsx'
 import SavedSkillCoach from './SavedSkillCoach.tsx'
+import SkillsPage from './SkillsPage.tsx'
 import { screenFromHash } from './screenAddress.ts'
 
 // The one place that picks the screen from the address hash (see Contracts in the build
 // plan). No other file reads the hash to choose a screen.
 export default function Screen() {
-  const [hash, setHash] = useState(location.hash)
+  // popped: the address changed by Back or Forward, not by a link.
+  const [{ hash, popped }, setPlace] = useState({ hash: location.hash, popped: false })
+  // Where each address was last scrolled to, so Back and Forward return there.
+  const positions = useRef(new Map<string, number>())
   useEffect(() => {
-    const onHashChange = () => setHash(location.hash)
+    let popping = false
+    const onPopState = () => {
+      popping = true
+    }
+    const onHashChange = () => {
+      setPlace({ hash: location.hash, popped: popping })
+      popping = false
+    }
+    const onScroll = () => positions.current.set(location.hash, window.scrollY)
+    window.addEventListener('popstate', onPopState)
     window.addEventListener('hashchange', onHashChange)
-    return () => window.removeEventListener('hashchange', onHashChange)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      window.removeEventListener('popstate', onPopState)
+      window.removeEventListener('hashchange', onHashChange)
+      window.removeEventListener('scroll', onScroll)
+    }
   }, [])
   const address = screenFromHash(hash)
+  // A new screen opens at its top (#83), not where the last one was scrolled to; Back and
+  // Forward return to where it was. Switching the Skills page's tab is the same screen,
+  // and Home scrolls to How it works itself.
+  const screenKey =
+    address.screen === 'coach'
+      ? `coach/${address.skillId}`
+      : address.screen === 'home' && address.section === 'how'
+        ? 'home/how'
+        : address.screen
+  useEffect(() => {
+    // Home's own effect has already scrolled to How it works (a child's effects run first).
+    if (screenKey === 'home/how') return
+    window.scrollTo(0, popped ? (positions.current.get(location.hash) ?? 0) : 0)
+    // Only a new screen moves the page; popped is read with it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screenKey])
   switch (address.screen) {
     case 'new-skill':
       return <NewSkill />
@@ -27,7 +61,10 @@ export default function Screen() {
       // Every skill, the demo skill too, is loaded from Firestore. A new key per skill, so
       // another skill starts at its own step 1.
       return <SavedSkillCoach key={address.skillId} skillId={address.skillId} />
+    case 'skills':
+      // One page for both tabs, so switching tabs keeps the search and chip (settled n).
+      return <SkillsPage tab={address.tab} />
     case 'home':
-      return <Home />
+      return <Home section={address.section} />
   }
 }

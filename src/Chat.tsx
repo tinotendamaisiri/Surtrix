@@ -5,6 +5,9 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode, type Ref } from 'react'
 import { InferenceSource } from 'firebase/ai'
 import AutoAskCard from './AutoAskCard.tsx'
+import { HeardYou, ListeningTag, MicButton, VoiceNoteLine } from './Listening.tsx'
+import type { Listening } from './useListening.ts'
+import type { VoiceNote } from './voice.ts'
 import type { AutoAskChoice } from './autoAsk.ts'
 import {
   CHAT_LIMIT_TEXT,
@@ -40,6 +43,12 @@ type Props = {
   answering: boolean
   // The session's message limit is reached: the text box is off.
   limitReached: boolean
+  // Voice (#80): one listening state for both mics and the tag.
+  listening: Listening
+  // A spoken message heard and not yet sent or let go: a sign with no words (settled l).
+  heard: boolean
+  // The quiet note after a spoken message that did not go (settled n, o).
+  voiceNote: { note: VoiceNote; id: number } | null
   onSend: (message: string) => void
   // Opens the Ask an Expert panel, with the learner's message when it came from a reply.
   onAskExpert: (question: string) => void
@@ -83,6 +92,7 @@ export default function Chat({ sectionRef, ...props }: Props) {
           </p>
           <p className="ws-chatbar-preview">{preview}</p>
         </div>
+        <MicButton listening={props.listening} />
         <button type="button" className="ws-pill" onClick={props.onOpen}>
           Open
         </button>
@@ -91,7 +101,10 @@ export default function Chat({ sectionRef, ...props }: Props) {
       <div className="ws-chat-body" hidden={!open}>
         <div className="ws-chat-head">
           <div className="ws-chat-head-row">
-            <h2>Chat</h2>
+            <div className="ws-chat-title">
+              <h2>Chat</h2>
+              <ListeningTag listening={props.listening} />
+            </div>
             <div className="ws-chat-head-actions">
               <button type="button" className="ws-pill ws-pill-gold" onClick={() => props.onAskExpert('')}>
                 Ask an Expert
@@ -143,6 +156,10 @@ export default function Chat({ sectionRef, ...props }: Props) {
             </button>
           </div>
         )}
+        <div className="ws-chat-voice">
+          <HeardYou heard={props.heard} announce={false} />
+          <VoiceNoteLine note={open ? props.voiceNote : null} />
+        </div>
         <form className="ws-chat-input" onSubmit={send}>
           <label htmlFor="ws-chat-message" className="ws-visually-hidden">
             Message
@@ -150,13 +167,21 @@ export default function Chat({ sectionRef, ...props }: Props) {
           <input
             id="ws-chat-message"
             type="text"
-            placeholder={props.limitReached ? 'Message limit reached' : 'Type a question'}
+            placeholder={
+              props.limitReached
+                ? 'Message limit reached'
+                : props.listening.state === 'unsupported'
+                  ? 'Type a question'
+                  : 'Type, or just talk'
+            }
             autoComplete="off"
             maxLength={CHAT_MAX_LENGTH}
+            // Words still being heard never show here (settled l).
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             disabled={props.limitReached}
           />
+          <MicButton listening={props.listening} />
           <button
             type="submit"
             className="ws-chat-send"
@@ -201,7 +226,7 @@ function Entry({ entry, ...props }: { entry: ChatEntry } & EntryProps) {
     case 'typed':
       return (
         <>
-          <p className="ws-mono ws-msg-label">YOU TYPED</p>
+          <p className="ws-mono ws-msg-label">{entry.spoken ? 'YOU SAID' : 'YOU TYPED'}</p>
           <p>{entry.text}</p>
         </>
       )

@@ -1,10 +1,9 @@
-import { coachHash } from './screenAddress.ts'
-import { DEMO_SKILL_ID } from './demoSkill.ts'
+import { SKILLS_HASH } from './screenAddress.ts'
 import Wordmark from './Wordmark.tsx'
 
-// The landing page's footer (#54). In page links scroll like the header menu (Home passes
-// the scrolling in), so the address never changes.
-export default function LandingFooter({ onHow, onSkills }: { onHow: () => void; onSkills: () => void }) {
+// The landing page's footer (#54). How it works scrolls like the header menu (Home passes
+// the scrolling in); Skills and Try the demo open the Skills page (#83).
+export default function LandingFooter({ onHow }: { onHow: () => void }) {
   return (
     <footer className="landing-footer">
       <div className="landing-footer-glow" aria-hidden="true" />
@@ -16,7 +15,7 @@ export default function LandingFooter({ onHow, onSkills }: { onHow: () => void; 
             Gemini Nano watches on your device, Gemini in the cloud checks what matters, and real experts answer the
             rest. Built with Firebase AI Logic.
           </p>
-          <a className="landing-pill landing-pill-yellow" href={coachHash(DEMO_SKILL_ID)}>
+          <a className="landing-pill landing-pill-yellow" href={SKILLS_HASH}>
             Try the demo
           </a>
         </div>
@@ -29,12 +28,10 @@ export default function LandingFooter({ onHow, onSkills }: { onHow: () => void; 
               </button>
             </li>
             <li>
-              <button type="button" onClick={onSkills}>
-                Skills
-              </button>
+              <a href={SKILLS_HASH}>Skills</a>
             </li>
             <li>
-              <a href={coachHash(DEMO_SKILL_ID)}>Try the demo</a>
+              <a href={SKILLS_HASH}>Try the demo</a>
             </li>
             <li>
               <a href="#new-skill">Create a skill</a>

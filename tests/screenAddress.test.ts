@@ -30,6 +30,17 @@ test('#expert opens the expert dashboard', () => {
   expect(screenFromHash('#experts')).toEqual({ screen: 'home' })
 })
 
+test('#skills and #skills/mine open the Skills page on their tab (#83)', () => {
+  expect(screenFromHash('#skills')).toEqual({ screen: 'skills', tab: 'all' })
+  expect(screenFromHash('#skills/mine')).toEqual({ screen: 'skills', tab: 'mine' })
+  expect(screenFromHash('#skills/')).toEqual({ screen: 'home' })
+  expect(screenFromHash('#skills/other')).toEqual({ screen: 'home' })
+})
+
+test('#how-it-works opens home scrolled to How it works (#83)', () => {
+  expect(screenFromHash('#how-it-works')).toEqual({ screen: 'home', section: 'how' })
+})
+
 test('any other hash opens home', () => {
   expect(screenFromHash('#something-else')).toEqual({ screen: 'home' })
   expect(screenFromHash('#Capture-Test')).toEqual({ screen: 'home' })

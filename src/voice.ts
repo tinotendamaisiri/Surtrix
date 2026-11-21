@@ -2,6 +2,8 @@
 // without a browser. Speech is turned into text by Chrome's on device speech recognition;
 // these rules decide what the text does.
 
+import { withDeviceLimit } from './chat.ts'
+
 // The language recognised on the device (settled b: English only).
 export const VOICE_LANG = 'en-US'
 
@@ -58,12 +60,14 @@ export function spokenAction(text: string): SpokenAction {
 
 // The quiet notes after a spoken message that did not go (settled n and o), and the line
 // under the Listening toggle where the device has no Nano.
-export type VoiceNote = 'dropped' | 'unchecked'
+export type VoiceNote = 'dropped' | 'unchecked' | 'left'
 export const DROPPED_NOTE = "Heard you, but that didn't sound like it was about this step. Try again or type it."
 export const UNCHECKED_NOTE = "Couldn't check that on this device. Type it instead."
+// A spoken question about a step the learner moved on from before it went (Tino, Nov 21).
+export const LEFT_STEP_NOTE = 'That was about the step you just left. Ask again if you still need it.'
 export const NO_CHECK_LINE = 'Here voice can say "done". Type your questions.'
 export function voiceNoteText(note: VoiceNote): string {
-  return note === 'dropped' ? DROPPED_NOTE : UNCHECKED_NOTE
+  return note === 'dropped' ? DROPPED_NOTE : note === 'left' ? LEFT_STEP_NOTE : UNCHECKED_NOTE
 }
 // How long a quiet note shows before it is gone.
 export const VOICE_NOTE_MS = 6000
@@ -101,6 +105,29 @@ export function topicCheckQuestion(message: string): string {
 // Nano's answer: only a YES lets the message go; anything else keeps it on the device.
 export function aboutTheTask(answer: string): boolean {
   return /^\W*yes\b/i.test(answer)
+}
+
+export type TopicVerdict = 'about the task' | 'other talk' | 'unchecked'
+
+// The verdict on one spoken message. possible: whether Nano can run on this device; ask:
+// Nano's answer. Nano is never asked where it cannot run (without Chrome's API the SDK
+// would send even a device only call to the cloud). Everything, the status included, gets
+// limitMs; past that, or on any failure, the message is unchecked and stays on the device.
+export async function topicVerdict(
+  possible: () => Promise<boolean>,
+  ask: () => Promise<string>,
+  limitMs: number,
+): Promise<TopicVerdict> {
+  const verdict = async (): Promise<TopicVerdict> => {
+    if (!(await possible())) return 'unchecked'
+    return aboutTheTask(await ask()) ? 'about the task' : 'other talk'
+  }
+  try {
+    return await withDeviceLimit(verdict(), limitMs)
+  } catch (e) {
+    console.warn('The voice check could not run', e)
+    return 'unchecked'
+  }
 }
 
 // Where listening stands. off: not listening. preparing: getting the language pack ready.

@@ -53,6 +53,8 @@ export type Listening = {
   waiting: boolean
   // Turns listening on (needs a tap: the first time it gets the language pack ready) or off.
   toggle: () => void
+  // Drops the message waiting for its silence; true when there was one.
+  drop: () => boolean
 }
 
 // The message being heard: its finished phrases, when the first came and when any words
@@ -98,14 +100,17 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
     else dueTimerRef.current = setTimeout(() => scheduleSend(Date.now()), dueIn)
   }
 
-  // Stopping or pausing sends what was already heard; leaving the Workspace drops it.
+  // Turning listening off, the tab going hidden or leaving the Workspace drops what was
+  // heard and not yet sent: those words go nowhere (Tino, Nov 21).
   function stopRecognition() {
+    clearTimeout(dueTimerRef.current)
+    pendingRef.current = null
+    setWaiting(false)
     const r = recognitionRef.current
     recognitionRef.current = null
     if (!r) return
     r.onresult = r.onerror = r.onend = null
     r.abort()
-    sendPending()
   }
 
   function begin(C: RecognitionClass) {
@@ -222,16 +227,22 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
     return () => document.removeEventListener('visibilitychange', onVisibility)
   })
 
-  // Leaving the Workspace stops listening and drops a message still waiting.
+  // Leaving the Workspace stops listening.
   useEffect(
     () => () => {
       wantRef.current = false
-      clearTimeout(dueTimerRef.current)
-      pendingRef.current = null
       stopRecognition()
     },
     [],
   )
 
-  return { state, waiting, toggle }
+  function drop(): boolean {
+    const had = pendingRef.current !== null
+    clearTimeout(dueTimerRef.current)
+    pendingRef.current = null
+    setWaiting(false)
+    return had
+  }
+
+  return { state, waiting, toggle, drop }
 }

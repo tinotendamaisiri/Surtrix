@@ -4,8 +4,8 @@
 // check, never leaves the page.
 import { getGenerativeModel, InferenceMode, type LanguageModelCreateOptions } from 'firebase/ai'
 import { ai } from './firebase'
-import { DEVICE_LIMIT_MS, withDeviceLimit } from './chat.ts'
-import { aboutTheTask, topicCheckInstruction, topicCheckQuestion, type TopicContext } from './voice.ts'
+import { DEVICE_LIMIT_MS } from './chat.ts'
+import { topicCheckInstruction, topicCheckQuestion, topicVerdict, type TopicContext, type TopicVerdict } from './voice.ts'
 
 const createOptions: LanguageModelCreateOptions = {
   expectedInputs: [{ type: 'text', languages: ['en'] }],
@@ -47,18 +47,11 @@ export function prepareTopicCheck() {
   model.initializeDeviceModel().catch((e) => console.warn('Getting the voice check ready failed', e))
 }
 
-export type TopicVerdict = 'about the task' | 'other talk' | 'unchecked'
-
-// Nano's verdict on one spoken message. It gets up to DEVICE_LIMIT_MS, a first load
-// included; past that, or when Nano cannot run here, the message is unchecked.
-export async function checkTopic(context: TopicContext, message: string): Promise<TopicVerdict> {
-  // Without Chrome's API the SDK would send even a device only call to the cloud.
-  if (!(await topicCheckPossible())) return 'unchecked'
-  try {
-    const result = await withDeviceLimit(checkModel(context).generateContent(topicCheckQuestion(message)), DEVICE_LIMIT_MS)
-    return aboutTheTask(result.response.text()) ? 'about the task' : 'other talk'
-  } catch (e) {
-    console.warn('The voice check could not run', e)
-    return 'unchecked'
-  }
+// Nano's verdict on one spoken message, within DEVICE_LIMIT_MS, a first load included.
+export function checkTopic(context: TopicContext, message: string): Promise<TopicVerdict> {
+  return topicVerdict(
+    topicCheckPossible,
+    async () => (await checkModel(context).generateContent(topicCheckQuestion(message))).response.text(),
+    DEVICE_LIMIT_MS,
+  )
 }

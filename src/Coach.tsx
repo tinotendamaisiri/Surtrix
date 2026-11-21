@@ -34,7 +34,7 @@ import { replyToChat } from './chatReply.ts'
 import { ListeningToggle } from './Listening.tsx'
 import { checkTopic, prepareTopicCheck, topicCheckPossible } from './topicCheck.ts'
 import { useListening } from './useListening.ts'
-import { spokenAction, VOICE_NOTE_MS, type VoiceNote } from './voice.ts'
+import { listeningOn, spokenAction, VOICE_NOTE_MS, type VoiceNote } from './voice.ts'
 import { pickSavedAnswer, useSavedAnswers, type Pick as SavedPick } from './savedAnswers.ts'
 import {
   goBack,
@@ -328,8 +328,8 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     endAutoAsk()
     setManualOffer(null)
     setAskRequest(null)
-    // A spoken phrase still waiting was about the step being left.
-    spokenQueue.current = []
+    // A spoken message still waiting was about the step being left.
+    dropSpokenQueue()
     setProgress(change)
   }
 
@@ -416,24 +416,40 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       lastReply: chatHistory(chatItemsRef.current).findLast((turn) => turn.from === 'ai')?.text ?? null,
     }
     setVoiceChecking((n) => n + 1)
-    voiceCheckRef.current = voiceCheckRef.current.then(async () => {
-      const verdict = await checkTopic(context, text)
-      if (!onScreenRef.current) return
-      // The count goes down last, so the render it causes sends what was queued.
-      try {
-        // A message about a step already left goes nowhere, like one still queued then.
-        if (stepIdRef.current !== stepId || finishedRef.current) return
-        if (verdict !== 'about the task') {
-          showVoiceNote(verdict === 'other talk' ? 'dropped' : 'unchecked')
-          return
+    voiceCheckRef.current = voiceCheckRef.current
+      .then(async () => {
+        // The count goes down last, so the render it causes sends what was queued, and it
+        // always goes down, so "Heard you" never stays on.
+        try {
+          const verdict = await checkTopic(context, text)
+          if (!onScreenRef.current) return
+          if (verdict !== 'about the task') {
+            showVoiceNote(verdict === 'other talk' ? 'dropped' : 'unchecked')
+            return
+          }
+          // A question about a step already left goes nowhere, with a note (Tino, Nov 21).
+          if (stepIdRef.current !== stepId || finishedRef.current) {
+            showVoiceNote('left')
+            return
+          }
+          spokenQueue.current.push({ text, stepId })
+        } finally {
+          if (onScreenRef.current) setVoiceChecking((n) => n - 1)
         }
-        spokenQueue.current.push({ text, stepId })
-        // The reply is to be seen: a closed chat opens for a message that goes to the cloud.
-        if (!chatLimitReached(chatSentThisSession())) setChatOpen(true)
-      } finally {
-        setVoiceChecking((n) => n - 1)
-      }
-    })
+      })
+      .catch((e) => console.error('The voice check failed', e))
+  }
+
+  // A spoken message heard and not yet sent or let go, shown only while listening is on.
+  const heardYou = listeningOn(listening.state) && (listening.waiting || voiceChecking > 0)
+
+  // Spoken words still waiting for their silence or for a reply are dropped when their step
+  // is left, with a note (Tino, Nov 21).
+  function dropSpokenQueue() {
+    const heard = listening.drop()
+    if (spokenQueue.current.length === 0 && !heard) return
+    spokenQueue.current = []
+    showVoiceNote('left')
   }
 
   const voiceNoteTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -455,13 +471,20 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     doneActingRef.current = false
   }, [progress.stepIndex, progress.finished, wiring])
 
-  // The next spoken message goes once the reply before it is in. Past the message limit it
-  // is shown, beside the limit line, and not sent.
+  // The next spoken message goes once the reply before it is in, and the chat opens so the
+  // reply is seen (settled p). Past the message limit it is shown, beside the limit line,
+  // and not sent; the chat opens for that too (Tino, Nov 21).
   useEffect(() => {
     if (answering || answeringRef.current) return
     let next = spokenQueue.current.shift()
-    while (next && (next.stepId !== step.id || progress.finished)) next = spokenQueue.current.shift()
+    let left = false
+    while (next && (next.stepId !== step.id || progress.finished)) {
+      left = true
+      next = spokenQueue.current.shift()
+    }
+    if (left) showVoiceNote('left')
     if (!next) return
+    setChatOpen(true)
     if (chatLimitReached(chatSent)) {
       const { text, stepId } = next
       setChatItems((items) =>
@@ -688,8 +711,8 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       if (result.check.verdict === 'correct') {
         const next = index === skill.steps.length - 1 ? FINISHED : skill.steps[index + 1].id
         setWiring({ kind: 'result', ...checked, showOn: next })
-        // A spoken phrase still waiting was about the step just finished.
-        spokenQueue.current = []
+        // A spoken message still waiting was about the step just finished.
+        dropSpokenQueue()
         setProgress(markStepDone)
       } else {
         setWiring({ kind: 'result', ...checked, showOn: step.id })
@@ -770,7 +793,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
               answering={answering}
               limitReached={chatLimitReached(chatSent)}
               listening={listening}
-              heard={listening.waiting || voiceChecking > 0}
+              heard={heardYou}
               voiceNote={voiceNote}
               onSend={(message) => void sendChat(message)}
               onAskExpert={askAnExpert}
@@ -851,7 +874,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
             )}
             <ListeningToggle
               listening={listening}
-              heard={listening.waiting || voiceChecking > 0}
+              heard={heardYou}
               note={chatInView ? null : voiceNote}
               noVoiceCheck={noVoiceCheck}
             />

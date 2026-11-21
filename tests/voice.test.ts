@@ -1,11 +1,12 @@
 // Talking to the Workspace (#80): what a spoken phrase does.
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import { chatHistory, type ChatItem } from '../src/chat.ts'
 import {
   aboutTheTask,
   DROPPED_NOTE,
   isDoneCommand,
   joinPhrases,
+  LEFT_STEP_NOTE,
   listeningOn,
   listeningProblem,
   NO_CHECK_LINE,
@@ -13,6 +14,7 @@ import {
   spokenMessageDueIn,
   topicCheckInstruction,
   topicCheckQuestion,
+  topicVerdict,
   UNCHECKED_NOTE,
   VOICE_LANG,
   VOICE_MAX_WAIT_MS,
@@ -80,8 +82,9 @@ test('Nano is asked about the step, its parts and the last answer, and only a YE
 test('the quiet notes and the no check line, with no dashes', () => {
   expect(voiceNoteText('dropped')).toBe(DROPPED_NOTE)
   expect(voiceNoteText('unchecked')).toBe("Couldn't check that on this device. Type it instead.")
+  expect(voiceNoteText('left')).toBe('That was about the step you just left. Ask again if you still need it.')
   expect(DROPPED_NOTE).toBe("Heard you, but that didn't sound like it was about this step. Try again or type it.")
-  for (const line of [DROPPED_NOTE, UNCHECKED_NOTE, NO_CHECK_LINE]) expect(line).not.toMatch(/[\u2013\u2014]| - /)
+  for (const line of [DROPPED_NOTE, UNCHECKED_NOTE, LEFT_STEP_NOTE, NO_CHECK_LINE]) expect(line).not.toMatch(/[\u2013\u2014]| - /)
 })
 
 test('voice is English, on is on while listening, getting ready or paused, and each problem has its line', () => {
@@ -101,4 +104,26 @@ test('a spoken "done" is not sent to the model as a question; spoken questions a
     { id: 't2', at: 2, kind: 'typed', stepId: 's1', text: 'done', spoken: true, command: true },
   ]
   expect(chatHistory(items)).toEqual([{ from: 'learner', text: 'Which leg is positive?' }])
+})
+
+test('the voice check: only a YES goes on, and where Nano cannot run it is never asked', async () => {
+  vi.spyOn(console, 'warn').mockImplementation(() => {})
+  const yes = vi.fn(async () => 'YES')
+  // No Nano on this device: unchecked, and Nano (so firebase/ai) is never called.
+  expect(await topicVerdict(async () => false, yes, 1000)).toBe('unchecked')
+  expect(yes).not.toHaveBeenCalled()
+  // Reading the device's status fails: the same.
+  expect(await topicVerdict(async () => Promise.reject(new Error('no status')), yes, 1000)).toBe('unchecked')
+  expect(yes).not.toHaveBeenCalled()
+  // Nano answers.
+  expect(await topicVerdict(async () => true, yes, 1000)).toBe('about the task')
+  expect(await topicVerdict(async () => true, async () => 'NO', 1000)).toBe('other talk')
+  expect(await topicVerdict(async () => true, async () => 'Sure, maybe', 1000)).toBe('other talk')
+  // Nano fails, or takes longer than the limit (the status call included): unchecked.
+  expect(await topicVerdict(async () => true, async () => Promise.reject(new Error('model failed')), 1000)).toBe('unchecked')
+  const never = () => new Promise<never>(() => {})
+  expect(await topicVerdict(async () => true, never, 20)).toBe('unchecked')
+  expect(await topicVerdict(never, yes, 20)).toBe('unchecked')
+  expect(yes).toHaveBeenCalledTimes(1)
+  vi.restoreAllMocks()
 })

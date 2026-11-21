@@ -131,7 +131,9 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     },
   )
   // Spoken messages Nano passed, waiting for the reply before them; sent one by one.
-  const spokenQueue = useRef<{ text: string; stepId: string }[]>([])
+  // stops: listening's stop count when it was heard; an older one means listening stopped
+  // since, and it never goes.
+  const spokenQueue = useRef<{ text: string; stepId: string; stops: number }[]>([])
   // Spoken messages are checked one at a time, in the order they were said.
   const voiceCheckRef = useRef<Promise<void>>(Promise.resolve())
   // How many spoken messages Nano is checking now: "heard you" shows meanwhile.
@@ -410,6 +412,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       return
     }
     const stepId = step.id
+    const stops = listening.stops()
     const context = {
       skillTitle: skill.title,
       step: { title: step.title, instruction: step.instruction, parts: step.parts },
@@ -422,17 +425,19 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
         // always goes down, so "Heard you" never stays on.
         try {
           const verdict = await checkTopic(context, text)
-          if (!onScreenRef.current) return
+          // Listening stopped since: the message goes nowhere, with no note (settled r).
+          if (!onScreenRef.current || listening.stops() !== stops) return
+          // A question about a step already left goes nowhere, with a note; other talk from
+          // then needs no note on the new step (Tino, Nov 21).
+          if (stepIdRef.current !== stepId || finishedRef.current) {
+            if (verdict === 'about the task') showVoiceNote('left')
+            return
+          }
           if (verdict !== 'about the task') {
             showVoiceNote(verdict === 'other talk' ? 'dropped' : 'unchecked')
             return
           }
-          // A question about a step already left goes nowhere, with a note (Tino, Nov 21).
-          if (stepIdRef.current !== stepId || finishedRef.current) {
-            showVoiceNote('left')
-            return
-          }
-          spokenQueue.current.push({ text, stepId })
+          spokenQueue.current.push({ text, stepId, stops })
         } finally {
           if (onScreenRef.current) setVoiceChecking((n) => n - 1)
         }
@@ -478,8 +483,9 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     if (answering || answeringRef.current) return
     let next = spokenQueue.current.shift()
     let left = false
-    while (next && (next.stepId !== step.id || progress.finished)) {
-      left = true
+    // Listening stopped since: dropped with no note. A step left: dropped with a note.
+    while (next && (next.stops !== listening.stops() || next.stepId !== step.id || progress.finished)) {
+      if (next.stops === listening.stops()) left = true
       next = spokenQueue.current.shift()
     }
     if (left) showVoiceNote('left')
@@ -495,7 +501,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     void sendChat(next.text, true)
     // A message joins the queue just before voiceChecking goes down, so that change runs this.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [answering, voiceChecking, step.id, progress.finished, chatSent])
+  }, [answering, voiceChecking, step.id, progress.finished, chatSent, listening.state])
 
   // spoken: said while listening, so it is labelled YOU SAID.
   async function sendChat(text: string, spoken = false) {

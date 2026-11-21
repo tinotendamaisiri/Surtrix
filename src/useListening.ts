@@ -55,6 +55,9 @@ export type Listening = {
   toggle: () => void
   // Drops the message waiting for its silence; true when there was one.
   drop: () => boolean
+  // Goes up each time listening stops (turned off, the tab hidden, the mic refused): a
+  // message heard before a stop is never sent (Tino, Nov 21, settled r).
+  stops: () => number
 }
 
 // The message being heard: its finished phrases, when the first came and when any words
@@ -67,6 +70,7 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
   const [state, setState] = useState<ListeningState>(() => (onDeviceRecognition() ? 'off' : 'unsupported'))
   const [waiting, setWaiting] = useState(false)
   const pendingRef = useRef<Pending | null>(null)
+  const stopsRef = useRef(0)
   const dueTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const onMessageRef = useRef(onMessage)
   // Whether the learner wants it on; the recogniser running now, if any.
@@ -100,8 +104,14 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
     else dueTimerRef.current = setTimeout(() => scheduleSend(Date.now()), dueIn)
   }
 
-  // Turning listening off, the tab going hidden or leaving the Workspace drops what was
-  // heard and not yet sent: those words go nowhere (Tino, Nov 21).
+  // Listening stops: what was heard and not yet sent goes nowhere, here and in the
+  // messages already handed on (they carry the count from before).
+  function stopListening() {
+    stopsRef.current++
+    stopRecognition()
+  }
+
+  // Ends the recogniser and drops words still waiting for their silence.
   function stopRecognition() {
     clearTimeout(dueTimerRef.current)
     pendingRef.current = null
@@ -139,11 +149,11 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
     r.onerror = (event) => {
       if (event.error === 'not-allowed' || event.error === 'audio-capture') {
         wantRef.current = false
-        stopRecognition()
+        stopListening()
         setState('blocked')
       } else if (event.error === 'service-not-allowed' || event.error === 'language-not-supported') {
         wantRef.current = false
-        stopRecognition()
+        stopListening()
         setState('failed')
       }
       // Anything else (no speech, a pause): the end handler starts listening again.
@@ -204,7 +214,7 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
   function toggle() {
     if (listeningOn(state)) {
       wantRef.current = false
-      stopRecognition()
+      stopListening()
       setState('off')
       return
     }
@@ -219,7 +229,7 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
       const C = onDeviceRecognition()
       if (!wantRef.current || !readyRef.current || !C) return
       if (document.visibilityState === 'hidden') {
-        stopRecognition()
+        stopListening()
         setState('paused')
       } else begin(C)
     }
@@ -244,5 +254,5 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
     return had
   }
 
-  return { state, waiting, toggle, drop }
+  return { state, waiting, toggle, drop, stops: () => stopsRef.current }
 }

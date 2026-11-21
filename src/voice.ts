@@ -23,15 +23,84 @@ export function isDoneCommand(text: string): boolean {
   return DONE_PHRASES.has(words(text).join(' '))
 }
 
-// Phrases shorter than this go nowhere, so background talk does not use up the chat
-// (settled e). "Done" is the exception.
-export const MIN_SPOKEN_WORDS = 3
+// A spoken message (settled j and k). Chrome ends a phrase at a short pause, so finished
+// phrases are joined into one message, which goes once nothing new has been heard for
+// VOICE_SILENCE_MS, or VOICE_MAX_WAIT_MS after its first phrase, or when it reaches the
+// chat's length limit, whichever comes first.
+export const VOICE_SILENCE_MS = 5000
+export const VOICE_MAX_WAIT_MS = 30000
 
-export type SpokenAction = 'done' | 'send' | 'ignore'
+export function joinPhrases(phrases: string[]): string {
+  return phrases
+    .map((p) => p.trim())
+    .filter((p) => p !== '')
+    .join(' ')
+}
+
+// How long until the message waiting now is due: 0 means it goes now. firstAt: when its
+// first phrase was heard; lastHeardAt: when any words were last heard.
+export function spokenMessageDueIn(
+  { firstAt, lastHeardAt, text }: { firstAt: number; lastHeardAt: number; text: string },
+  now: number,
+  maxLength: number,
+): number {
+  if (text.length >= maxLength) return 0
+  return Math.max(0, Math.min(lastHeardAt + VOICE_SILENCE_MS, firstAt + VOICE_MAX_WAIT_MS) - now)
+}
+
+// What a spoken message does: "done" finishes the step; anything else is first checked on
+// the device (settled m).
+export type SpokenAction = 'done' | 'check'
 
 export function spokenAction(text: string): SpokenAction {
-  if (isDoneCommand(text)) return 'done'
-  return words(text).length >= MIN_SPOKEN_WORDS ? 'send' : 'ignore'
+  return isDoneCommand(text) ? 'done' : 'check'
+}
+
+// The quiet notes after a spoken message that did not go (settled n and o), and the line
+// under the Listening toggle where the device has no Nano.
+export type VoiceNote = 'dropped' | 'unchecked'
+export const DROPPED_NOTE = "Heard you, but that didn't sound like it was about this step. Try again or type it."
+export const UNCHECKED_NOTE = "Couldn't check that on this device. Type it instead."
+export const NO_CHECK_LINE = 'Here voice can say "done". Type your questions.'
+export function voiceNoteText(note: VoiceNote): string {
+  return note === 'dropped' ? DROPPED_NOTE : UNCHECKED_NOTE
+}
+// How long a quiet note shows before it is gone.
+export const VOICE_NOTE_MS = 6000
+
+// What Gemini Nano is asked about a spoken message (settled m): is it said to the coach
+// about the task, or other talk in the room? The instruction goes in as Nano's system
+// prompt and the sentence as the question: measured Nov 21 on 45 sentences, 3 rounds, this
+// shape was right 134 of 135 times, with no background talk let through.
+export type TopicContext = {
+  skillTitle: string
+  step: { title: string; instruction: string; parts: string[] }
+  // The coach's last answer, so a short follow up counts; null before the first.
+  lastReply: string | null
+}
+
+export function topicCheckInstruction(c: TopicContext): string {
+  const parts = c.step.parts.map((p) => p.trim()).filter((p) => p !== '')
+  return [
+    'You decide whether a sentence heard by a microphone was said to a coach that is helping someone with a hands-on task.',
+    `The task is "${c.skillTitle}". The current step is "${c.step.title}": ${c.step.instruction}`,
+    parts.length > 0 ? `The parts are: ${parts.join(', ')}.` : '',
+    c.lastReply ? `The coach last said: "${c.lastReply}"` : '',
+    'Answer YES if the sentence is a question, request or remark about the task, the step, the parts or the coach\'s last answer, or a short remark about how the person is getting on with the task, such as "not done yet", "almost there", "hang on" or "is this right".',
+    'Answer NO if it is other talk in the room: about anything else, such as other chores, calls, driving, meals, people or plans, or words that make no sense. If part of the sentence is about something other than the task, answer NO.',
+    'Answer with one word: YES or NO.',
+  ]
+    .filter((line) => line !== '')
+    .join('\n')
+}
+
+export function topicCheckQuestion(message: string): string {
+  return `Sentence: "${message}"`
+}
+
+// Nano's answer: only a YES lets the message go; anything else keeps it on the device.
+export function aboutTheTask(answer: string): boolean {
+  return /^\W*yes\b/i.test(answer)
 }
 
 // Where listening stands. off: not listening. preparing: getting the language pack ready.

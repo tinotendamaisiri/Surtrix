@@ -98,6 +98,9 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
   const recognitionRef = useRef<Recognition | null>(null)
   // The busy rule (#92): runs of the recogniser in a row that ended before any audio.
   const refusalsRef = useRef(0)
+  // Counts each turn on: one still getting ready when a later one began gives way to it, so
+  // an earlier camera never starts the recogniser for a later one (#92).
+  const turnOnsRef = useRef(0)
   useEffect(() => {
     onMessageRef.current = onMessage
   })
@@ -211,6 +214,7 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
   }
 
   async function getReady(cameraLive?: Promise<boolean>) {
+    const thisTurnOn = ++turnOnsRef.current
     const C = onDeviceRecognition()
     if (!C) {
       setState('unsupported')
@@ -238,14 +242,14 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
       setState('failed')
       return
     }
-    if (!wantRef.current) return
+    if (!wantRef.current || thisTurnOn !== turnOnsRef.current) return
     if (cameraLive && !(await cameraLive)) {
-      if (!wantRef.current) return
+      if (!wantRef.current || thisTurnOn !== turnOnsRef.current) return
       wantRef.current = false
       setState('off')
       return
     }
-    if (!wantRef.current) return
+    if (!wantRef.current || thisTurnOn !== turnOnsRef.current) return
     readyRef.current = true
     begin(C)
   }

@@ -322,9 +322,10 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     const cameras = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput')
     if (cameras.length < 2) return
     const at = cameras.findIndex((c) => c.deviceId === inUse)
-    // Some phones cannot open two cameras at once, so the one in use closes first.
+    // Some phones cannot open two cameras at once, so the one in use closes first. If the next
+    // one does not open, the camera is off, so Listening goes off as with Stop camera.
     closeCamera()
-    await openCamera(cameras[(at + 1) % cameras.length].deviceId)
+    if (!(await openCamera(cameras[(at + 1) % cameras.length].deviceId))) stopCamera()
   }
 
   // Ends the running wiring check, if any: a later answer belongs to a step the learner left,

@@ -1,8 +1,9 @@
 import type { Step } from './skill.ts'
 
 // What the coach is given (see Contracts in the build plan): a skill with its id, and
-// each step with its id. The coach never makes up ids.
-export type CoachStep = Step & { id: string }
+// each step with its id. The coach never makes up ids. tools is missing on a step saved
+// before tools existed, and an empty list on a step that needs none.
+export type CoachStep = Omit<Step, 'tools'> & { id: string; tools?: string[] }
 
 export type CoachSkill = { id: string; title: string; steps: CoachStep[] }
 

@@ -51,7 +51,7 @@ import { describeWiringCheck, WIRING_DEADLINE_MS, WIRING_GIVE_UP_MS } from './wi
 import { checkWiring, type WiringResult } from './wiringCheck.ts'
 import BackToSkills from './BackToSkills.tsx'
 import { skillsTabFor } from './landingIntent.ts'
-import { expertCards, skillParts } from './workspace.ts'
+import { expertCards, skillParts, skillTools } from './workspace.ts'
 import { askExpert, watchMyQuestions, type Question } from './questions.ts'
 import { checkSavedAnswers } from './savedAnswerPick.ts'
 import {
@@ -67,7 +67,7 @@ import {
   type AutoAsk,
   type AutoAskChoice,
 } from './autoAsk.ts'
-import { ExpertsCard, PartsList, StepList, WorkspaceShell, WorkspaceTopBar } from './WorkspacePanels.tsx'
+import { ExpertsCard, PartsList, StepList, ToolsList, WorkspaceShell, WorkspaceTopBar } from './WorkspacePanels.tsx'
 
 // Where a wiring check result shows: under a step (by id), or on the All steps done screen.
 const FINISHED = 'finished'
@@ -746,6 +746,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
 
   const exitTab = skillsTabFor(skill.id)
   const parts = skillParts(skill.steps)
+  const tools = skillTools(skill.steps)
   const experts =
     saved.kind === 'loaded' ? { kind: 'loaded' as const, cards: expertCards(skill.steps, saved.byStep, step.id) } : saved
   const stepQuestions = mine.questions.filter((q) => q.stepId === step.id)
@@ -771,8 +772,9 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       }
     >
       <div className={`ws-grid${chatOpen && !progress.finished ? ' ws-grid-chat' : ''}`}>
-        <aside className="ws-left ws-panel" aria-label={chatOpen && !progress.finished ? 'Chat' : 'Parts and steps'}>
+        <aside className="ws-left ws-panel" aria-label={chatOpen && !progress.finished ? 'Chat' : 'Tools, parts and steps'}>
           <div className="ws-left-lists" hidden={chatOpen && !progress.finished}>
+            <ToolsList tools={tools} />
             <PartsList skillId={skill.id} parts={parts} />
             <StepList
               steps={skill.steps}

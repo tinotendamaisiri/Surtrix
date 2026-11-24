@@ -188,7 +188,7 @@ export type ChatContext = {
   skillTitle: string
   stepNumber: number
   stepCount: number
-  step: Pick<CoachStep, 'title' | 'instruction' | 'parts' | 'doneWhen'>
+  step: Pick<CoachStep, 'title' | 'instruction' | 'parts' | 'tools' | 'doneWhen'>
   savedAnswers: SavedAnswer[]
   // The latest "On the bench" read for this step, as words, or null.
   benchRead: string | null
@@ -198,7 +198,14 @@ export type ChatContext = {
 }
 
 export function chatPrompt(c: ChatContext): string {
-  const parts = c.step.parts.map((p) => p.trim()).filter((p) => p !== '')
+  const listed = (names: string[]) => {
+    const kept = names.map((n) => n.trim()).filter((n) => n !== '')
+    return kept.length > 0 ? kept.join(', ') : 'none listed'
+  }
+  // A step saved before tools existed lists its tools among its parts.
+  const partsAndTools = c.step.tools
+    ? [`Parts for this step: ${listed(c.step.parts)}`, `Tools for this step: ${listed(c.step.tools)}`]
+    : [`Parts and tools for this step: ${listed(c.step.parts)}`]
   const saved =
     c.savedAnswers.length === 0
       ? 'none'
@@ -210,7 +217,7 @@ export function chatPrompt(c: ChatContext): string {
     `Skill: ${c.skillTitle}`,
     `Step ${c.stepNumber} of ${c.stepCount}: ${c.step.title}`,
     `Instruction: ${c.step.instruction}`,
-    `Parts and tools for this step: ${parts.length > 0 ? parts.join(', ') : 'none listed'}`,
+    ...partsAndTools,
     `Done when: ${c.step.doneWhen}`,
     `Camera report (may be wrong): ${c.benchRead ?? 'none'}`,
     `Saved expert answers for this step:\n${saved}`,

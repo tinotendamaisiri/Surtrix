@@ -6,6 +6,7 @@ const goodStep = {
   title: 'Place the LED',
   instruction: 'Push the LED into row 10, long leg on the right.',
   parts: ['LED'],
+  tools: ['multimeter'],
   doneWhen: 'The LED sits in row 10 with the long leg on the right.',
 }
 
@@ -33,12 +34,34 @@ describe('parseSkill', () => {
     expect(skill?.steps[0].parts).toEqual(['LED', 'breadboard'])
   })
 
+  test('keeps tools apart from parts, trimmed, with blank ones dropped', () => {
+    const skill = parseSkill(
+      answer({ title: 'Solder', steps: [{ ...goodStep, parts: [' LED '], tools: [' soldering iron ', '', 'multimeter'] }] }),
+    )
+    expect(skill?.steps[0].parts).toEqual(['LED'])
+    expect(skill?.steps[0].tools).toEqual(['soldering iron', 'multimeter'])
+  })
+
+  test('treats a step without a tools list as having no tools', () => {
+    const { tools: _tools, ...noTools } = goodStep
+    expect(parseSkill(answer({ title: 'Light an LED', steps: [noTools] }))?.steps[0].tools).toEqual([])
+  })
+
+  test('refuses tools that are not a list, or a tool that is not text', () => {
+    expect(() => parseSkill(answer({ title: 'Light an LED', steps: [{ ...goodStep, tools: 'multimeter' }] }))).toThrow(
+      SkillAnswerError,
+    )
+    expect(() => parseSkill(answer({ title: 'Light an LED', steps: [{ ...goodStep, tools: ['multimeter', 5] }] }))).toThrow(
+      SkillAnswerError,
+    )
+  })
+
   test('keeps a step with no parts', () => {
     expect(parseSkill(answer({ title: 'Check', steps: [{ ...goodStep, parts: [] }] }))?.steps[0].parts).toEqual([])
   })
 
   test('drops blank steps', () => {
-    const blank = { title: ' ', instruction: '', parts: [], doneWhen: '\n' }
+    const blank = { title: ' ', instruction: '', parts: [], tools: [], doneWhen: '\n' }
     expect(parseSkill(answer({ title: 'Light an LED', steps: [blank, goodStep, blank] }))?.steps).toEqual([goodStep])
   })
 
@@ -106,6 +129,15 @@ describe('parseSkill', () => {
     expect(parseSkill(withParts([...many(LIMITS.parts), ' ']))?.steps[0].parts).toHaveLength(LIMITS.parts)
     expect(() => parseSkill(withParts(many(LIMITS.parts + 1)))).toThrow(SkillAnswerError)
     expect(() => parseSkill(withParts(['a'.repeat(LIMITS.part + 1)]))).toThrow(SkillAnswerError)
+  })
+
+  test('limits tools by count and length, after dropping blank ones', () => {
+    const withTools = (tools: string[]) => answer({ title: 'Light an LED', steps: [{ ...goodStep, tools }] })
+    const many = (n: number) => Array.from({ length: n }, () => 'multimeter')
+    expect(parseSkill(withTools([...many(LIMITS.tools), ' ']))?.steps[0].tools).toHaveLength(LIMITS.tools)
+    expect(() => parseSkill(withTools(many(LIMITS.tools + 1)))).toThrow(SkillAnswerError)
+    expect(parseSkill(withTools(['a'.repeat(LIMITS.tool)]))?.steps[0].tools[0]).toHaveLength(LIMITS.tool)
+    expect(() => parseSkill(withTools(['a'.repeat(LIMITS.tool + 1)]))).toThrow(SkillAnswerError)
   })
 
   test('measures a limit after trimming', () => {

@@ -16,6 +16,7 @@ const step: Step = {
   title: 'Wire the LED and resistor',
   instruction: "Connect a resistor from the top rail to the LED's long leg.",
   parts: ['breadboard', 'LED', 'resistor'],
+  tools: [],
   doneWhen: "The resistor joins the top rail to the LED's long leg.",
 }
 

@@ -36,7 +36,7 @@ service cloud.firestore {
         allow read: if signedIn();
         allow create: if signedIn()
           && skillAfter().creatorId == request.auth.uid
-          && request.resource.data.keys().hasOnly(['number', 'title', 'instruction', 'parts', 'doneWhen'])
+          && request.resource.data.keys().hasOnly(['number', 'title', 'instruction', 'parts', 'tools', 'doneWhen'])
           && request.resource.data.keys().hasAll(['number', 'title', 'instruction', 'parts', 'doneWhen'])
           && request.resource.data.number is int
           && request.resource.data.number >= 1
@@ -45,9 +45,13 @@ service cloud.firestore {
           && isText(request.resource.data.title, 200)
           && isText(request.resource.data.instruction, 2000)
           && isText(request.resource.data.doneWhen, 1000)
-          // Rules cannot check each part; the app checks their length (src/skill.ts).
+          // Rules cannot check each part or tool; the app checks their length (src/skill.ts).
           && request.resource.data.parts is list
-          && request.resource.data.parts.size() <= 30;
+          && request.resource.data.parts.size() <= 30
+          // Tools are optional: steps saved before they existed, and builds that do not
+          // send them, have none.
+          && (!('tools' in request.resource.data)
+            || (request.resource.data.tools is list && request.resource.data.tools.size() <= 30));
 
         function skillAfter() {
           return getAfter(/databases/$(database)/documents/skills/$(skillId)).data;

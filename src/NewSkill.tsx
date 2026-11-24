@@ -187,6 +187,7 @@ export default function NewSkill() {
                     <p className="step-title">{step.title}</p>
                     <p>{step.instruction}</p>
                     {step.parts.length > 0 && <p className="muted">Parts: {step.parts.join(', ')}</p>}
+                    {step.tools.length > 0 && <p className="muted">Tools: {step.tools.join(', ')}</p>}
                     <p className="muted">Done when: {step.doneWhen}</p>
                   </li>
                 ))}

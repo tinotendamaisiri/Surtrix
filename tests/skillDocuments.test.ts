@@ -2,7 +2,7 @@
 import { describe, expect, test } from 'vitest'
 import { coachSkillFromDocuments, isDocumentId, skillDocuments, type StepDocument } from '../src/skillDocuments.ts'
 
-const step = { title: 'Place the LED', instruction: 'Push it in.', parts: ['LED'], doneWhen: 'It is in.' }
+const step = { title: 'Place the LED', instruction: 'Push it in.', parts: ['LED'], tools: ['pliers'], doneWhen: 'It is in.' }
 
 function stored(numbers: number[], ids = numbers.map((n) => `step-${n}`)) {
   return numbers.map((number, i) => ({ id: ids[i], data: { number, ...step, title: `Step ${number}` } as StepDocument }))
@@ -17,7 +17,8 @@ describe('skillDocuments', () => {
       ['step-2', 2],
       ['step-3', 3],
     ])
-    expect(Object.keys(documents.steps[0].data).sort()).toEqual(['doneWhen', 'instruction', 'number', 'parts', 'title'])
+    expect(Object.keys(documents.steps[0].data).sort()).toEqual(['doneWhen', 'instruction', 'number', 'parts', 'title', 'tools'])
+    expect(documents.steps[0].data.tools).toEqual(['pliers'])
   })
 })
 
@@ -33,6 +34,16 @@ describe('coachSkillFromDocuments', () => {
       ['step-3', 'Step 3'],
     ])
     expect(coachSkill?.steps[0]).not.toHaveProperty('number')
+  })
+
+  test("keeps a step's tools, an empty tools list, and a missing tools field apart", () => {
+    const [first, second, third] = stored([1, 2, 3])
+    const { tools: _tools, ...withoutTools } = third.data
+    const steps = [first, { ...second, data: { ...second.data, tools: [] } }, { ...third, data: withoutTools }]
+    const coachSteps = coachSkillFromDocuments('skill-1', skill, steps)?.steps
+    expect(coachSteps?.[0].tools).toEqual(['pliers'])
+    expect(coachSteps?.[1].tools).toEqual([])
+    expect(coachSteps?.[2]).not.toHaveProperty('tools')
   })
 
   test('treats a skill with no steps as not found', () => {

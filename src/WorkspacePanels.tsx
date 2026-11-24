@@ -1,5 +1,5 @@
-// The Surtrix Workspace's pieces (#62): the top bar, the parts list with its picture
-// modal, the step list, and the From live experts card. Coach.tsx lays them out.
+// The Surtrix Workspace's pieces (#62): the top bar, the tools list, the parts list with
+// its picture modal, the step list, and the From live experts card. Coach.tsx lays them out.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import BackToSkills from './BackToSkills.tsx'
 import type { CoachProgress, CoachStep } from './coach.ts'
@@ -78,6 +78,30 @@ function NanoStatus({ status, downloadPercent }: { status: DeviceModelStatus | n
       <i className="ws-dot" aria-hidden="true" />
       {text}
     </span>
+  )
+}
+
+// REQUIRED TOOLS: the skill's tools as pills, or a line when it needs none. Hidden for a
+// skill saved before tools existed (tools is null).
+export function ToolsList({ tools }: { tools: string[] | null }) {
+  if (tools === null) return null
+  return (
+    <section className="ws-section" aria-labelledby="ws-tools-heading">
+      <h2 id="ws-tools-heading" className="ws-mono ws-heading">
+        REQUIRED TOOLS
+      </h2>
+      {tools.length === 0 ? (
+        <p className="ws-none">No tools needed for this skill.</p>
+      ) : (
+        <ul className="ws-parts ws-tools">
+          {tools.map((tool) => (
+            <li key={tool}>
+              <span className="ws-chip">{tool}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }
 

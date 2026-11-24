@@ -58,6 +58,7 @@ const context: ChatContext = {
     title: 'Add the resistor',
     instruction: 'Put one leg in the red rail and the other in the LED row.',
     parts: ['220 or 330 ohm resistor', ' '],
+    tools: [' wire strippers '],
     doneWhen: 'The resistor joins the red rail to the LED row.',
   },
   savedAnswers: answers,
@@ -70,7 +71,9 @@ test('the prompt has the skill, the step, the camera report, the saved answers a
   const prompt = chatPrompt(context)
   expect(prompt).toContain('Skill: Light an LED with a resistor')
   expect(prompt).toContain('Step 2 of 4: Add the resistor')
-  expect(prompt).toContain('Parts and tools for this step: 220 or 330 ohm resistor\n')
+  expect(prompt).toContain('Parts for this step: 220 or 330 ohm resistor\n')
+  expect(prompt).toContain('Tools for this step: wire strippers\n')
+  expect(prompt).not.toContain('Parts and tools')
   expect(prompt).toContain('Done when: The resistor joins the red rail to the LED row.')
   expect(prompt).toContain('Camera report (may be wrong): Seen: breadboard.')
   expect(prompt).toContain('id: a2\nQuestion it answered: Can I use 330 ohm?\nAnswer: Yes, 330 ohm works here.')
@@ -79,10 +82,18 @@ test('the prompt has the skill, the step, the camera report, the saved answers a
 })
 
 test('the prompt says none where there is no camera report, saved answer or part', () => {
-  const prompt = chatPrompt({ ...context, benchRead: null, savedAnswers: [], step: { ...context.step, parts: [] } })
+  const prompt = chatPrompt({ ...context, benchRead: null, savedAnswers: [], step: { ...context.step, parts: [], tools: [] } })
   expect(prompt).toContain('Camera report (may be wrong): none')
   expect(prompt).toContain('Saved expert answers for this step:\nnone')
-  expect(prompt).toContain('Parts and tools for this step: none listed')
+  expect(prompt).toContain('Parts for this step: none listed')
+  expect(prompt).toContain('Tools for this step: none listed')
+})
+
+test('a step saved before tools existed lists its parts as parts and tools', () => {
+  const { tools: _tools, ...oldStep } = context.step
+  const prompt = chatPrompt({ ...context, step: oldStep })
+  expect(prompt).toContain('Parts and tools for this step: 220 or 330 ohm resistor\n')
+  expect(prompt).not.toContain('Tools for this step')
 })
 
 test('only the last 6 earlier messages go with a new one', () => {

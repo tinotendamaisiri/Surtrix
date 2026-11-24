@@ -22,6 +22,7 @@ export const demoSkill: Skill = {
       instruction:
         'Push the LED into the middle of the breadboard with its long leg and its short leg in two different rows. The long leg is the positive side.',
       parts: ['breadboard', 'LED'],
+      tools: [],
       doneWhen: "The LED's two legs sit in two different rows in the middle of the breadboard.",
     },
     {
@@ -29,12 +30,14 @@ export const demoSkill: Skill = {
       instruction:
         "Take a 220 or 330 ohm resistor from the kit. Put one leg in the red positive rail and the other leg in the same row as the LED's long leg.",
       parts: ['220 or 330 ohm resistor'],
+      tools: [],
       doneWhen: "A 220 or 330 ohm resistor joins the red positive rail to the row of the LED's long leg.",
     },
     {
       title: 'Add the wire',
       instruction: "Use a jumper wire to join the row of the LED's short leg to the blue negative rail.",
       parts: ['jumper wire'],
+      tools: [],
       doneWhen: "A jumper wire joins the row of the LED's short leg to the blue negative rail.",
     },
     {
@@ -42,6 +45,7 @@ export const demoSkill: Skill = {
       instruction:
         'With the power module switched off, plug it onto the end of the breadboard so its pins sit in the rails, and set it to 5 V. Then connect the USB cable and switch the module on.',
       parts: ['power module', 'USB cable'],
+      tools: [],
       doneWhen: 'The LED is lit.',
     },
   ],

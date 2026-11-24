@@ -11,6 +11,7 @@ import {
   partInfo,
   SKILL_LOAD_SLOW_MS,
   skillParts,
+  skillTools,
   type SkillLoad,
 } from '../src/workspace.ts'
 
@@ -19,6 +20,22 @@ const demoSteps: CoachStep[] = demoSkill.steps.map((s, i) => ({ ...s, id: `step-
 test("the demo skill's parts are every step's parts combined, each once, in order", () => {
   expect(skillParts(demoSteps)).toEqual(['breadboard', 'LED', '220 or 330 ohm resistor', 'jumper wire', 'power module', 'USB cable'])
   expect(skillParts([{ parts: ['LED', ' led ', 'Wire'] }, { parts: ['wire', ''] }])).toEqual(['LED', 'Wire'])
+})
+
+test("a skill's tools are every step's tools combined, each once, in order", () => {
+  expect(skillTools([{ tools: ['Multimeter', ' soldering iron '] }, { tools: ['multimeter', '', 'Screwdriver'] }])).toEqual([
+    'Multimeter',
+    'soldering iron',
+    'Screwdriver',
+  ])
+})
+
+test('a skill with tools lists that are all empty needs no tools; one saved before tools hides them', () => {
+  expect(skillTools(demoSteps)).toEqual([])
+  expect(skillTools([{ tools: [] }, { tools: [' '] }])).toEqual([])
+  expect(skillTools([{}, {}])).toBeNull()
+  const oldSteps: CoachStep[] = demoSteps.map(({ tools: _tools, ...s }) => s)
+  expect(skillTools(oldSteps)).toBeNull()
 })
 
 test('every demo part has a picture and a note, and only the demo skill gets them', () => {

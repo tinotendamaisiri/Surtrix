@@ -29,7 +29,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest'
 import { seedDemoSkill } from '../scripts/seedDemoSkill.ts'
 import { DEMO_SKILL_ID, demoAnswers, demoSkill } from '../src/demoSkill.ts'
 import type { Skill } from '../src/skill.ts'
-import { coachSkillFromDocuments, skillDocuments, type StepDocument } from '../src/skillDocuments.ts'
+import { coachSkillFromDocuments, publishFields, skillDocuments, type StepDocument } from '../src/skillDocuments.ts'
 import { stepAnswersFromDocuments } from '../src/savedAnswerPick.ts'
 
 let testEnv: RulesTestEnvironment
@@ -119,10 +119,10 @@ describe('skills and steps', () => {
     await assertSucceeds(saveSkill(learner(), { skill: { title: 'Long', steps } }))
   })
 
-  test('another signed in learner can read the skill and its steps', async () => {
+  test('the creator reads their own skill and its steps', async () => {
     await saveSkill(learner())
-    await assertSucceeds(getDoc(doc(otherLearner().firestore(), 'skills/skill-1')))
-    await assertSucceeds(getDoc(doc(otherLearner().firestore(), 'skills/skill-1/steps/step-2')))
+    await assertSucceeds(getDoc(doc(learner().firestore(), 'skills/skill-1')))
+    await assertSucceeds(getDoc(doc(learner().firestore(), 'skills/skill-1/steps/step-2')))
   })
 
   test("a learner lists their own skills with home's query", async () => {
@@ -261,6 +261,180 @@ describe('skills and steps', () => {
     await assertFails(updateDoc(doc(db, 'skills/skill-1/steps/step-1'), { title: 'Changed' }))
     await assertFails(deleteDoc(doc(db, 'skills/skill-1/steps/step-1')))
     await assertFails(setDoc(doc(db, 'skills/skill-1'), { ...skillDocuments(skill, 'learner-1').skill, createdAt: serverTimestamp() }))
+  })
+})
+
+const EXPERT_NAME = 'Ada Expert'
+
+// A Google account listed in experts, as the expert dashboard signs in (#20).
+const expert = (uid = 'expert-1') => testEnv.authenticatedContext(uid, { firebase: { sign_in_provider: 'google.com' } })
+
+async function listExperts() {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'experts/expert-1'), { name: EXPERT_NAME })
+    await setDoc(doc(context.firestore(), 'experts/expert-2'), { name: 'Grace Expert' })
+    // Listed, but signed in anonymously: never an expert.
+    await setDoc(doc(context.firestore(), 'experts/anonymous-1'), { name: 'Not Google' })
+  })
+}
+
+// Stores a skill with step-1 and one saved answer under it, rules off. published adds
+// the fields an expert's publish writes.
+async function storeSkill(skillId: string, creatorId: string, published?: boolean) {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore()
+    const documents = skillDocuments(skill, creatorId)
+    const publishing = published === undefined ? {} : { published, expertName: EXPERT_NAME, publishedAt: Timestamp.now() }
+    await setDoc(doc(db, `skills/${skillId}`), { ...documents.skill, createdAt: Timestamp.now(), ...publishing })
+    await setDoc(doc(db, `skills/${skillId}/steps/step-1`), documents.steps[0].data)
+    await setDoc(doc(db, `skills/${skillId}/steps/step-1/answers/answer-1`), { answer: 'Move the wire one row down.' })
+  })
+}
+
+// Reads the skill, one step, the list of its steps, one saved answer and the list of
+// saved answers, as the Workspace does. Each read starts only when it is called.
+function readSkillParts(db: ReturnType<RulesTestContext['firestore']>, skillId: string): (() => Promise<unknown>)[] {
+  return [
+    () => getDoc(doc(db, `skills/${skillId}`)),
+    () => getDoc(doc(db, `skills/${skillId}/steps/step-1`)),
+    () => getDocs(query(collection(db, `skills/${skillId}/steps`), orderBy('number'))),
+    () => getDoc(doc(db, `skills/${skillId}/steps/step-1/answers/answer-1`)),
+    () => getDocs(collection(db, `skills/${skillId}/steps/step-1/answers`)),
+  ]
+}
+
+// Publishing (#52): an expert publishes or unpublishes a skill they made.
+describe('publishing a skill', () => {
+  beforeEach(listExperts)
+
+  test('an expert saves a skill, then publishes and unpublishes it, with the server time', async () => {
+    await assertSucceeds(saveSkill(expert(), { creatorId: 'expert-1' }))
+    const db = expert().firestore()
+    await assertSucceeds(updateDoc(doc(db, 'skills/skill-1'), publishFields(true, EXPERT_NAME)))
+    const published = await assertSucceeds(getDoc(doc(db, 'skills/skill-1')))
+    expect(published.get('published')).toBe(true)
+    expect(published.get('expertName')).toBe(EXPERT_NAME)
+    expect(published.get('publishedAt')).toBeInstanceOf(Timestamp)
+    await assertSucceeds(updateDoc(doc(db, 'skills/skill-1'), publishFields(false, EXPERT_NAME)))
+    expect((await getDoc(doc(db, 'skills/skill-1'))).get('published')).toBe(false)
+  })
+
+  test('a learner cannot publish their own skill', async () => {
+    await saveSkill(learner())
+    await assertFails(updateDoc(doc(learner().firestore(), 'skills/skill-1'), publishFields(true, EXPERT_NAME)))
+  })
+
+  test('an anonymous account listed in experts cannot publish its own skill', async () => {
+    await storeSkill('mine', 'anonymous-1')
+    const anonymous = testEnv.authenticatedContext('anonymous-1', { firebase: { sign_in_provider: 'anonymous' } })
+    await assertFails(updateDoc(doc(anonymous.firestore(), 'skills/mine'), publishFields(true, 'Not Google')))
+  })
+
+  for (const field of [{ published: false }, { published: true }, { expertName: EXPERT_NAME }, { publishedAt: serverTimestamp() }]) {
+    test(`a new skill cannot be saved with ${Object.keys(field)[0]}, by an expert or a learner`, async () => {
+      await assertFails(saveSkill(expert(), { creatorId: 'expert-1', skillChanges: field }))
+      await assertFails(saveSkill(learner(), { skillChanges: field }))
+    })
+  }
+
+  test("an expert cannot publish another expert's skill or a learner's skill", async () => {
+    await storeSkill('by-expert-2', 'expert-2')
+    await storeSkill('by-learner', 'learner-1')
+    const db = expert().firestore()
+    await assertFails(updateDoc(doc(db, 'skills/by-expert-2'), publishFields(true, EXPERT_NAME)))
+    await assertFails(updateDoc(doc(db, 'skills/by-learner'), publishFields(true, EXPERT_NAME)))
+  })
+
+  test('an expert cannot publish under a name that is not theirs', async () => {
+    await storeSkill('mine', 'expert-1')
+    await assertFails(updateDoc(doc(expert().firestore(), 'skills/mine'), publishFields(true, 'Grace Expert')))
+  })
+
+  test('a time set by the browser is refused', async () => {
+    await storeSkill('mine', 'expert-1')
+    await assertFails(
+      updateDoc(doc(expert().firestore(), 'skills/mine'), { published: true, expertName: EXPERT_NAME, publishedAt: Timestamp.now() }),
+    )
+  })
+
+  test('published must be true or false', async () => {
+    await storeSkill('mine', 'expert-1')
+    await assertFails(updateDoc(doc(expert().firestore(), 'skills/mine'), { ...publishFields(true, EXPERT_NAME), published: 'yes' }))
+  })
+
+  test('publishing cannot change any other field', async () => {
+    await storeSkill('mine', 'expert-1')
+    const db = expert().firestore()
+    await assertFails(updateDoc(doc(db, 'skills/mine'), { ...publishFields(true, EXPERT_NAME), title: 'Changed' }))
+    await assertFails(updateDoc(doc(db, 'skills/mine'), { ...publishFields(true, EXPERT_NAME), stepCount: 1 }))
+  })
+
+  test('an expert cannot delete their skill', async () => {
+    await storeSkill('mine', 'expert-1')
+    await assertFails(deleteDoc(doc(expert().firestore(), 'skills/mine')))
+  })
+
+  test('nobody publishes the demo skill, even an expert stored as its creator', async () => {
+    await storeSkill(DEMO_SKILL_ID, 'expert-1')
+    await assertFails(updateDoc(doc(expert().firestore(), `skills/${DEMO_SKILL_ID}`), publishFields(true, EXPERT_NAME)))
+  })
+})
+
+// Reading skills (#52): a skill, its steps and its saved answers follow the skill.
+describe('reading skills', () => {
+  beforeEach(listExperts)
+
+  test('an unpublished skill, its steps and answers are read by their creator only', async () => {
+    for (const published of [undefined, false]) {
+      await storeSkill('private', 'learner-1', published)
+      for (const read of readSkillParts(learner().firestore(), 'private')) await assertSucceeds(read())
+      for (const reader of [otherLearner(), expert(), visitor()]) {
+        for (const read of readSkillParts(reader.firestore(), 'private')) await assertFails(read())
+      }
+    }
+  })
+
+  test('a published skill, its steps and answers are read by anyone signed in, not signed out', async () => {
+    await storeSkill('shared', 'expert-1', true)
+    for (const reader of [learner(), otherLearner(), expert(), expert('expert-2')]) {
+      for (const read of readSkillParts(reader.firestore(), 'shared')) await assertSucceeds(read())
+    }
+    for (const read of readSkillParts(visitor().firestore(), 'shared')) await assertFails(read())
+  })
+
+  test('the demo skill, its steps and answers are read by anyone signed in, not signed out', async () => {
+    await storeSkill(DEMO_SKILL_ID, 'surtrix')
+    for (const reader of [learner(), otherLearner(), expert()]) {
+      for (const read of readSkillParts(reader.firestore(), DEMO_SKILL_ID)) await assertSucceeds(read())
+    }
+    for (const read of readSkillParts(visitor().firestore(), DEMO_SKILL_ID)) await assertFails(read())
+  })
+
+  test('a skill that does not exist, and its steps and answers, are refused', async () => {
+    for (const read of readSkillParts(learner().firestore(), 'missing')) await assertFails(read())
+  })
+
+  test("All skills' query lists only the published skills, for any signed in learner", async () => {
+    await storeSkill('shared', 'expert-1', true)
+    await storeSkill('unpublished', 'expert-1', false)
+    await storeSkill('private', 'learner-1')
+    const db = otherLearner().firestore()
+    const published = await assertSucceeds(getDocs(query(collection(db, 'skills'), where('published', '==', true))))
+    expect(published.docs.map((d) => d.id)).toEqual(['shared'])
+    await assertFails(getDocs(query(collection(visitor().firestore(), 'skills'), where('published', '==', true))))
+  })
+
+  test("the creator lists their own skills; another learner cannot list them", async () => {
+    await storeSkill('private', 'learner-1')
+    const mine = await assertSucceeds(getDocs(query(collection(learner().firestore(), 'skills'), where('creatorId', '==', 'learner-1'))))
+    expect(mine.size).toBe(1)
+    await assertFails(getDocs(query(collection(otherLearner().firestore(), 'skills'), where('creatorId', '==', 'learner-1'))))
+  })
+
+  test('a list of every skill is refused, even with only published skills stored', async () => {
+    await storeSkill('shared', 'expert-1', true)
+    await assertFails(getDocs(collection(learner().firestore(), 'skills')))
+    await assertFails(getDocs(collection(expert().firestore(), 'skills')))
   })
 })
 

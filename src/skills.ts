@@ -58,6 +58,7 @@ export async function listSkillsBy(creatorId: string): Promise<SkillSummary[]> {
 // Every published skill, newest publish first, for From experts in All skills (#52).
 // One equality filter and no orderBy, so no composite index; sorted here instead.
 export async function listPublishedSkills(): Promise<PublishedSkill[]> {
+  // The rules refuse this query from a signed out visitor, so sign in (or wait for it) first.
   await learnerId()
   const snapshot = await getDocs(query(collection(db, 'skills'), where('published', '==', true)))
   return publishedNewestFirst(

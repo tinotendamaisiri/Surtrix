@@ -1,6 +1,6 @@
 // What the Surtrix Workspace (#62) shows beside the steps: the skill's tools and parts,
 // the demo parts' pictures and notes, and the expert answers in the From live experts card.
-import type { CoachStep } from './coach.ts'
+import type { CoachSkill, CoachStep } from './coach.ts'
 import { DEMO_SKILL_ID } from './demoSkill.ts'
 import type { SavedAnswer } from './savedAnswerPick.ts'
 
@@ -101,4 +101,16 @@ export function initials(name: string): string {
     .filter(Boolean)
     .map((word) => word[0].toUpperCase())
   return letters.slice(0, 2).join('') || '?'
+}
+
+// Loading a skill for the Workspace. A load that has not finished after SKILL_LOAD_SLOW_MS
+// is slow: the Workspace says so and offers Try again, while the load keeps running (#39).
+export type SkillLoad = { kind: 'loading'; slow: boolean } | { kind: 'loaded'; skill: CoachSkill | null } | { kind: 'failed' }
+
+export const SKILL_LOAD_SLOW_MS = 15_000
+
+// What a load is once SKILL_LOAD_SLOW_MS has passed: still loading means slow; a load
+// that finished stays as it is.
+export function afterSlowLoadTime(load: SkillLoad): SkillLoad {
+  return load.kind === 'loading' ? { kind: 'loading', slow: true } : load
 }

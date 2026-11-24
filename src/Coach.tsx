@@ -34,7 +34,7 @@ import { replyToChat } from './chatReply.ts'
 import { ListeningToggle } from './Listening.tsx'
 import { checkTopic, prepareTopicCheck, topicCheckPossible } from './topicCheck.ts'
 import { useListening } from './useListening.ts'
-import { listeningOn, spokenAction, VOICE_NOTE_MS, type VoiceNote } from './voice.ts'
+import { listeningOn, listeningWithCamera, spokenAction, VOICE_NOTE_MS, type VoiceNote } from './voice.ts'
 import { pickSavedAnswer, useSavedAnswers, type Pick as SavedPick } from './savedAnswers.ts'
 import {
   goBack,
@@ -249,9 +249,10 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     }
   }, [])
 
-  // Opens a camera (a given one, or the browser's choice) in place of the current one.
-  async function openCamera(deviceId?: string) {
-    if (startingRef.current) return
+  // Opens a camera (a given one, or the browser's choice) in place of the current one. True
+  // once it is live.
+  async function openCamera(deviceId?: string): Promise<boolean> {
+    if (startingRef.current) return false
     // Chrome only starts the on device model download right after a click.
     watch.prepare()
     startingRef.current = true
@@ -264,7 +265,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       })
       if (!onScreenRef.current) {
         stream.getTracks().forEach((track) => track.stop())
-        return
+        return false
       }
       streamRef.current?.getTracks().forEach((track) => track.stop())
       streamRef.current = stream
@@ -283,24 +284,36 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
           stopCamera()
         })
       }
+      return true
     } catch {
       setCameraError(true)
+      return false
     } finally {
       startingRef.current = false
       setCameraStarting(false)
     }
   }
 
+  // Start camera turns Listening on too (#92). The language pack and Nano get ready in this
+  // tap, as they need it, and the camera never waits for them; the recogniser starts once the
+  // camera is live, so its microphone prompt comes after the camera's.
   function startCamera() {
-    if (streamRef.current) return
-    void openCamera()
+    if (streamRef.current || startingRef.current) return
+    const cameraLive = openCamera()
+    if (listeningWithCamera('start camera', listening.state) === 'turn on') listening.turnOn(cameraLive)
   }
 
-  function stopCamera() {
+  // Closes the camera; Listening is left as it is.
+  function closeCamera() {
     streamRef.current?.getTracks().forEach((track) => track.stop())
     streamRef.current = null
     if (videoRef.current) videoRef.current.srcObject = null
     setCameraOn(false)
+  }
+
+  function stopCamera() {
+    closeCamera()
+    if (listeningWithCamera('stop camera', listening.state) === 'turn off') listening.turnOff()
   }
 
   // The next camera in the device's list after the one in use.
@@ -309,9 +322,10 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     const cameras = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput')
     if (cameras.length < 2) return
     const at = cameras.findIndex((c) => c.deviceId === inUse)
-    // Some phones cannot open two cameras at once, so the one in use closes first.
-    stopCamera()
-    await openCamera(cameras[(at + 1) % cameras.length].deviceId)
+    // Some phones cannot open two cameras at once, so the one in use closes first. If the next
+    // one does not open, the camera is off, so Listening goes off as with Stop camera.
+    closeCamera()
+    if (!(await openCamera(cameras[(at + 1) % cameras.length].deviceId))) stopCamera()
   }
 
   // Ends the running wiring check, if any: a later answer belongs to a step the learner left,

@@ -749,7 +749,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const isFirst = progress.stepIndex === 0
   const isLast = progress.stepIndex === skill.steps.length - 1
 
-  const exitTab = skillsTabFor(skill.id)
+  const exitTab = skillsTabFor(skill.id, skill.published)
   const parts = skillParts(skill.steps)
   const tools = skillTools(skill.steps)
   const experts =

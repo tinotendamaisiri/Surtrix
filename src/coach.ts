@@ -6,7 +6,8 @@ import type { WiringVerdict } from './wiring.ts'
 // before tools existed, and an empty list on a step that needs none.
 export type CoachStep = Omit<Step, 'tools'> & { id: string; tools?: string[] }
 
-export type CoachSkill = { id: string; title: string; steps: CoachStep[] }
+// published is true for a skill an expert published (#52): its Exit goes to All skills.
+export type CoachSkill = { id: string; title: string; published?: boolean; steps: CoachStep[] }
 
 // Where the learner is in a skill. Kept in memory only: a reload starts again.
 export type CoachProgress = {

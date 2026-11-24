@@ -1,21 +1,24 @@
 // The Skills page (#83): `#skills` (All skills) and `#skills/mine` (My skills). All skills
-// shows the pinned LED card (the one live skill, for judges) and the 44 example skills
-// from the skills catalog, with search and trade chips. My skills shows the learner's own
-// saved skills.
-import { useRef, useState, type FormEvent } from 'react'
+// shows the pinned LED card (the demo skill, for judges), the skills experts published
+// (#52, read from Firestore) and the 44 example skills from the skills catalog, with
+// search and trade chips. My skills shows the learner's own saved skills.
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import MySkills from './MySkills.tsx'
 import TradeChips from './TradeChips.tsx'
 import { exampleSkills, pinnedSkill, type CatalogSkill } from './skillCatalog.ts'
-import { HOW_IT_WORKS_HASH, MY_SKILLS_HASH, SKILLS_HASH, type SkillsTab } from './screenAddress.ts'
+import { listPublishedSkills } from './skills.ts'
+import { coachHash, HOW_IT_WORKS_HASH, MY_SKILLS_HASH, SKILLS_HASH, type SkillsTab } from './screenAddress.ts'
 import {
   ALL_TRADES,
+  allSkillsShown,
   cardTag,
-  countText,
   exampleLine,
   PLACEHOLDER_NOTE,
   skillMatches,
   stepsAndTime,
+  stepsText,
   tradeChips,
+  type PublishedSkill,
 } from './skillsPage.ts'
 import Wordmark from './Wordmark.tsx'
 import './SkillsPage.css'
@@ -30,9 +33,22 @@ export default function SkillsPage({ tab }: { tab: SkillsTab }) {
   // Kept while switching tabs, so All skills comes back as it was (settled n).
   const [search, setSearch] = useState('')
   const [trade, setTrade] = useState(ALL_TRADES)
+  const [published, setPublished] = useState<PublishedSkill[]>([])
   const resultsRef = useRef<HTMLElement>(null)
-  const shown = exampleSkills.filter((s) => skillMatches(s, search, trade))
+  const shown = allSkillsShown(published, exampleSkills, search, trade)
   const pinnedShown = skillMatches(pinnedSkill, search, trade)
+
+  // A failed read leaves From experts empty; the rest of the page still shows.
+  useEffect(() => {
+    let onScreen = true
+    listPublishedSkills().then(
+      (skills) => onScreen && setPublished(skills),
+      (e) => console.error('Loading the published skills failed', e),
+    )
+    return () => {
+      onScreen = false
+    }
+  }, [])
 
   // Search and Enter apply the search and bring the results into view (settled h).
   function applySearch(event: FormEvent) {
@@ -122,20 +138,31 @@ export default function SkillsPage({ tab }: { tab: SkillsTab }) {
               </section>
             )}
 
+            {shown.published.length > 0 && (
+              <section className="skills-pinned" aria-label="From experts">
+                <p className="skills-pinlabel">FROM EXPERTS</p>
+                <div className="skills-grid">
+                  {shown.published.map((skill) => (
+                    <PublishedCard key={skill.id} skill={skill} />
+                  ))}
+                </div>
+              </section>
+            )}
+
             <section className="skills-results" ref={resultsRef} aria-labelledby="skills-all-heading">
               <div className="skills-results-head">
                 <h2 id="skills-all-heading">All skills</h2>
                 <p className="skills-count">
-                  <span>{countText(shown.length)}</span>
+                  <span>{shown.count}</span>
                   <span className="skills-note">{PLACEHOLDER_NOTE}</span>
                 </p>
               </div>
               <div className="skills-grid">
-                {shown.map((skill) => (
+                {shown.examples.map((skill) => (
                   <ExampleCard key={skill.image} skill={skill} />
                 ))}
                 {/* Only when nothing matches at all: a shown pinned card is a match. */}
-                {shown.length === 0 && !pinnedShown && (
+                {shown.examples.length === 0 && shown.published.length === 0 && !pinnedShown && (
                   <p className="skills-empty">
                     No skills match. Try another word or trade, or <a href="#new-skill">create a skill</a>.
                   </p>
@@ -175,6 +202,32 @@ function LiveCard() {
           By {s.expert} <Verified />
         </p>
         <span className="skills-steps">{stepsAndTime(s)}</span>
+        <span className="skills-start">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M7 4.5v15l13-7.5z" />
+          </svg>
+          Start
+        </span>
+      </div>
+    </a>
+  )
+}
+
+// A skill an expert published (#52): a plain navy cover with the Surtrix X mark, and the
+// whole card opens its Workspace.
+function PublishedCard({ skill }: { skill: PublishedSkill }) {
+  return (
+    <a className="skills-card" href={coachHash(skill.id)}>
+      <div className="skills-cover skills-cover-expert">
+        <img src="/brand/surtrix-mark-white-512.webp" alt="" width={64} height={64} />
+        <span className="skills-tag">✓ VERIFIED</span>
+      </div>
+      <div className="skills-cbody">
+        <h3>{skill.title}</h3>
+        <p className="skills-by">
+          By {skill.expertName} <Verified />
+        </p>
+        <span className="skills-steps">{stepsText(skill.stepCount)}</span>
         <span className="skills-start">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M7 4.5v15l13-7.5z" />

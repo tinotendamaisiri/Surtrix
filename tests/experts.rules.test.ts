@@ -11,6 +11,7 @@ import {
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing'
 import {
+  addDoc,
   Bytes,
   collection,
   deleteDoc,
@@ -240,6 +241,63 @@ describe('a reply is refused', () => {
     const id = await openQuestion()
     const other = await openQuestion()
     await assertFails(reply(expert(), id, { answerPath: `skills/sample-led/steps/step-2/answers/${other}`, answer: { questionId: other } }))
+  })
+})
+
+// A question on a skill the learner saved themselves (#52): the skill stays private to the
+// learner, yet the expert answers it without ever reading the skill or its steps.
+describe("a question on a learner's own skill", () => {
+  const skillPath = 'skills/learners-own-skill'
+
+  beforeAll(async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore()
+      await setDoc(doc(db, skillPath), { title: 'Wire a switch', creatorId: 'learner-1', stepCount: 1, createdAt: Timestamp.now() })
+      await setDoc(doc(db, `${skillPath}/steps/step-1`), {
+        number: 1,
+        title: 'Place the switch',
+        instruction: 'Push the switch into rows 5 to 7.',
+        parts: ['switch'],
+        doneWhen: 'The switch sits in rows 5 to 7.',
+      })
+    })
+  })
+
+  // learner-1 asks through the rules, as the Workspace does.
+  async function ask(): Promise<string> {
+    const asked = await assertSucceeds(
+      addDoc(collection(anonymous('learner-1'), 'questions'), {
+        learnerId: 'learner-1',
+        skillId: 'learners-own-skill',
+        skillTitle: 'Wire a switch',
+        stepId: 'step-1',
+        stepNumber: 1,
+        stepTitle: 'Place the switch',
+        stepInstruction: 'Push the switch into rows 5 to 7.',
+        question: 'Is the resistor in the right row?',
+        frame: Bytes.fromUint8Array(new Uint8Array(1024).fill(255)),
+        origin: 'learner',
+        judgeSaid: null,
+        status: 'open',
+        createdAt: serverTimestamp(),
+      }),
+    )
+    return asked.id
+  }
+
+  test('the expert replies, the learner reads the reply and the saved answer, another learner cannot', async () => {
+    const id = await ask()
+    await assertSucceeds(reply(expert(), id, { answerPath: `${skillPath}/steps/step-1/answers/${id}` }))
+    const question = await assertSucceeds(getDoc(doc(anonymous('learner-1'), 'questions', id)))
+    if (question.get('reply.expertName') !== EXPERT_NAME) throw new Error('the reply is missing')
+    await assertSucceeds(getDoc(doc(anonymous('learner-1'), `${skillPath}/steps/step-1/answers/${id}`)))
+    await assertSucceeds(getDocs(collection(anonymous('learner-1'), `${skillPath}/steps/step-1/answers`)))
+    await assertFails(getDoc(doc(anonymous('learner-2'), `${skillPath}/steps/step-1/answers/${id}`)))
+  })
+
+  test('the expert cannot read the skill or its step, and the reply never needs to', async () => {
+    await assertFails(getDoc(doc(expert(), skillPath)))
+    await assertFails(getDoc(doc(expert(), `${skillPath}/steps/step-1`)))
   })
 })
 

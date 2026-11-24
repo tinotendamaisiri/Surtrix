@@ -1,6 +1,8 @@
 // The expert dashboard at #expert (#20): an expert signs in with Google, sees every
-// open question with the learner's photo and step, and replies.
+// open question with the learner's photo and step, and replies. Since #52 the expert also
+// makes skills (on the New skill screen) and publishes or unpublishes their own.
 import { useEffect, useState } from 'react'
+import { listSkillsBy, setSkillPublished, type SkillSummary } from './skills'
 import {
   AlreadyAnsweredError,
   REPLY_MAX_LENGTH,
@@ -104,12 +106,90 @@ export default function ExpertDashboard() {
               Sign out
             </button>
           </section>
+          <ExpertSkills expert={{ userId: status.userId, name: status.name }} />
           <OpenQuestions expert={{ userId: status.userId, name: status.name }} />
         </>
       )}
 
       {error && <p className="error">{error}</p>}
     </main>
+  )
+}
+
+// Your skills (#52): the skills this expert made, newest first, each with Publish or
+// Unpublish. A published skill shows in All skills under From experts.
+function ExpertSkills({ expert }: { expert: Expert }) {
+  const [skills, setSkills] = useState<SkillSummary[] | null>(null)
+  const [listFailed, setListFailed] = useState(false)
+  const [changing, setChanging] = useState<string | null>(null)
+  const [error, setError] = useState<{ skillId: string; text: string } | null>(null)
+
+  useEffect(() => {
+    let onScreen = true
+    listSkillsBy(expert.userId).then(
+      (mine) => onScreen && setSkills(mine),
+      (e) => {
+        console.error('Could not list your skills', e)
+        if (onScreen) setListFailed(true)
+      },
+    )
+    return () => {
+      onScreen = false
+    }
+  }, [expert.userId])
+
+  async function change(skill: SkillSummary) {
+    const published = !skill.published
+    setChanging(skill.id)
+    setError(null)
+    try {
+      await setSkillPublished(skill.id, published, expert.name)
+      setSkills((current) => current?.map((s) => (s.id === skill.id ? { ...s, published } : s)) ?? current)
+    } catch (e) {
+      console.error('Could not change whether the skill is published', e)
+      setError({
+        skillId: skill.id,
+        text: published ? 'Could not publish this skill. Please try again.' : 'Could not unpublish this skill. Please try again.',
+      })
+    } finally {
+      setChanging(null)
+    }
+  }
+
+  return (
+    <section className="expert-skills">
+      <h2>Your skills</h2>
+      <a className="expert-make-skill" href="#new-skill">
+        Make a skill
+      </a>
+      {listFailed && <p className="error">Could not load your skills. Reload the page to try again.</p>}
+      {!listFailed && skills === null && <p className="muted">Loading your skills</p>}
+      {skills?.length === 0 && <p className="muted">You have not made a skill yet.</p>}
+      {skills && skills.length > 0 && (
+        <ul className="expert-skill-list">
+          {skills.map((skill) => (
+            <li key={skill.id} className="expert-skill">
+              <div>
+                <p className="question-text">{skill.title}</p>
+                <p className="muted">
+                  {skill.stepCount} {skill.stepCount === 1 ? 'step' : 'steps'},{' '}
+                  {skill.published ? 'published in All skills' : 'not published'}
+                </p>
+              </div>
+              <button
+                type="button"
+                className={skill.published ? 'secondary' : undefined}
+                onClick={() => change(skill)}
+                disabled={changing !== null}
+              >
+                {changing === skill.id ? 'Saving' : skill.published ? 'Unpublish' : 'Publish'}
+              </button>
+              {error?.skillId === skill.id && <p className="error">{error.text}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }
 

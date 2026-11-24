@@ -13,11 +13,25 @@ service cloud.firestore {
       return value is string && value.size() > 0 && value.size() <= max && value.trim() == value;
     }
 
-    // Every signed in learner can read every skill. A learner creates a skill only as
-    // its creator. Nobody updates or deletes skills yet. The demo skill's id is kept for
-    // the seeded demo skill (scripts/seedDemoSkill.ts), which learners never create.
+    // A skill is readable by its creator, by anyone signed in once an expert published
+    // it, and always for the demo skill. Its steps and saved answers follow their skill.
+    // A skill that does not exist, or is not readable, is refused (the app shows "not found").
+    function canReadSkill(skillId, skill) {
+      return signedIn()
+        && (skillId == 'sample-led'
+          || skill.creatorId == request.auth.uid
+          || skill.published == true);
+    }
+    function skillData(skillId) {
+      return get(/databases/$(database)/documents/skills/$(skillId)).data;
+    }
+
+    // A learner or expert creates a skill only as its creator, never published. Only its
+    // creator, when an expert, publishes or unpublishes it (#52). Nobody deletes a skill.
+    // The demo skill's id is kept for the seeded demo skill (scripts/seedDemoSkill.ts),
+    // which learners never create and nobody publishes.
     match /skills/{skillId} {
-      allow read: if signedIn();
+      allow read: if canReadSkill(skillId, resource.data);
       allow create: if signedIn()
         && skillId != 'sample-led'
         && request.resource.data.keys().hasOnly(['title', 'creatorId', 'stepCount', 'createdAt'])
@@ -28,12 +42,21 @@ service cloud.firestore {
         && request.resource.data.stepCount >= 1
         && request.resource.data.stepCount <= 40
         && request.resource.data.createdAt == request.time;
+      // Publishing (#52): only an expert who created the skill, changing only these three
+      // fields, under their own name in experts, at server time. Never the demo skill.
+      allow update: if isExpert()
+        && skillId != 'sample-led'
+        && resource.data.creatorId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['published', 'expertName', 'publishedAt'])
+        && request.resource.data.published is bool
+        && request.resource.data.expertName == expertName()
+        && request.resource.data.publishedAt == request.time;
 
       // Only the skill's creator creates its steps (the app writes them in one batch with
       // the skill).
       // Their ids are step-1, step-2 and so on, matching their number.
       match /steps/{stepId} {
-        allow read: if signedIn();
+        allow read: if canReadSkill(skillId, skillData(skillId));
         allow create: if signedIn()
           && skillAfter().creatorId == request.auth.uid
           && request.resource.data.keys().hasOnly(['number', 'title', 'instruction', 'parts', 'tools', 'doneWhen'])
@@ -81,7 +104,7 @@ service cloud.firestore {
     // Saved expert answers (#20), reused by plan issue 10. The answer's id is its
     // question's id, and it is written in one batch with the reply on the question.
     match /skills/{skillId}/steps/{stepId}/answers/{answerId} {
-      allow read: if signedIn();
+      allow read: if canReadSkill(skillId, skillData(skillId));
       allow create: if isExpert() && isSavedAnswer(skillId, stepId, answerId, request.resource.data);
     }
 

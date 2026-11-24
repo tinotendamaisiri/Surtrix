@@ -5,7 +5,8 @@ import type { SkillsTab } from './screenAddress.ts'
 
 export type { SkillsTab }
 
-// The demo skill lives under All skills; any other skill is one a learner saved.
-export function skillsTabFor(skillId: string): SkillsTab {
-  return skillId === DEMO_SKILL_ID ? 'all' : 'mine'
+// The demo skill and a skill an expert published (#52) live under All skills; any other
+// skill is one a learner saved.
+export function skillsTabFor(skillId: string, published = false): SkillsTab {
+  return skillId === DEMO_SKILL_ID || published ? 'all' : 'mine'
 }

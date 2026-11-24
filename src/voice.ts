@@ -133,8 +133,17 @@ export async function topicVerdict(
 // Where listening stands. off: not listening. preparing: getting the language pack ready.
 // listening: on. paused: on, but the tab is hidden. unsupported: this browser cannot
 // recognise speech on the device. blocked: the microphone is not allowed. failed: the
-// language pack could not be made ready.
-export type ListeningState = 'off' | 'preparing' | 'listening' | 'paused' | 'unsupported' | 'blocked' | 'failed'
+// language pack could not be made ready. busy: Chrome kept refusing the recogniser, for
+// example while another tab or app uses it (#92).
+export type ListeningState =
+  | 'off'
+  | 'preparing'
+  | 'listening'
+  | 'paused'
+  | 'unsupported'
+  | 'blocked'
+  | 'failed'
+  | 'busy'
 
 // The line under the Listening toggle when voice cannot run (settled c), or null.
 export function listeningProblem(state: ListeningState): string | null {
@@ -145,6 +154,8 @@ export function listeningProblem(state: ListeningState): string | null {
       return 'Allow the microphone to talk to Surtrix.'
     case 'failed':
       return 'Voice could not get ready. Try again later.'
+    case 'busy':
+      return 'Voice is busy in another tab or app. Close it, then turn Listening on again.'
     default:
       return null
   }
@@ -153,4 +164,52 @@ export function listeningProblem(state: ListeningState): string | null {
 // On means the learner wants it on: listening now, getting ready, or paused while hidden.
 export function listeningOn(state: ListeningState): boolean {
   return state === 'listening' || state === 'preparing' || state === 'paused'
+}
+
+// The busy rule (#92). Chrome can refuse the recogniser again and again, ending each run
+// before any audio, while the toggle says Listening. A run that ends before audio started
+// is a refusal; audio starting clears the count. After BUSY_AFTER_REFUSALS refusals in a
+// row, listening stops with the busy line.
+export const BUSY_AFTER_REFUSALS = 5
+
+export function refusalsAfterRun(refusals: number, heardAudio: boolean): number {
+  return heardAudio ? 0 : refusals + 1
+}
+
+export function voiceBusy(refusals: number): boolean {
+  return refusals >= BUSY_AFTER_REFUSALS
+}
+
+// Start camera (#92). Where voice can run, the same tap asks for the microphone with the
+// camera, in one request, and turns Listening on. The microphone is asked only so the
+// learner answers one prompt: speech is still heard only by Chrome's recogniser on the
+// device, and the microphone track is closed at once.
+export type CameraRequest = { video: true | { deviceId: { exact: string } }; audio: boolean }
+
+export function cameraRequest(voice: ListeningState): CameraRequest {
+  return { video: true, audio: voice !== 'unsupported' }
+}
+
+// When the request with the microphone fails, the camera is asked for alone, so it still
+// starts. Null: the camera alone was asked, so there is nothing left to try.
+export function cameraAloneRequest(asked: CameraRequest): CameraRequest | null {
+  return asked.audio ? { video: asked.video, audio: false } : null
+}
+
+// What the camera does to Listening. Start camera turns it on, even if the learner turned it
+// off earlier; a refused microphone leaves it off with its line; Stop camera turns it off.
+// Where voice cannot run, Listening is left as it is.
+export type CameraChange = 'start camera' | 'microphone refused' | 'stop camera'
+export type ListeningChange = 'turn on' | 'block' | 'turn off' | 'leave'
+
+export function listeningWithCamera(change: CameraChange, voice: ListeningState): ListeningChange {
+  if (voice === 'unsupported') return 'leave'
+  switch (change) {
+    case 'start camera':
+      return 'turn on'
+    case 'microphone refused':
+      return 'block'
+    case 'stop camera':
+      return 'turn off'
+  }
 }

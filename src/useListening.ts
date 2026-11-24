@@ -5,7 +5,15 @@
 // words still being heard are never shown (settled l).
 import { useEffect, useRef, useState } from 'react'
 import { CHAT_MAX_LENGTH } from './chat.ts'
-import { joinPhrases, listeningOn, spokenMessageDueIn, VOICE_LANG, type ListeningState } from './voice.ts'
+import {
+  joinPhrases,
+  listeningOn,
+  refusalsAfterRun,
+  spokenMessageDueIn,
+  VOICE_LANG,
+  voiceBusy,
+  type ListeningState,
+} from './voice.ts'
 
 type RecognitionResult = { isFinal: boolean; 0: { transcript: string } }
 type RecognitionEvent = { resultIndex: number; results: ArrayLike<RecognitionResult> }
@@ -21,6 +29,7 @@ type Recognition = {
   onresult: ((event: RecognitionEvent) => void) | null
   onerror: ((event: { error: string }) => void) | null
   onend: (() => void) | null
+  onaudiostart: (() => void) | null
 }
 
 type Availability = 'available' | 'downloadable' | 'downloading' | 'unavailable'
@@ -53,6 +62,12 @@ export type Listening = {
   waiting: boolean
   // Turns listening on (needs a tap: the first time it gets the language pack ready) or off.
   toggle: () => void
+  // The same, one way each, for Start camera and Stop camera (#92). Both do nothing when
+  // listening is already that way.
+  turnOn: () => void
+  turnOff: () => void
+  // The microphone was refused: listening stops with its line.
+  block: () => void
   // Drops the message waiting for its silence; true when there was one.
   drop: () => boolean
   // Goes up each time listening stops (turned off, the tab hidden, the mic refused): a
@@ -79,6 +94,8 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
   // shown again during the download never starts listening early.
   const readyRef = useRef(false)
   const recognitionRef = useRef<Recognition | null>(null)
+  // The busy rule (#92): runs of the recogniser in a row that ended before any audio.
+  const refusalsRef = useRef(0)
   useEffect(() => {
     onMessageRef.current = onMessage
   })
@@ -119,12 +136,15 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
     const r = recognitionRef.current
     recognitionRef.current = null
     if (!r) return
-    r.onresult = r.onerror = r.onend = null
+    r.onresult = r.onerror = r.onend = r.onaudiostart = null
     r.abort()
   }
 
   function begin(C: RecognitionClass) {
     stopRecognition()
+    refusalsRef.current = 0
+    // Whether audio started in this run of the recogniser.
+    let heardAudio = false
     const r = new C()
     r.lang = VOICE_LANG
     r.continuous = true
@@ -156,12 +176,25 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
         stopListening()
         setState('failed')
       }
-      // Anything else (no speech, a pause): the end handler starts listening again.
+      // Anything else (no speech, a pause, a refusal): the end handler starts listening
+      // again, and counts a refusal.
+    }
+    r.onaudiostart = () => {
+      heardAudio = true
+      refusalsRef.current = 0
     }
     r.onend = () => {
       if (recognitionRef.current !== r || !wantRef.current || document.visibilityState === 'hidden') return
+      refusalsRef.current = refusalsAfterRun(refusalsRef.current, heardAudio)
+      if (voiceBusy(refusalsRef.current)) {
+        wantRef.current = false
+        stopListening()
+        setState('busy')
+        return
+      }
       setTimeout(() => {
         if (recognitionRef.current !== r || !wantRef.current || document.visibilityState === 'hidden') return
+        heardAudio = false
         try {
           r.start()
         } catch {
@@ -178,7 +211,7 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
     setState('listening')
   }
 
-  async function turnOn() {
+  async function getReady() {
     const C = onDeviceRecognition()
     if (!C) {
       setState('unsupported')
@@ -211,16 +244,29 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
     begin(C)
   }
 
-  function toggle() {
-    if (listeningOn(state)) {
-      wantRef.current = false
-      stopListening()
-      setState('off')
-      return
-    }
-    if (state === 'unsupported') return
+  // Each runs inside the tap: the language pack and Nano need it.
+  function turnOn() {
+    if (wantRef.current || state === 'unsupported') return
     onTurnOn?.()
-    void turnOn()
+    void getReady()
+  }
+
+  function turnOff() {
+    if (!wantRef.current) return
+    wantRef.current = false
+    stopListening()
+    setState('off')
+  }
+
+  function block() {
+    wantRef.current = false
+    stopListening()
+    setState((s) => (s === 'unsupported' ? s : 'blocked'))
+  }
+
+  function toggle() {
+    if (listeningOn(state)) turnOff()
+    else turnOn()
   }
 
   // Paused while the tab is hidden, back when it shows again.
@@ -254,5 +300,5 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
     return had
   }
 
-  return { state, waiting, toggle, drop, stops: () => stopsRef.current }
+  return { state, waiting, toggle, turnOn, turnOff, block, drop, stops: () => stopsRef.current }
 }

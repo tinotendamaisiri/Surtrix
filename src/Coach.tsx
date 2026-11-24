@@ -34,7 +34,17 @@ import { replyToChat } from './chatReply.ts'
 import { ListeningToggle } from './Listening.tsx'
 import { checkTopic, prepareTopicCheck, topicCheckPossible } from './topicCheck.ts'
 import { useListening } from './useListening.ts'
-import { listeningOn, spokenAction, VOICE_NOTE_MS, type VoiceNote } from './voice.ts'
+import {
+  cameraAloneRequest,
+  cameraRequest,
+  listeningOn,
+  listeningWithCamera,
+  spokenAction,
+  VOICE_NOTE_MS,
+  type CameraChange,
+  type CameraRequest,
+  type VoiceNote,
+} from './voice.ts'
 import { pickSavedAnswer, useSavedAnswers, type Pick as SavedPick } from './savedAnswers.ts'
 import {
   goBack,
@@ -249,8 +259,9 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     }
   }, [])
 
-  // Opens a camera (a given one, or the browser's choice) in place of the current one.
-  async function openCamera(deviceId?: string) {
+  // Opens a camera (a given one, or the browser's choice) in place of the current one. Start
+  // camera asks for the microphone too where voice can run (#92).
+  async function openCamera(ask: CameraRequest) {
     if (startingRef.current) return
     // Chrome only starts the on device model download right after a click.
     watch.prepare()
@@ -258,14 +269,28 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     setCameraStarting(true)
     setCameraError(false)
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: deviceId ? { deviceId: { exact: deviceId } } : true,
-        audio: false,
-      })
+      let stream: MediaStream
+      let microphoneRefused = false
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(ask)
+      } catch (e) {
+        // The request with the microphone failed: the camera alone, so it still starts.
+        const alone = cameraAloneRequest(ask)
+        if (!alone) throw e
+        stream = await navigator.mediaDevices.getUserMedia(alone)
+        microphoneRefused = true
+      }
+      // The microphone was asked only for the permission: its track closes at once, so no
+      // audio is recorded or sent. Chrome's recogniser on the device does the listening.
+      for (const track of stream.getAudioTracks()) {
+        track.stop()
+        stream.removeTrack(track)
+      }
       if (!onScreenRef.current) {
         stream.getTracks().forEach((track) => track.stop())
         return
       }
+      if (microphoneRefused) changeListening('microphone refused')
       streamRef.current?.getTracks().forEach((track) => track.stop())
       streamRef.current = stream
       videoRef.current!.srcObject = stream
@@ -291,16 +316,32 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     }
   }
 
-  function startCamera() {
-    if (streamRef.current) return
-    void openCamera()
+  // What the camera does to Listening (#92).
+  function changeListening(change: CameraChange) {
+    const what = listeningWithCamera(change, listening.state)
+    if (what === 'turn on') listening.turnOn()
+    else if (what === 'block') listening.block()
+    else if (what === 'turn off') listening.turnOff()
   }
 
-  function stopCamera() {
+  function startCamera() {
+    if (streamRef.current || startingRef.current) return
+    // In the same tap: the language pack and Nano need it. The camera never waits for them.
+    changeListening('start camera')
+    void openCamera(cameraRequest(listening.state))
+  }
+
+  // Closes the camera; Listening is left as it is.
+  function closeCamera() {
     streamRef.current?.getTracks().forEach((track) => track.stop())
     streamRef.current = null
     if (videoRef.current) videoRef.current.srcObject = null
     setCameraOn(false)
+  }
+
+  function stopCamera() {
+    closeCamera()
+    changeListening('stop camera')
   }
 
   // The next camera in the device's list after the one in use.
@@ -310,8 +351,8 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     if (cameras.length < 2) return
     const at = cameras.findIndex((c) => c.deviceId === inUse)
     // Some phones cannot open two cameras at once, so the one in use closes first.
-    stopCamera()
-    await openCamera(cameras[(at + 1) % cameras.length].deviceId)
+    closeCamera()
+    await openCamera({ video: { deviceId: { exact: cameras[(at + 1) % cameras.length].deviceId } }, audio: false })
   }
 
   // Ends the running wiring check, if any: a later answer belongs to a step the learner left,

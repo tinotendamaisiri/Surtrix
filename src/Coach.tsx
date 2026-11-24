@@ -148,7 +148,8 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   // Set when a spoken "done" acts, until the step or the wiring check changes, so two
   // quick "done"s act once.
   const doneActingRef = useRef(false)
-  // Every step's saved expert answers, loaded once (#31), so they still help offline.
+  // Every step's saved expert answers (#31), kept up to date while the coach is open (#65)
+  // and loaded again after a failure (#43). They stay in memory, so they still help offline.
   const saved = useSavedAnswers(skill)
 
   // The chat (#74). On stacked layouts it is below the step, so an unsure verdict that

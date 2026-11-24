@@ -1484,6 +1484,12 @@ main.workspace {
   margin: 0;
 }
 
+.ws-message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 /* Narrower screens: the columns stack, the camera first, then the step, then the parts
    and steps. */
 @media (max-width: 1100px) {

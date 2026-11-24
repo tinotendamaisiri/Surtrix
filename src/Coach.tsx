@@ -39,6 +39,7 @@ import { pickSavedAnswer, useSavedAnswers, type Pick as SavedPick } from './save
 import {
   goBack,
   goNext,
+  followWiringCheck,
   goToStep,
   markStepDone,
   startProgress,
@@ -719,9 +720,11 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
         setWiring({ kind: 'result', ...checked, showOn: next })
         // A spoken message still waiting was about the step just finished.
         dropSpokenQueue()
-        setProgress(markStepDone)
+        setProgress((p) => followWiringCheck(p, index, 'correct'))
       } else {
         setWiring({ kind: 'result', ...checked, showOn: step.id })
+        // The Done mark never says a step is fine while its latest check says it is not.
+        setProgress((p) => followWiringCheck(p, index, result.check.verdict))
         if (result.check.verdict === 'unsure') handleUnsure(step, index, { said: describeWiringCheck(result.check), frame })
       }
     } catch (e) {
@@ -729,6 +732,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       endWiringCheck()
       console.error('Wiring check failed', e)
       setWiring({ kind: 'failed', stepId: step.id })
+      setProgress((p) => followWiringCheck(p, index, null))
     }
   }
 

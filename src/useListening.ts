@@ -10,6 +10,7 @@ import {
   listeningOn,
   refusalsAfterRun,
   spokenMessageDueIn,
+  stateAfterError,
   VOICE_LANG,
   voiceBusy,
   type ListeningState,
@@ -63,11 +64,12 @@ export type Listening = {
   // Turns listening on (needs a tap: the first time it gets the language pack ready) or off.
   toggle: () => void
   // The same, one way each, for Start camera and Stop camera (#92). Both do nothing when
-  // listening is already that way.
-  turnOn: () => void
+  // listening is already that way. Given the camera starting, turnOn gets voice ready in
+  // the tap but starts the recogniser only once the camera is live, so the camera's prompt
+  // comes first and the recogniser asks for the microphone after it; a camera that fails
+  // leaves listening off.
+  turnOn: (cameraLive?: Promise<boolean>) => void
   turnOff: () => void
-  // The microphone was refused: listening stops with its line.
-  block: () => void
   // Drops the message waiting for its silence; true when there was one.
   drop: () => boolean
   // Goes up each time listening stops (turned off, the tab hidden, the mic refused): a
@@ -167,14 +169,11 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
       scheduleSend(now)
     }
     r.onerror = (event) => {
-      if (event.error === 'not-allowed' || event.error === 'audio-capture') {
+      const stopped = stateAfterError(event.error)
+      if (stopped) {
         wantRef.current = false
         stopListening()
-        setState('blocked')
-      } else if (event.error === 'service-not-allowed' || event.error === 'language-not-supported') {
-        wantRef.current = false
-        stopListening()
-        setState('failed')
+        setState(stopped)
       }
       // Anything else (no speech, a pause, a refusal): the end handler starts listening
       // again, and counts a refusal.
@@ -211,7 +210,7 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
     setState('listening')
   }
 
-  async function getReady() {
+  async function getReady(cameraLive?: Promise<boolean>) {
     const C = onDeviceRecognition()
     if (!C) {
       setState('unsupported')
@@ -240,15 +239,22 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
       return
     }
     if (!wantRef.current) return
+    if (cameraLive && !(await cameraLive)) {
+      if (!wantRef.current) return
+      wantRef.current = false
+      setState('off')
+      return
+    }
+    if (!wantRef.current) return
     readyRef.current = true
     begin(C)
   }
 
   // Each runs inside the tap: the language pack and Nano need it.
-  function turnOn() {
+  function turnOn(cameraLive?: Promise<boolean>) {
     if (wantRef.current || state === 'unsupported') return
     onTurnOn?.()
-    void getReady()
+    void getReady(cameraLive)
   }
 
   function turnOff() {
@@ -256,12 +262,6 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
     wantRef.current = false
     stopListening()
     setState('off')
-  }
-
-  function block() {
-    wantRef.current = false
-    stopListening()
-    setState((s) => (s === 'unsupported' ? s : 'blocked'))
   }
 
   function toggle() {
@@ -300,5 +300,5 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
     return had
   }
 
-  return { state, waiting, toggle, turnOn, turnOff, block, drop, stops: () => stopsRef.current }
+  return { state, waiting, toggle, turnOn, turnOff, drop, stops: () => stopsRef.current }
 }

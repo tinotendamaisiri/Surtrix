@@ -4,8 +4,6 @@ import { chatHistory, type ChatItem } from '../src/chat.ts'
 import {
   aboutTheTask,
   BUSY_AFTER_REFUSALS,
-  cameraAloneRequest,
-  cameraRequest,
   DROPPED_NOTE,
   isDoneCommand,
   joinPhrases,
@@ -17,6 +15,7 @@ import {
   refusalsAfterRun,
   spokenAction,
   spokenMessageDueIn,
+  stateAfterError,
   topicCheckInstruction,
   topicCheckQuestion,
   topicVerdict,
@@ -109,31 +108,20 @@ test('voice is English, on is on while listening, getting ready or paused, and e
 // Starting the camera starts Listening (#92).
 const VOICE_STATES: ListeningState[] = ['off', 'preparing', 'listening', 'paused', 'blocked', 'failed', 'busy']
 
-test('where voice can run, Start camera asks for the camera and the microphone in one request', () => {
-  for (const voice of VOICE_STATES) expect(cameraRequest(voice)).toEqual({ video: true, audio: true })
-})
-
-test('where voice cannot run, Start camera asks for the camera alone, as before', () => {
-  expect(cameraRequest('unsupported')).toEqual({ video: true, audio: false })
-})
-
-test('a refused request with the microphone falls back to the camera alone, so the camera still starts', () => {
-  expect(cameraAloneRequest({ video: true, audio: true })).toEqual({ video: true, audio: false })
-  const chosen = { deviceId: { exact: 'back' } }
-  expect(cameraAloneRequest({ video: chosen, audio: true })).toEqual({ video: chosen, audio: false })
-})
-
-test('a refused request for the camera alone has nothing left to try', () => {
-  expect(cameraAloneRequest({ video: true, audio: false })).toBeNull()
-})
-
 test('each Start camera turns Listening on, even after the learner turned it off', () => {
   for (const voice of VOICE_STATES) expect(listeningWithCamera('start camera', voice)).toBe('turn on')
 })
 
-test('a refused microphone leaves Listening off with its line', () => {
-  for (const voice of VOICE_STATES) expect(listeningWithCamera('microphone refused', voice)).toBe('block')
+test('a microphone refused at the recogniser prompt leaves Listening off with its line', () => {
+  expect(stateAfterError('not-allowed')).toBe('blocked')
+  expect(stateAfterError('audio-capture')).toBe('blocked')
   expect(listeningProblem('blocked')).toBe('Allow the microphone to talk to Surtrix.')
+  expect(stateAfterError('service-not-allowed')).toBe('failed')
+  expect(stateAfterError('language-not-supported')).toBe('failed')
+})
+
+test('no speech, a pause or a refusal only pauses the recogniser, so the busy rule counts it', () => {
+  for (const error of ['no-speech', 'aborted', 'network']) expect(stateAfterError(error)).toBeNull()
 })
 
 test('Stop camera always turns Listening off', () => {
@@ -141,7 +129,7 @@ test('Stop camera always turns Listening off', () => {
 })
 
 test('where voice cannot run, the camera leaves Listening as it is', () => {
-  for (const change of ['start camera', 'microphone refused', 'stop camera'] as const) {
+  for (const change of ['start camera', 'stop camera'] as const) {
     expect(listeningWithCamera(change, 'unsupported')).toBe('leave')
   }
 })

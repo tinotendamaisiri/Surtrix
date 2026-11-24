@@ -180,36 +180,23 @@ export function voiceBusy(refusals: number): boolean {
   return refusals >= BUSY_AFTER_REFUSALS
 }
 
-// Start camera (#92). Where voice can run, the same tap asks for the microphone with the
-// camera, in one request, and turns Listening on. The microphone is asked only so the
-// learner answers one prompt: speech is still heard only by Chrome's recogniser on the
-// device, and the microphone track is closed at once.
-export type CameraRequest = { video: true | { deviceId: { exact: string } }; audio: boolean }
-
-export function cameraRequest(voice: ListeningState): CameraRequest {
-  return { video: true, audio: voice !== 'unsupported' }
+// Why the recogniser stopped for good, or null when it only paused (no speech, a pause, a
+// refusal) and the end handler starts it again. A refused microphone, including the
+// recogniser's own prompt after Start camera (#92), shows the microphone line.
+export function stateAfterError(error: string): 'blocked' | 'failed' | null {
+  if (error === 'not-allowed' || error === 'audio-capture') return 'blocked'
+  if (error === 'service-not-allowed' || error === 'language-not-supported') return 'failed'
+  return null
 }
 
-// When the request with the microphone fails, the camera is asked for alone, so it still
-// starts. Null: the camera alone was asked, so there is nothing left to try.
-export function cameraAloneRequest(asked: CameraRequest): CameraRequest | null {
-  return asked.audio ? { video: asked.video, audio: false } : null
-}
-
-// What the camera does to Listening. Start camera turns it on, even if the learner turned it
-// off earlier; a refused microphone leaves it off with its line; Stop camera turns it off.
-// Where voice cannot run, Listening is left as it is.
-export type CameraChange = 'start camera' | 'microphone refused' | 'stop camera'
-export type ListeningChange = 'turn on' | 'block' | 'turn off' | 'leave'
+// What the camera does to Listening (#92). Start camera turns it on, even if the learner
+// turned it off earlier, once the camera is live: the camera's prompt comes first and the
+// recogniser asks for the microphone after it. Stop camera turns it off. Where voice cannot
+// run, Listening is left as it is.
+export type CameraChange = 'start camera' | 'stop camera'
+export type ListeningChange = 'turn on' | 'turn off' | 'leave'
 
 export function listeningWithCamera(change: CameraChange, voice: ListeningState): ListeningChange {
   if (voice === 'unsupported') return 'leave'
-  switch (change) {
-    case 'start camera':
-      return 'turn on'
-    case 'microphone refused':
-      return 'block'
-    case 'stop camera':
-      return 'turn off'
-  }
+  return change === 'start camera' ? 'turn on' : 'turn off'
 }

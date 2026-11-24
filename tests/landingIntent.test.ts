@@ -8,6 +8,12 @@ test('the demo skill goes back to All skills, any other skill to My skills', () 
   expect(skillsTabFor('h0mqHrOwc1uVUcZzG2yQ')).toBe('mine')
 })
 
+test('a published skill goes back to All skills, and the demo stays there either way', () => {
+  expect(skillsTabFor('h0mqHrOwc1uVUcZzG2yQ', true)).toBe('all')
+  expect(skillsTabFor('h0mqHrOwc1uVUcZzG2yQ', false)).toBe('mine')
+  expect(skillsTabFor('sample-led', false)).toBe('all')
+})
+
 test('each tab has its own Skills page address, which opens that tab', () => {
   expect(skillsHash('all')).toBe('#skills')
   expect(skillsHash('mine')).toBe('#skills/mine')

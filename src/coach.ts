@@ -4,7 +4,8 @@ import type { Step } from './skill.ts'
 // each step with its id. The coach never makes up ids.
 export type CoachStep = Step & { id: string }
 
-export type CoachSkill = { id: string; title: string; steps: CoachStep[] }
+// published is true for a skill an expert published (#52): its Exit goes to All skills.
+export type CoachSkill = { id: string; title: string; published?: boolean; steps: CoachStep[] }
 
 // Where the learner is in a skill. Kept in memory only: a reload starts again.
 export type CoachProgress = {

@@ -14,11 +14,11 @@ The app today has these screens:
   section shows 44 example skills in two slow carousel rows and a button to the Skills
   page.
 * The Skills page (`#skills`, and `#skills/mine` for My skills): search, trade chips,
-  the pinned demo skill (lighting an LED with a resistor on a breadboard, the one live
-  skill) and a grid of 44 example skills, which are display only. My skills lists the
-  skills you saved, newest first. The landing and the Skills page read one skills
-  catalog (`src/skillCatalog.ts`). The demo skill is stored in Firestore like any saved
-  skill.
+  the pinned demo skill (lighting an LED with a resistor on a breadboard), the skills
+  experts published under From experts, and a grid of 44 example skills, which are
+  display only. My skills lists the skills you saved, newest first. The landing and
+  the Skills page read one skills catalog (`src/skillCatalog.ts`). The demo skill is
+  stored in Firestore like any saved skill.
 * The coach (`#coach/{skill id}`) walks you through a skill one step at a time, next
   to a live camera preview. You move with Back and Next. With the camera on, Mark
   step done first has `gemini-4-hydrogen` in the cloud check the wiring against the
@@ -43,8 +43,10 @@ The app today has these screens:
   every expert reply show in the chat as they happen.
 * The expert dashboard (`#expert`): an expert signs in with Google and sees every
   open question with the learner's photo and step, oldest first, and replies. The
-  reply reaches the learner live and is saved under the skill's step. Only Google
-  accounts the Surtrix team lists in Firestore's `experts` collection are experts.
+  reply reaches the learner live and is saved under the skill's step. Under Your
+  skills, Make a skill opens New skill, and each skill the expert made can be
+  published to All skills or unpublished. Only Google accounts the Surtrix team lists
+  in Firestore's `experts` collection are experts.
 * New skill (`#new-skill`): upload a PDF (up to 10 MB) or paste a procedure (up to
   50,000 characters), and Gemini (`gemini-3.5-flash-lite`, in the cloud) turns it into
   a list of steps to review. Try a sample fills in the demo skill's procedure as

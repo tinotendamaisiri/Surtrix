@@ -20,6 +20,41 @@ export function skillMatches(skill: CatalogSkill, search: string, trade: string)
   return `${skill.title} ${skill.trade} ${skill.description} ${skill.expert}`.toLowerCase().includes(words)
 }
 
+// A skill an expert published (#52), for From experts in All skills. publishedAt is in
+// milliseconds, 0 when unknown.
+export type PublishedSkill = { id: string; title: string; stepCount: number; expertName: string; publishedAt: number }
+
+export function publishedNewestFirst(skills: readonly PublishedSkill[]): PublishedSkill[] {
+  return [...skills].sort((a, b) => b.publishedAt - a.publishedAt)
+}
+
+// A published skill has no trade yet, so it shows only under the All chip, and the search
+// words must appear in its title or expert's name.
+export function publishedSkillMatches(skill: PublishedSkill, search: string, trade: string): boolean {
+  if (trade !== ALL_TRADES) return false
+  const words = search.trim().toLowerCase()
+  if (words === '') return true
+  return `${skill.title} ${skill.expertName}`.toLowerCase().includes(words)
+}
+
+// What All skills shows below the pinned card for this search and chip: the published
+// skills, the example skills, and the count line for both together.
+export function allSkillsShown(
+  published: readonly PublishedSkill[],
+  examples: readonly CatalogSkill[],
+  search: string,
+  trade: string,
+): { published: PublishedSkill[]; examples: CatalogSkill[]; count: string } {
+  const publishedShown = published.filter((s) => publishedSkillMatches(s, search, trade))
+  const examplesShown = examples.filter((s) => skillMatches(s, search, trade))
+  return { published: publishedShown, examples: examplesShown, count: countText(publishedShown.length + examplesShown.length) }
+}
+
+// "4 steps" on a published skill's card.
+export function stepsText(count: number): string {
+  return `${count} ${count === 1 ? 'step' : 'steps'}`
+}
+
 export function countText(count: number): string {
   return `${count} ${count === 1 ? 'skill' : 'skills'}`
 }

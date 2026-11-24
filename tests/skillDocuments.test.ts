@@ -1,6 +1,14 @@
 // How a skill is stored and read back (src/skillDocuments.ts).
 import { describe, expect, test } from 'vitest'
-import { coachSkillFromDocuments, isDocumentId, skillDocuments, type StepDocument } from '../src/skillDocuments.ts'
+import { serverTimestamp } from 'firebase/firestore'
+import {
+  coachSkillFromDocuments,
+  isDocumentId,
+  isRefusedRead,
+  publishFields,
+  skillDocuments,
+  type StepDocument,
+} from '../src/skillDocuments.ts'
 
 const step = { title: 'Place the LED', instruction: 'Push it in.', parts: ['LED'], doneWhen: 'It is in.' }
 
@@ -19,6 +27,33 @@ describe('skillDocuments', () => {
     ])
     expect(Object.keys(documents.steps[0].data).sort()).toEqual(['doneWhen', 'instruction', 'number', 'parts', 'title'])
   })
+
+  test('a new skill is never published and has no expert name', () => {
+    const documents = skillDocuments({ title: 'Light an LED', steps: [step] }, 'learner-1')
+    expect(Object.keys(documents.skill).sort()).toEqual(['createdAt', 'creatorId', 'stepCount', 'title'])
+  })
+})
+
+describe('publishFields', () => {
+  test('publish and unpublish write exactly published, expertName and publishedAt at server time', () => {
+    for (const published of [true, false]) {
+      const fields = publishFields(published, 'Ada Expert')
+      expect(Object.keys(fields).sort()).toEqual(['expertName', 'published', 'publishedAt'])
+      expect(fields.published).toBe(published)
+      expect(fields.expertName).toBe('Ada Expert')
+      expect(fields.publishedAt.isEqual(serverTimestamp())).toBe(true)
+    }
+  })
+})
+
+describe('isRefusedRead', () => {
+  test('a permission denied read counts as refused, anything else does not', () => {
+    expect(isRefusedRead({ code: 'permission-denied', message: 'Missing or insufficient permissions.' })).toBe(true)
+    expect(isRefusedRead({ code: 'unavailable' })).toBe(false)
+    expect(isRefusedRead(new Error('offline'))).toBe(false)
+    expect(isRefusedRead(null)).toBe(false)
+    expect(isRefusedRead(undefined)).toBe(false)
+  })
 })
 
 describe('coachSkillFromDocuments', () => {
@@ -33,6 +68,15 @@ describe('coachSkillFromDocuments', () => {
       ['step-3', 'Step 3'],
     ])
     expect(coachSkill?.steps[0]).not.toHaveProperty('number')
+  })
+
+  test('marks the skill published only when its published field is true', () => {
+    expect(coachSkillFromDocuments('skill-1', { ...skill, published: true }, stored([1, 2, 3]))?.published).toBe(true)
+    for (const published of [false, undefined, 'true']) {
+      const coachSkill = coachSkillFromDocuments('skill-1', { ...skill, published }, stored([1, 2, 3]))
+      expect(coachSkill).not.toBeNull()
+      expect(coachSkill).not.toHaveProperty('published')
+    }
   })
 
   test('treats a skill with no steps as not found', () => {

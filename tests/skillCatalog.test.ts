@@ -6,6 +6,7 @@ import { HERO_IMAGE, HERO_SMALL_IMAGE } from '../src/landingImages.ts'
 import { exampleSkills, pinnedSkill } from '../src/skillCatalog.ts'
 import {
   ALL_TRADES,
+  allSkillsShown,
   CHIP_SLIDE_SPEED,
   chipRowPosition,
   cardTag,
@@ -13,9 +14,13 @@ import {
   exampleLine,
   landingRows,
   PLACEHOLDER_NOTE,
+  publishedNewestFirst,
+  publishedSkillMatches,
   skillMatches,
   stepsAndTime,
+  stepsText,
   tradeChips,
+  type PublishedSkill,
 } from '../src/skillsPage.ts'
 
 const landingFolder = new URL('../public/landing/', import.meta.url)
@@ -110,4 +115,46 @@ test('the chip row slides slowly and loops without a seam', () => {
   expect(chipRowPosition(990, 1, 1000, 24)).toBe(14)
   // Nothing to loop over yet: it stays where it is.
   expect(chipRowPosition(50, 1, 0, 24)).toBe(50)
+})
+
+// Skills experts published (#52), shown under From experts in All skills.
+const brakes: PublishedSkill = { id: 'a', title: 'Bleed the brakes', stepCount: 6, expertName: 'Ada Expert', publishedAt: 2000 }
+const solder: PublishedSkill = { id: 'b', title: 'Solder a header', stepCount: 1, expertName: 'Ben Smith', publishedAt: 3000 }
+const unknownTime: PublishedSkill = { id: 'c', title: 'Wire a plug', stepCount: 4, expertName: 'Cy Lee', publishedAt: 0 }
+
+test('published skills are newest publish first, an unknown time last, and the list given is not changed', () => {
+  const given = [brakes, unknownTime, solder]
+  expect(publishedNewestFirst(given).map((s) => s.id)).toEqual(['b', 'a', 'c'])
+  expect(given.map((s) => s.id)).toEqual(['a', 'c', 'b'])
+})
+
+test("search matches a published skill's title and expert name, in any case, under the All chip only", () => {
+  expect(publishedSkillMatches(brakes, '', ALL_TRADES)).toBe(true)
+  expect(publishedSkillMatches(brakes, 'BLEED', ALL_TRADES)).toBe(true)
+  expect(publishedSkillMatches(brakes, 'ada exp', ALL_TRADES)).toBe(true)
+  expect(publishedSkillMatches(brakes, 'solder', ALL_TRADES)).toBe(false)
+  expect(publishedSkillMatches(brakes, '', 'Auto mechanics')).toBe(false)
+  expect(publishedSkillMatches(brakes, 'bleed', 'Electronics')).toBe(false)
+})
+
+test('the count line includes the published skills shown', () => {
+  const all = allSkillsShown([brakes, solder], exampleSkills, '', ALL_TRADES)
+  expect(all.published).toEqual([brakes, solder])
+  expect(all.examples).toHaveLength(exampleSkills.length)
+  expect(all.count).toBe(countText(exampleSkills.length + 2))
+
+  const searched = allSkillsShown([brakes, solder], exampleSkills, 'ben smith', ALL_TRADES)
+  expect(searched.published).toEqual([solder])
+  expect(searched.examples).toEqual([])
+  expect(searched.count).toBe('1 skill')
+
+  const chip = allSkillsShown([brakes, solder], exampleSkills, '', 'Auto mechanics')
+  expect(chip.published).toEqual([])
+  expect(chip.count).toBe(countText(chip.examples.length))
+  expect(chip.examples.length).toBeGreaterThan(0)
+})
+
+test('a published card says its step count in words', () => {
+  expect(stepsText(1)).toBe('1 step')
+  expect(stepsText(6)).toBe('6 steps')
 })

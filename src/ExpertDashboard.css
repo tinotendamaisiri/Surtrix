@@ -14,6 +14,58 @@
   margin: 0;
 }
 
+/* Your skills (#52). Buttons and the Make a skill link are at least 44 px tall. */
+.expert-skills {
+  display: grid;
+  gap: 12px;
+}
+
+.expert-make-skill {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 0 20px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.expert-skill-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.expert-skill {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.expert-skill p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.expert-skill button {
+  min-height: 44px;
+}
+
+.expert-skill .error {
+  grid-column: 1 / -1;
+}
+
 .open-questions {
   display: grid;
   gap: 16px;

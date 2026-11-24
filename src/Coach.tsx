@@ -34,11 +34,12 @@ import { replyToChat } from './chatReply.ts'
 import { ListeningToggle } from './Listening.tsx'
 import { checkTopic, prepareTopicCheck, topicCheckPossible } from './topicCheck.ts'
 import { useListening } from './useListening.ts'
-import { listeningOn, spokenAction, VOICE_NOTE_MS, type VoiceNote } from './voice.ts'
+import { listeningOn, listeningWithCamera, spokenAction, VOICE_NOTE_MS, type VoiceNote } from './voice.ts'
 import { pickSavedAnswer, useSavedAnswers, type Pick as SavedPick } from './savedAnswers.ts'
 import {
   goBack,
   goNext,
+  followWiringCheck,
   goToStep,
   markStepDone,
   startProgress,
@@ -51,7 +52,7 @@ import { describeWiringCheck, WIRING_DEADLINE_MS, WIRING_GIVE_UP_MS } from './wi
 import { checkWiring, type WiringResult } from './wiringCheck.ts'
 import BackToSkills from './BackToSkills.tsx'
 import { skillsTabFor } from './landingIntent.ts'
-import { expertCards, skillParts } from './workspace.ts'
+import { expertCards, skillParts, skillTools } from './workspace.ts'
 import { askExpert, watchMyQuestions, type Question } from './questions.ts'
 import { checkSavedAnswers } from './savedAnswerPick.ts'
 import {
@@ -67,7 +68,7 @@ import {
   type AutoAsk,
   type AutoAskChoice,
 } from './autoAsk.ts'
-import { ExpertsCard, PartsList, StepList, WorkspaceShell, WorkspaceTopBar } from './WorkspacePanels.tsx'
+import { ExpertsCard, PartsList, StepList, ToolsList, WorkspaceShell, WorkspaceTopBar } from './WorkspacePanels.tsx'
 
 // Where a wiring check result shows: under a step (by id), or on the All steps done screen.
 const FINISHED = 'finished'
@@ -147,7 +148,8 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   // Set when a spoken "done" acts, until the step or the wiring check changes, so two
   // quick "done"s act once.
   const doneActingRef = useRef(false)
-  // Every step's saved expert answers, loaded once (#31), so they still help offline.
+  // Every step's saved expert answers (#31), kept up to date while the coach is open (#65)
+  // and loaded again after a failure (#43). They stay in memory, so they still help offline.
   const saved = useSavedAnswers(skill)
 
   // The chat (#74). On stacked layouts it is below the step, so an unsure verdict that
@@ -247,9 +249,10 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     }
   }, [])
 
-  // Opens a camera (a given one, or the browser's choice) in place of the current one.
-  async function openCamera(deviceId?: string) {
-    if (startingRef.current) return
+  // Opens a camera (a given one, or the browser's choice) in place of the current one. True
+  // once it is live.
+  async function openCamera(deviceId?: string): Promise<boolean> {
+    if (startingRef.current) return false
     // Chrome only starts the on device model download right after a click.
     watch.prepare()
     startingRef.current = true
@@ -262,7 +265,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       })
       if (!onScreenRef.current) {
         stream.getTracks().forEach((track) => track.stop())
-        return
+        return false
       }
       streamRef.current?.getTracks().forEach((track) => track.stop())
       streamRef.current = stream
@@ -281,24 +284,36 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
           stopCamera()
         })
       }
+      return true
     } catch {
       setCameraError(true)
+      return false
     } finally {
       startingRef.current = false
       setCameraStarting(false)
     }
   }
 
+  // Start camera turns Listening on too (#92). The language pack and Nano get ready in this
+  // tap, as they need it, and the camera never waits for them; the recogniser starts once the
+  // camera is live, so its microphone prompt comes after the camera's.
   function startCamera() {
-    if (streamRef.current) return
-    void openCamera()
+    if (streamRef.current || startingRef.current) return
+    const cameraLive = openCamera()
+    if (listeningWithCamera('start camera', listening.state) === 'turn on') listening.turnOn(cameraLive)
   }
 
-  function stopCamera() {
+  // Closes the camera; Listening is left as it is.
+  function closeCamera() {
     streamRef.current?.getTracks().forEach((track) => track.stop())
     streamRef.current = null
     if (videoRef.current) videoRef.current.srcObject = null
     setCameraOn(false)
+  }
+
+  function stopCamera() {
+    closeCamera()
+    if (listeningWithCamera('stop camera', listening.state) === 'turn off') listening.turnOff()
   }
 
   // The next camera in the device's list after the one in use.
@@ -307,9 +322,10 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     const cameras = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput')
     if (cameras.length < 2) return
     const at = cameras.findIndex((c) => c.deviceId === inUse)
-    // Some phones cannot open two cameras at once, so the one in use closes first.
-    stopCamera()
-    await openCamera(cameras[(at + 1) % cameras.length].deviceId)
+    // Some phones cannot open two cameras at once, so the one in use closes first. If the next
+    // one does not open, the camera is off, so Listening goes off as with Stop camera.
+    closeCamera()
+    if (!(await openCamera(cameras[(at + 1) % cameras.length].deviceId))) stopCamera()
   }
 
   // Ends the running wiring check, if any: a later answer belongs to a step the learner left,
@@ -719,9 +735,11 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
         setWiring({ kind: 'result', ...checked, showOn: next })
         // A spoken message still waiting was about the step just finished.
         dropSpokenQueue()
-        setProgress(markStepDone)
+        setProgress((p) => followWiringCheck(p, index, 'correct'))
       } else {
         setWiring({ kind: 'result', ...checked, showOn: step.id })
+        // The Done mark never says a step is fine while its latest check says it is not.
+        setProgress((p) => followWiringCheck(p, index, result.check.verdict))
         if (result.check.verdict === 'unsure') handleUnsure(step, index, { said: describeWiringCheck(result.check), frame })
       }
     } catch (e) {
@@ -729,6 +747,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       endWiringCheck()
       console.error('Wiring check failed', e)
       setWiring({ kind: 'failed', stepId: step.id })
+      setProgress((p) => followWiringCheck(p, index, null))
     }
   }
 
@@ -744,8 +763,9 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   const isFirst = progress.stepIndex === 0
   const isLast = progress.stepIndex === skill.steps.length - 1
 
-  const exitTab = skillsTabFor(skill.id)
+  const exitTab = skillsTabFor(skill.id, skill.published)
   const parts = skillParts(skill.steps)
+  const tools = skillTools(skill.steps)
   const experts =
     saved.kind === 'loaded' ? { kind: 'loaded' as const, cards: expertCards(skill.steps, saved.byStep, step.id) } : saved
   const stepQuestions = mine.questions.filter((q) => q.stepId === step.id)
@@ -771,8 +791,9 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       }
     >
       <div className={`ws-grid${chatOpen && !progress.finished ? ' ws-grid-chat' : ''}`}>
-        <aside className="ws-left ws-panel" aria-label={chatOpen && !progress.finished ? 'Chat' : 'Parts and steps'}>
+        <aside className="ws-left ws-panel" aria-label={chatOpen && !progress.finished ? 'Chat' : 'Tools, parts and steps'}>
           <div className="ws-left-lists" hidden={chatOpen && !progress.finished}>
+            <ToolsList tools={tools} />
             <PartsList skillId={skill.id} parts={parts} />
             <StepList
               steps={skill.steps}

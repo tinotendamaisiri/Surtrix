@@ -3,13 +3,39 @@ import { readdirSync } from 'node:fs'
 import { expect, test } from 'vitest'
 import { goToStep, markStepDone, startProgress, type CoachStep } from '../src/coach.ts'
 import { demoSkill } from '../src/demoSkill.ts'
-import { DEMO_PART_IMAGES, expertCards, initials, partInfo, skillParts } from '../src/workspace.ts'
+import {
+  afterSlowLoadTime,
+  DEMO_PART_IMAGES,
+  expertCards,
+  initials,
+  partInfo,
+  SKILL_LOAD_SLOW_MS,
+  skillParts,
+  skillTools,
+  type SkillLoad,
+} from '../src/workspace.ts'
 
 const demoSteps: CoachStep[] = demoSkill.steps.map((s, i) => ({ ...s, id: `step-${i + 1}` }))
 
 test("the demo skill's parts are every step's parts combined, each once, in order", () => {
   expect(skillParts(demoSteps)).toEqual(['breadboard', 'LED', '220 or 330 ohm resistor', 'jumper wire', 'power module', 'USB cable'])
   expect(skillParts([{ parts: ['LED', ' led ', 'Wire'] }, { parts: ['wire', ''] }])).toEqual(['LED', 'Wire'])
+})
+
+test("a skill's tools are every step's tools combined, each once, in order", () => {
+  expect(skillTools([{ tools: ['Multimeter', ' soldering iron '] }, { tools: ['multimeter', '', 'Screwdriver'] }])).toEqual([
+    'Multimeter',
+    'soldering iron',
+    'Screwdriver',
+  ])
+})
+
+test('a skill with tools lists that are all empty needs no tools; one saved before tools hides them', () => {
+  expect(skillTools(demoSteps)).toEqual([])
+  expect(skillTools([{ tools: [] }, { tools: [' '] }])).toEqual([])
+  expect(skillTools([{}, {}])).toBeNull()
+  const oldSteps: CoachStep[] = demoSteps.map(({ tools: _tools, ...s }) => s)
+  expect(skillTools(oldSteps)).toBeNull()
 })
 
 test('every demo part has a picture and a note, and only the demo skill gets them', () => {
@@ -51,4 +77,13 @@ test('the step list goes straight to a step without marking anything done', () =
   let finished = start
   for (let i = 0; i < 4; i++) finished = markStepDone(finished)
   expect(goToStep(finished, 1)).toEqual({ stepIndex: 1, done: [true, true, true, true], finished: false })
+})
+
+test('a skill load still running after 15 seconds is slow; a finished load stays as it is', () => {
+  expect(SKILL_LOAD_SLOW_MS).toBe(15_000)
+  expect(afterSlowLoadTime({ kind: 'loading', slow: false })).toEqual({ kind: 'loading', slow: true })
+  const loaded: SkillLoad = { kind: 'loaded', skill: null }
+  expect(afterSlowLoadTime(loaded)).toBe(loaded)
+  const failed: SkillLoad = { kind: 'failed' }
+  expect(afterSlowLoadTime(failed)).toBe(failed)
 })

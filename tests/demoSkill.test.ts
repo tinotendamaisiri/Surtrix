@@ -15,6 +15,10 @@ describe('demo skill', () => {
     expect(demoSkill.steps).toHaveLength(4)
   })
 
+  test('needs no tools, and says so on every step', () => {
+    expect(demoSkill.steps.map((s) => s.tools)).toEqual([[], [], [], []])
+  })
+
   test('has no em or en dashes in its text or in the Try a sample procedure', () => {
     expect(JSON.stringify(demoSkill)).not.toMatch(/[–—]/)
     expect(demoProcedureText).not.toMatch(/[–—]/)
@@ -103,6 +107,7 @@ describe('seed writes', () => {
       title: { stringValue: 'Add the resistor' },
       instruction: { stringValue: demoSkill.steps[1].instruction },
       parts: { arrayValue: { values: [{ stringValue: '220 or 330 ohm resistor' }] } },
+      tools: { arrayValue: { values: [] } },
       doneWhen: { stringValue: demoSkill.steps[1].doneWhen },
     })
   })

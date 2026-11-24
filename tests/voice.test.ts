@@ -3,15 +3,19 @@ import { expect, test, vi } from 'vitest'
 import { chatHistory, type ChatItem } from '../src/chat.ts'
 import {
   aboutTheTask,
+  BUSY_AFTER_REFUSALS,
   DROPPED_NOTE,
   isDoneCommand,
   joinPhrases,
   LEFT_STEP_NOTE,
   listeningOn,
   listeningProblem,
+  listeningWithCamera,
   NO_CHECK_LINE,
+  refusalsAfterRun,
   spokenAction,
   spokenMessageDueIn,
+  stateAfterError,
   topicCheckInstruction,
   topicCheckQuestion,
   topicVerdict,
@@ -19,7 +23,9 @@ import {
   VOICE_LANG,
   VOICE_MAX_WAIT_MS,
   VOICE_SILENCE_MS,
+  voiceBusy,
   voiceNoteText,
+  type ListeningState,
 } from '../src/voice.ts'
 
 test('only "done" said on its own finishes the step, in any case and with any punctuation', () => {
@@ -90,12 +96,63 @@ test('the quiet notes and the no check line, with no dashes', () => {
 test('voice is English, on is on while listening, getting ready or paused, and each problem has its line', () => {
   expect(VOICE_LANG).toBe('en-US')
   expect(['listening', 'preparing', 'paused'].every((s) => listeningOn(s as never))).toBe(true)
-  expect(['off', 'unsupported', 'blocked', 'failed'].some((s) => listeningOn(s as never))).toBe(false)
+  expect(['off', 'unsupported', 'blocked', 'failed', 'busy'].some((s) => listeningOn(s as never))).toBe(false)
   expect(listeningProblem('unsupported')).toBe('Voice needs Chrome on a computer.')
   expect(listeningProblem('blocked')).toBe('Allow the microphone to talk to Surtrix.')
   expect(listeningProblem('failed')).toBe('Voice could not get ready. Try again later.')
   expect(listeningProblem('listening')).toBeNull()
-  for (const s of ['unsupported', 'blocked', 'failed'] as const) expect(listeningProblem(s)).not.toMatch(/[\u2013\u2014]| - /)
+  expect(listeningProblem('busy')).toBe('Voice is busy in another tab or app. Close it, then turn Listening on again.')
+  for (const s of ['unsupported', 'blocked', 'failed', 'busy'] as const) expect(listeningProblem(s)).not.toMatch(/[\u2013\u2014]| - /)
+})
+
+// Starting the camera starts Listening (#92).
+const VOICE_STATES: ListeningState[] = ['off', 'preparing', 'listening', 'paused', 'blocked', 'failed', 'busy']
+
+test('each Start camera turns Listening on, even after the learner turned it off', () => {
+  for (const voice of VOICE_STATES) expect(listeningWithCamera('start camera', voice)).toBe('turn on')
+})
+
+test('a microphone refused at the recogniser prompt leaves Listening off with its line', () => {
+  expect(stateAfterError('not-allowed')).toBe('blocked')
+  expect(stateAfterError('audio-capture')).toBe('blocked')
+  expect(listeningProblem('blocked')).toBe('Allow the microphone to talk to Surtrix.')
+  expect(stateAfterError('service-not-allowed')).toBe('failed')
+  expect(stateAfterError('language-not-supported')).toBe('failed')
+})
+
+test('no speech, a pause or a refusal only pauses the recogniser, so the busy rule counts it', () => {
+  for (const error of ['no-speech', 'aborted', 'network']) expect(stateAfterError(error)).toBeNull()
+})
+
+test('Stop camera always turns Listening off', () => {
+  for (const voice of VOICE_STATES) expect(listeningWithCamera('stop camera', voice)).toBe('turn off')
+})
+
+test('where voice cannot run, the camera leaves Listening as it is', () => {
+  for (const change of ['start camera', 'stop camera'] as const) {
+    expect(listeningWithCamera(change, 'unsupported')).toBe('leave')
+  }
+})
+
+test('Listening is busy after 5 refusals in a row without any audio, not before', () => {
+  expect(BUSY_AFTER_REFUSALS).toBe(5)
+  let refusals = 0
+  for (let run = 1; run <= 4; run++) {
+    refusals = refusalsAfterRun(refusals, false)
+    expect(refusals).toBe(run)
+    expect(voiceBusy(refusals)).toBe(false)
+  }
+  refusals = refusalsAfterRun(refusals, false)
+  expect(voiceBusy(refusals)).toBe(true)
+})
+
+test('audio heard in a run clears the refusals, so refusals with sound between them never make it busy', () => {
+  let refusals = 0
+  for (let run = 0; run < 20; run++) {
+    refusals = refusalsAfterRun(refusals, run % 4 === 3)
+    expect(voiceBusy(refusals)).toBe(false)
+  }
+  expect(refusalsAfterRun(4, true)).toBe(0)
 })
 
 test('a spoken "done" is not sent to the model as a question; spoken questions are', () => {

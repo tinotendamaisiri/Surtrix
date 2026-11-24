@@ -110,16 +110,84 @@ export async function checkSavedAnswers<P>(pick: () => Promise<P>): Promise<Chec
   }
 }
 
-// The SDK's Hybrid mode does not move a failed device call to the cloud. Where Chrome has
-// Nano, Hybrid may have tried the device, so a failure is tried once in the cloud. Without
-// Nano, Hybrid already asked the cloud, so its failure stands.
-export async function hybridThenCloud<R>(hybrid: () => Promise<R>, cloud: () => Promise<R>, hasNano: boolean): Promise<R> {
+// Whether Nano can answer the picker now (#43), read from Chrome's availability without
+// running the model. False without Chrome's API, when Nano still needs a download, or when
+// the check fails.
+export async function nanoReady(availability: (() => Promise<string>) | undefined): Promise<boolean> {
+  if (!availability) return false
   try {
-    return await hybrid()
+    return (await availability()) === 'available'
+  } catch {
+    return false
+  }
+}
+
+// An answer and how long the attempt that gave it took.
+export type Timed<R> = { result: R; ms: number }
+
+// The SDK's Hybrid mode does not move a failed device call to the cloud. When Nano was ready
+// before the pick, Hybrid tried the device, so a failure is tried once in the cloud. When it
+// was not, Hybrid already asked the cloud, so its failure stands: a pick makes at most one
+// cloud call (#43). The time is the answering attempt's own, never a failed one's.
+export async function hybridThenCloud<R>(
+  hybrid: () => Promise<R>,
+  cloud: () => Promise<R>,
+  nanoWasReady: boolean,
+  now: () => number = () => performance.now(),
+): Promise<Timed<R>> {
+  const timed = async (attempt: () => Promise<R>): Promise<Timed<R>> => {
+    const started = now()
+    const result = await attempt()
+    return { result, ms: Math.round(now() - started) }
+  }
+  try {
+    return await timed(hybrid)
   } catch (e) {
-    if (!hasNano) throw e
+    if (!nanoWasReady) throw e
     console.warn('Picking on device failed, trying the cloud', e)
-    return cloud()
+    return timed(cloud)
+  }
+}
+
+// Saved answers that failed to load try again (#43): after a failure, listening starts again
+// in 30 seconds, or sooner when the browser comes back online, and again after each failure.
+// While listening works nothing waits. Returns a function that stops listening and waiting.
+export const RESUBSCRIBE_MS = 30_000
+
+export type Resubscribing = {
+  // Starts listening and calls failed when it fails. Returns a function that stops it.
+  listen: (failed: () => void) => () => void
+  // Runs once after ms. Returns a function that cancels it.
+  after: (ms: number, run: () => void) => () => void
+  // Runs when the browser comes back online. Returns a function that stops waiting.
+  whenOnline: (run: () => void) => () => void
+}
+
+export function listenAgainAfterFailure({ listen, after, whenOnline }: Resubscribing): () => void {
+  let stopped = false
+  let attempt = 0
+  let stopListening = () => {}
+  let waits: (() => void)[] = []
+  const stopWaiting = () => {
+    waits.forEach((stop) => stop())
+    waits = []
+  }
+  const start = () => {
+    if (stopped) return
+    stopWaiting()
+    stopListening()
+    const current = ++attempt
+    stopListening = listen(() => {
+      // One wait per failed listener, and none for an older listener that reports late.
+      if (stopped || current !== attempt || waits.length > 0) return
+      waits = [after(RESUBSCRIBE_MS, start), whenOnline(start)]
+    })
+  }
+  start()
+  return () => {
+    stopped = true
+    stopWaiting()
+    stopListening()
   }
 }
 

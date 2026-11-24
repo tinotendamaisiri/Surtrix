@@ -57,6 +57,7 @@ const step = {
   title: 'Place the LED',
   instruction: 'Push the LED into rows 10 and 11, long leg in row 10.',
   parts: ['LED', 'breadboard'],
+  tools: ['multimeter'],
   doneWhen: 'The LED sits in rows 10 and 11 with the long leg in row 10.',
 }
 
@@ -111,9 +112,10 @@ describe('skills and steps', () => {
     await assertSucceeds(saveSkill(learner()))
   })
 
-  test('a learner saves 40 steps with 30 parts each', async () => {
+  test('a learner saves 40 steps with 30 parts and 30 tools each', async () => {
     const parts = Array.from({ length: 30 }, (_, i) => `part ${i + 1}`)
-    const steps = Array.from({ length: 40 }, (_, i) => ({ ...step, title: `Step ${i + 1}`, parts }))
+    const tools = Array.from({ length: 30 }, (_, i) => `tool ${i + 1}`)
+    const steps = Array.from({ length: 40 }, (_, i) => ({ ...step, title: `Step ${i + 1}`, parts, tools }))
     await assertSucceeds(saveSkill(learner(), { skill: { title: 'Long', steps } }))
   })
 
@@ -231,6 +233,24 @@ describe('skills and steps', () => {
 
   test('parts that are not a list are refused', async () => {
     await assertFails(saveSkill(learner(), { stepChanges: { parts: 'LED' } }))
+  })
+
+  test('a step with tools is accepted, and so is one with an empty tools list', async () => {
+    await assertSucceeds(saveSkill(learner()))
+    await assertSucceeds(saveSkill(learner(), { skillId: 'skill-2', stepChanges: { tools: [] } }))
+  })
+
+  test('a step without tools is still accepted, as builds before tools save it', async () => {
+    await storeSkillWithOneStep()
+    await assertSucceeds(setDoc(doc(learner().firestore(), 'skills/skill-1/steps/step-2'), without('tools')(stepTwo)))
+  })
+
+  test('more than 30 tools in a step is refused', async () => {
+    await assertFails(saveSkill(learner(), { stepChanges: { tools: Array.from({ length: 31 }, () => 'multimeter') } }))
+  })
+
+  test('tools that are not a list are refused', async () => {
+    await assertFails(saveSkill(learner(), { stepChanges: { tools: 'multimeter' } }))
   })
 
   test('nobody can change or delete a saved skill or step, not even its creator', async () => {

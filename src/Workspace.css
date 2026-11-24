@@ -359,6 +359,18 @@ main.workspace {
   border-bottom: 1px solid rgba(255, 236, 205, 0.08);
 }
 
+/* The tools sit above the parts, so the line under the parts closes both. */
+.ws-tools {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.workspace .ws-none {
+  margin: 0;
+  font-size: 13px;
+  color: #cfc6b8;
+}
+
 .ws-partwrap {
   position: relative;
   display: inline-flex;
@@ -1482,6 +1494,12 @@ main.workspace {
 
 .ws-message p {
   margin: 0;
+}
+
+.ws-message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 /* Narrower screens: the columns stack, the camera first, then the step, then the parts

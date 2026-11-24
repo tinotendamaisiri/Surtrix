@@ -39,7 +39,7 @@ export type WiringResult = { check: WiringCheck; source: string; at: Date; ms: n
 // One cloud call per Mark step done click. Throws when the call fails, is cancelled through
 // signal, or the answer does not pass the checks in src/wiring.ts. Cancelling does not stop
 // Google from charging for the call.
-export async function checkWiring(step: Step, jpegBase64: string, signal: AbortSignal): Promise<WiringResult> {
+export async function checkWiring(step: Omit<Step, 'tools'>, jpegBase64: string, signal: AbortSignal): Promise<WiringResult> {
   const started = performance.now()
   // The SDK ignores the signal while it gets the App Check token, so the coach also stops
   // waiting by itself the moment the signal fires.

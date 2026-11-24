@@ -46,6 +46,7 @@ export function skillDocuments(
         title: step.title,
         instruction: step.instruction,
         parts: step.parts,
+        tools: step.tools,
         doneWhen: step.doneWhen,
       },
     })),
@@ -79,6 +80,8 @@ export function coachSkillFromDocuments(
       title: String(data.title),
       instruction: String(data.instruction),
       parts: Array.isArray(data.parts) ? data.parts.map(String) : [],
+      // A step saved before tools existed has no tools field: its tools are among its parts.
+      ...(Array.isArray(data.tools) ? { tools: data.tools.map(String) } : {}),
       doneWhen: String(data.doneWhen),
     })),
   }

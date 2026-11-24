@@ -39,6 +39,7 @@ import { pickSavedAnswer, useSavedAnswers, type Pick as SavedPick } from './save
 import {
   goBack,
   goNext,
+  followWiringCheck,
   goToStep,
   markStepDone,
   startProgress,
@@ -51,7 +52,7 @@ import { describeWiringCheck, WIRING_DEADLINE_MS, WIRING_GIVE_UP_MS } from './wi
 import { checkWiring, type WiringResult } from './wiringCheck.ts'
 import BackToSkills from './BackToSkills.tsx'
 import { skillsTabFor } from './landingIntent.ts'
-import { expertCards, skillParts } from './workspace.ts'
+import { expertCards, skillParts, skillTools } from './workspace.ts'
 import { askExpert, watchMyQuestions, type Question } from './questions.ts'
 import { checkSavedAnswers } from './savedAnswerPick.ts'
 import {
@@ -67,7 +68,7 @@ import {
   type AutoAsk,
   type AutoAskChoice,
 } from './autoAsk.ts'
-import { ExpertsCard, PartsList, StepList, WorkspaceShell, WorkspaceTopBar } from './WorkspacePanels.tsx'
+import { ExpertsCard, PartsList, StepList, ToolsList, WorkspaceShell, WorkspaceTopBar } from './WorkspacePanels.tsx'
 
 // Where a wiring check result shows: under a step (by id), or on the All steps done screen.
 const FINISHED = 'finished'
@@ -147,7 +148,8 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   // Set when a spoken "done" acts, until the step or the wiring check changes, so two
   // quick "done"s act once.
   const doneActingRef = useRef(false)
-  // Every step's saved expert answers, loaded once (#31), so they still help offline.
+  // Every step's saved expert answers (#31), kept up to date while the coach is open (#65)
+  // and loaded again after a failure (#43). They stay in memory, so they still help offline.
   const saved = useSavedAnswers(skill)
 
   // The chat (#74). On stacked layouts it is below the step, so an unsure verdict that
@@ -719,9 +721,11 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
         setWiring({ kind: 'result', ...checked, showOn: next })
         // A spoken message still waiting was about the step just finished.
         dropSpokenQueue()
-        setProgress(markStepDone)
+        setProgress((p) => followWiringCheck(p, index, 'correct'))
       } else {
         setWiring({ kind: 'result', ...checked, showOn: step.id })
+        // The Done mark never says a step is fine while its latest check says it is not.
+        setProgress((p) => followWiringCheck(p, index, result.check.verdict))
         if (result.check.verdict === 'unsure') handleUnsure(step, index, { said: describeWiringCheck(result.check), frame })
       }
     } catch (e) {
@@ -729,6 +733,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       endWiringCheck()
       console.error('Wiring check failed', e)
       setWiring({ kind: 'failed', stepId: step.id })
+      setProgress((p) => followWiringCheck(p, index, null))
     }
   }
 
@@ -746,6 +751,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
 
   const exitTab = skillsTabFor(skill.id, skill.published)
   const parts = skillParts(skill.steps)
+  const tools = skillTools(skill.steps)
   const experts =
     saved.kind === 'loaded' ? { kind: 'loaded' as const, cards: expertCards(skill.steps, saved.byStep, step.id) } : saved
   const stepQuestions = mine.questions.filter((q) => q.stepId === step.id)
@@ -771,8 +777,9 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       }
     >
       <div className={`ws-grid${chatOpen && !progress.finished ? ' ws-grid-chat' : ''}`}>
-        <aside className="ws-left ws-panel" aria-label={chatOpen && !progress.finished ? 'Chat' : 'Parts and steps'}>
+        <aside className="ws-left ws-panel" aria-label={chatOpen && !progress.finished ? 'Chat' : 'Tools, parts and steps'}>
           <div className="ws-left-lists" hidden={chatOpen && !progress.finished}>
+            <ToolsList tools={tools} />
             <PartsList skillId={skill.id} parts={parts} />
             <StepList
               steps={skill.steps}

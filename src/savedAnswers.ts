@@ -19,6 +19,8 @@ import type { CoachSkill } from './coach'
 import {
   hasSavedAnswers,
   hybridThenCloud,
+  listenAgainAfterFailure,
+  nanoReady,
   NONE_FITS,
   parsePick,
   PICK_INSTRUCTION,
@@ -83,26 +85,37 @@ export function useSavedAnswers(skill: CoachSkill): SavedAnswersState {
   })
   useEffect(() => {
     let first = true
-    const stop = watchSavedAnswers(
-      skill,
-      (byStep) => {
-        setState({ skillId: skill.id, value: { kind: 'loaded', byStep } })
-        // Get Nano ready while the learner works, so the first pick is quick (#43).
-        if (first && hasSavedAnswers(byStep)) void warmUpNano()
-        first = false
+    return listenAgainAfterFailure({
+      listen: (failed) =>
+        watchSavedAnswers(
+          skill,
+          (byStep) => {
+            setState({ skillId: skill.id, value: { kind: 'loaded', byStep } })
+            // Get Nano ready while the learner works, so the first pick is quick (#43).
+            if (first && hasSavedAnswers(byStep)) void warmUpNano()
+            first = false
+          },
+          (e) => {
+            console.error('Loading saved answers failed', e)
+            // Answers already loaded stay; only a first load that fails shows as failed.
+            // Either way listening starts again later (#43).
+            setState((current) =>
+              current.skillId === skill.id && current.value.kind === 'loaded'
+                ? current
+                : { skillId: skill.id, value: { kind: 'failed' } },
+            )
+            failed()
+          },
+        ),
+      after: (ms, run) => {
+        const timer = setTimeout(run, ms)
+        return () => clearTimeout(timer)
       },
-      (e) => {
-        console.error('Loading saved answers failed', e)
-        // Answers already loaded stay; only a first load that fails shows as failed. A
-        // listener that fails later stops updating its step, which keeps its last answers.
-        setState((current) =>
-          current.skillId === skill.id && current.value.kind === 'loaded'
-            ? current
-            : { skillId: skill.id, value: { kind: 'failed' } },
-        )
+      whenOnline: (run) => {
+        window.addEventListener('online', run)
+        return () => window.removeEventListener('online', run)
       },
-    )
-    return stop
+    })
   }, [skill])
   return state.skillId === skill.id ? state.value : { kind: 'loading' }
 }
@@ -154,23 +167,26 @@ function pickModels(values: string[]) {
   return lastModels
 }
 
+type LanguageModelAvailability = { availability(options: LanguageModelCreateOptions): Promise<string> }
+
 // Picks the saved answer that fits the learner's question. Hybrid answers on device when
 // Nano is ready (also offline) and in the cloud when it is not. The SDK does not move a
-// failed device call to the cloud, so where Chrome has Nano a failed call is tried once in
-// the cloud (offline that fails at once). Every answer of the step goes to the model.
+// failed device call to the cloud, so when Nano was ready before the pick a failed call is
+// tried once in the cloud (offline that fails at once); when it was not, Hybrid already
+// asked the cloud and its failure stands. Every answer of the step goes to the model.
 // Throws when no model can answer or the pick is not one of the answers; the caller then
-// lists the answers as they are.
+// lists the answers as they are. The time is the answering attempt's own.
 export async function pickSavedAnswer(stepTitle: string, question: string, answers: SavedAnswer[]): Promise<Pick> {
   const values = pickValues(answers)
   const prompt = pickPrompt(stepTitle, question, answers)
-  const started = performance.now()
   const models = pickModels(values)
-  const result = await hybridThenCloud(
+  const languageModel = (globalThis as { LanguageModel?: LanguageModelAvailability }).LanguageModel
+  const ready = await nanoReady(languageModel && (() => languageModel.availability(createOptions)))
+  const { result, ms } = await hybridThenCloud(
     () => models.hybrid.generateContent(prompt),
     () => models.cloud.generateContent(prompt),
-    'LanguageModel' in globalThis,
+    ready,
   )
-  const ms = Math.round(performance.now() - started)
   return { answer: parsePick(result.response.text(), answers), source: result.response.inferenceSource ?? 'unknown', ms }
 }
 
@@ -180,8 +196,6 @@ export async function pickSavedAnswer(stepTitle: string, question: string, answe
 const WARM_UP_PROMPT = 'Answer none.'
 let warmUpModel: GenerativeModel | null = null
 const nanoWarmUp: { warmUp?: Promise<WarmUpOutcome> } = {}
-
-type LanguageModelAvailability = { availability(options: LanguageModelCreateOptions): Promise<string> }
 
 // Warms up Nano once per visit when the coach opens a skill with saved answers. Only where
 // Chrome already has Nano ready for the picker: never a download, never the cloud. Nothing

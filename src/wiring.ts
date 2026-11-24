@@ -34,7 +34,7 @@ export const WIRING_SYSTEM_PROMPT =
   'Judge only from the photo. Use short, plain sentences.'
 
 // The current step only: its "done when" already describes the board to judge.
-export function wiringPrompt(step: Step): string {
+export function wiringPrompt(step: Omit<Step, 'tools'>): string {
   const parts = step.parts.length > 0 ? step.parts.join(', ') : 'none listed'
   return [
     `Step: ${step.title}`,

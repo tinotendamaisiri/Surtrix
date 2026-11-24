@@ -4,8 +4,11 @@ export type Step = {
   title: string
   // What to do, including any safety warning.
   instruction: string
-  // Components and tools the step uses; may be empty.
+  // What goes into the build in this step; may be empty.
   parts: string[]
+  // What the learner works with and does not leave in the build, such as a soldering
+  // iron or a multimeter; may be empty.
+  tools: string[]
   // What the bench looks like when the step is done.
   doneWhen: string
 }
@@ -15,7 +18,7 @@ export type Skill = { title: string; steps: Step[] }
 export const MAX_STEPS = 40
 
 // Longest text, in characters, for each field. Firestore rules check the same limits.
-export const LIMITS = { title: 200, instruction: 2000, doneWhen: 1000, part: 200, parts: 30 } as const
+export const LIMITS = { title: 200, instruction: 2000, doneWhen: 1000, part: 200, parts: 30, tool: 200, tools: 30 } as const
 
 // The model's answer was not a usable skill.
 export class SkillAnswerError extends Error {
@@ -32,6 +35,14 @@ function text(value: unknown, field: string, max: number): string {
   return trimmed
 }
 
+// A step's parts or tools: trimmed, blanks dropped, within the limits.
+function list(value: unknown, where: string, item: 'part' | 'tool', name: 'parts' | 'tools'): string[] {
+  if (!Array.isArray(value)) throw new SkillAnswerError(`${where} ${name} is not a list`)
+  const kept = value.map((v) => text(v, `${where} ${item}`, LIMITS[item])).filter(Boolean)
+  if (kept.length > LIMITS[name]) throw new SkillAnswerError(`${where} has more than ${LIMITS[name]} ${name}`)
+  return kept
+}
+
 function step(value: unknown, index: number): Step | null {
   if (typeof value !== 'object' || value === null) throw new SkillAnswerError(`step ${index + 1} is not an object`)
   const raw = value as Record<string, unknown>
@@ -39,14 +50,14 @@ function step(value: unknown, index: number): Step | null {
   const title = field('title')
   const instruction = field('instruction')
   const doneWhen = field('doneWhen')
-  if (!Array.isArray(raw.parts)) throw new SkillAnswerError(`step ${index + 1} parts is not a list`)
-  const parts = raw.parts.map((part) => text(part, `step ${index + 1} part`, LIMITS.part)).filter(Boolean)
-  if (parts.length > LIMITS.parts) throw new SkillAnswerError(`step ${index + 1} has more than ${LIMITS.parts} parts`)
+  const parts = list(raw.parts, `step ${index + 1}`, 'part', 'parts')
+  // A step the model gave no tools list has no tools.
+  const tools = raw.tools === undefined ? [] : list(raw.tools, `step ${index + 1}`, 'tool', 'tools')
   // A step with no text at all is dropped; a step missing only some of it is refused,
   // so a half written step never reaches the learner.
   if (!title && !instruction && !doneWhen) return null
   if (!title || !instruction || !doneWhen) throw new SkillAnswerError(`step ${index + 1} is missing text`)
-  return { title, instruction, parts, doneWhen }
+  return { title, instruction, parts, tools, doneWhen }
 }
 
 // Checks the model's JSON answer and returns the skill, or null when the document

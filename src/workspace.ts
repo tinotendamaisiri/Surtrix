@@ -1,6 +1,6 @@
-// What the Surtrix Workspace (#62) shows beside the steps: the skill's parts, the demo
-// parts' pictures and notes, and the expert answers in the From live experts card.
-import type { CoachStep } from './coach.ts'
+// What the Surtrix Workspace (#62) shows beside the steps: the skill's tools and parts,
+// the demo parts' pictures and notes, and the expert answers in the From live experts card.
+import type { CoachSkill, CoachStep } from './coach.ts'
 import { DEMO_SKILL_ID } from './demoSkill.ts'
 import type { SavedAnswer } from './savedAnswerPick.ts'
 
@@ -37,19 +37,31 @@ const demoParts: Record<string, PartInfo> = {
 
 export const DEMO_PART_IMAGES = Object.values(demoParts).map((p) => p.image)
 
-// Every step's parts combined, each once (ignoring case), in the order they first appear.
-export function skillParts(steps: readonly { parts: string[] }[]): string[] {
+// Lists combined, each name once (ignoring case), in the order they first appear.
+function combine(lists: readonly string[][]): string[] {
   const seen = new Set<string>()
-  const parts: string[] = []
-  for (const step of steps) {
-    for (const part of step.parts) {
-      const key = part.trim().toLowerCase()
+  const names: string[] = []
+  for (const list of lists) {
+    for (const name of list) {
+      const key = name.trim().toLowerCase()
       if (key === '' || seen.has(key)) continue
       seen.add(key)
-      parts.push(part.trim())
+      names.push(name.trim())
     }
   }
-  return parts
+  return names
+}
+
+// Every step's parts combined.
+export function skillParts(steps: readonly { parts: string[] }[]): string[] {
+  return combine(steps.map((s) => s.parts))
+}
+
+// Every step's tools combined, or null for a skill saved before tools existed (no step
+// has a tools list), whose tools are among its parts.
+export function skillTools(steps: readonly { tools?: string[] }[]): string[] | null {
+  const lists = steps.flatMap((s) => (s.tools ? [s.tools] : []))
+  return lists.length === 0 ? null : combine(lists)
 }
 
 // A part's picture and note: only for the demo skill's own parts.
@@ -89,4 +101,16 @@ export function initials(name: string): string {
     .filter(Boolean)
     .map((word) => word[0].toUpperCase())
   return letters.slice(0, 2).join('') || '?'
+}
+
+// Loading a skill for the Workspace. A load that has not finished after SKILL_LOAD_SLOW_MS
+// is slow: the Workspace says so and offers Try again, while the load keeps running (#39).
+export type SkillLoad = { kind: 'loading'; slow: boolean } | { kind: 'loaded'; skill: CoachSkill | null } | { kind: 'failed' }
+
+export const SKILL_LOAD_SLOW_MS = 15_000
+
+// What a load is once SKILL_LOAD_SLOW_MS has passed: still loading means slow; a load
+// that finished stays as it is.
+export function afterSlowLoadTime(load: SkillLoad): SkillLoad {
+  return load.kind === 'loading' ? { kind: 'loading', slow: true } : load
 }

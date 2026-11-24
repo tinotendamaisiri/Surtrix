@@ -6,10 +6,13 @@ import {
   checkSavedAnswers,
   hasSavedAnswers,
   hybridThenCloud,
+  listenAgainAfterFailure,
+  nanoReady,
   NONE_FITS,
   parsePick,
   PickAnswerError,
   pickPrompt,
+  RESUBSCRIBE_MS,
   pickValues,
   savedAnswerFromDocument,
   sortAnswers,
@@ -151,33 +154,160 @@ describe('what Check saved answers shows', () => {
 })
 
 describe('trying the cloud when the device fails', () => {
-  const calls: string[] = []
-  const hybrid = (ok: boolean) => async () => {
-    calls.push('hybrid')
-    if (!ok) throw new Error('device failed')
-    return 'hybrid answer'
-  }
-  const cloud = async () => {
-    calls.push('cloud')
-    return 'cloud answer'
+  // A clock the attempts move on, so the time of each attempt is known.
+  function attempts(hybridOk: boolean, hybridMs = 5000, cloudMs = 1200) {
+    const calls: string[] = []
+    let clock = 0
+    return {
+      calls,
+      now: () => clock,
+      hybrid: async () => {
+        calls.push('hybrid')
+        clock += hybridMs
+        if (!hybridOk) throw new Error('device failed')
+        return 'hybrid answer'
+      },
+      cloud: async () => {
+        calls.push('cloud')
+        clock += cloudMs
+        return 'cloud answer'
+      },
+    }
   }
 
   test('a Hybrid answer is used without asking the cloud again', async () => {
-    calls.length = 0
-    expect(await hybridThenCloud(hybrid(true), cloud, true)).toBe('hybrid answer')
-    expect(calls).toEqual(['hybrid'])
+    const a = attempts(true, 3300)
+    expect(await hybridThenCloud(a.hybrid, a.cloud, true, a.now)).toEqual({ result: 'hybrid answer', ms: 3300 })
+    expect(a.calls).toEqual(['hybrid'])
   })
 
-  test('with Nano in Chrome, a failed Hybrid call is tried once in the cloud', async () => {
-    calls.length = 0
-    expect(await hybridThenCloud(hybrid(false), cloud, true)).toBe('cloud answer')
-    expect(calls).toEqual(['hybrid', 'cloud'])
+  test('when Nano was ready, a failed Hybrid call is tried once in the cloud', async () => {
+    const a = attempts(false)
+    expect((await hybridThenCloud(a.hybrid, a.cloud, true, a.now)).result).toBe('cloud answer')
+    expect(a.calls).toEqual(['hybrid', 'cloud'])
   })
 
-  test('without Nano, Hybrid already asked the cloud, so its failure stands', async () => {
-    calls.length = 0
-    await expect(hybridThenCloud(hybrid(false), cloud, false)).rejects.toThrow('device failed')
-    expect(calls).toEqual(['hybrid'])
+  test('when Nano was not ready, Hybrid already asked the cloud, so its failure stands', async () => {
+    const a = attempts(false)
+    await expect(hybridThenCloud(a.hybrid, a.cloud, false, a.now)).rejects.toThrow('device failed')
+    expect(a.calls).toEqual(['hybrid'])
+  })
+
+  test('the time shown is the cloud attempt that answered, not the failed one before it', async () => {
+    const a = attempts(false, 5000, 1200)
+    expect((await hybridThenCloud(a.hybrid, a.cloud, true, a.now)).ms).toBe(1200)
+  })
+})
+
+describe('whether Nano is ready to pick', () => {
+  test('it is when Chrome says Nano is available', async () => {
+    expect(await nanoReady(async () => 'available')).toBe(true)
+  })
+
+  test.each(['downloadable', 'downloading', 'unavailable'])('it is not when Nano is %s', async (availability) => {
+    expect(await nanoReady(async () => availability)).toBe(false)
+  })
+
+  test("it is not without Chrome's on device API", async () => {
+    expect(await nanoReady(undefined)).toBe(false)
+  })
+
+  test('it is not when the check fails', async () => {
+    expect(await nanoReady(() => Promise.reject(new Error('no')))).toBe(false)
+  })
+})
+
+describe('saved answers that failed to load try again', () => {
+  // Fake listening, timer and online event, so each step can be driven by hand.
+  function fakes() {
+    const failures: (() => void)[] = []
+    const record = { listens: 0, stops: 0 }
+    const timers: { ms: number; run: () => void; cancelled: boolean }[] = []
+    const online: { run: () => void; removed: boolean }[] = []
+    const stop = listenAgainAfterFailure({
+      listen: (failed) => {
+        record.listens++
+        failures.push(failed)
+        return () => record.stops++
+      },
+      after: (ms, run) => {
+        const timer = { ms, run, cancelled: false }
+        timers.push(timer)
+        return () => (timer.cancelled = true)
+      },
+      whenOnline: (run) => {
+        const wait = { run, removed: false }
+        online.push(wait)
+        return () => (wait.removed = true)
+      },
+    })
+    const waiting = () => timers.filter((t) => !t.cancelled).length + online.filter((o) => !o.removed).length
+    return { failures, record, timers, online, stop, waiting }
+  }
+
+  test('while listening works, nothing waits to listen again', () => {
+    const f = fakes()
+    expect(f.record.listens).toBe(1)
+    expect(f.waiting()).toBe(0)
+  })
+
+  test('after a failure it listens again in 30 seconds', () => {
+    const f = fakes()
+    f.failures[0]()
+    expect(f.timers.map((t) => t.ms)).toEqual([RESUBSCRIBE_MS])
+    expect(RESUBSCRIBE_MS).toBe(30_000)
+    f.timers[0].run()
+    expect(f.record.listens).toBe(2)
+    expect(f.record.stops).toBe(1)
+    expect(f.online[0].removed).toBe(true)
+    expect(f.waiting()).toBe(0)
+  })
+
+  test('after a failure it listens again as soon as the browser is back online', () => {
+    const f = fakes()
+    f.failures[0]()
+    f.online[0].run()
+    expect(f.record.listens).toBe(2)
+    expect(f.timers[0].cancelled).toBe(true)
+    expect(f.waiting()).toBe(0)
+  })
+
+  test('it keeps trying every 30 seconds while loading fails', () => {
+    const f = fakes()
+    f.failures[0]()
+    f.timers[0].run()
+    f.failures[1]()
+    f.timers[1].run()
+    expect(f.record.listens).toBe(3)
+    expect(f.timers.map((t) => t.ms)).toEqual([RESUBSCRIBE_MS, RESUBSCRIBE_MS])
+  })
+
+  test('several failures of one listening start one wait', () => {
+    const f = fakes()
+    f.failures[0]()
+    f.failures[0]()
+    expect(f.timers.length).toBe(1)
+    expect(f.online.length).toBe(1)
+  })
+
+  test('a late failure from an earlier listening is ignored', () => {
+    const f = fakes()
+    f.failures[0]()
+    f.timers[0].run()
+    f.failures[0]()
+    expect(f.timers.length).toBe(1)
+    expect(f.waiting()).toBe(0)
+  })
+
+  test('leaving the coach stops listening and waiting, and nothing starts again', () => {
+    const f = fakes()
+    f.failures[0]()
+    f.stop()
+    expect(f.record.stops).toBe(1)
+    expect(f.waiting()).toBe(0)
+    f.failures[0]()
+    expect(f.record.listens).toBe(1)
+    expect(f.timers.length).toBe(1)
   })
 })
 

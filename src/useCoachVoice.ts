@@ -2,7 +2,7 @@
 // Messages wait in a queue and are said one at a time. While the learner's heard words
 // still wait to be sent, the coach waits too, so it never talks over them.
 import { useEffect, useRef, useState } from 'react'
-import { keepForStep, pickVoice, readCoachMuted, writeCoachMuted, type Speech } from './coachVoice.ts'
+import { keepForStep, maySpeakNow, pickVoice, readCoachMuted, speechTimeoutMs, writeCoachMuted, type Speech } from './coachVoice.ts'
 
 // Chrome fills the voice list a moment after the page loads; after this long with none,
 // there is no voice to use.
@@ -25,8 +25,8 @@ function synth(): SpeechSynthesis | null {
   return typeof speechSynthesis === 'undefined' ? null : speechSynthesis
 }
 
-// learnerWaiting: words heard from the learner wait to be sent.
-export function useCoachVoice(learnerWaiting: boolean): CoachVoice {
+// learnerTalking: words are coming in from the learner, or wait to be sent.
+export function useCoachVoice(learnerTalking: boolean): CoachVoice {
   const [voice, setVoice] = useState<SpeechSynthesisVoice | null | undefined>(undefined)
   const [muted, setMuted] = useState(readCoachMuted)
   const [speaking, setSpeaking] = useState(false)
@@ -35,11 +35,12 @@ export function useCoachVoice(learnerWaiting: boolean): CoachVoice {
   const currentRef = useRef<SpeechSynthesisUtterance | null>(null)
   const voiceRef = useRef(voice)
   const mutedRef = useRef(muted)
-  const waitingRef = useRef(learnerWaiting)
+  const waitingRef = useRef(learnerTalking)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => {
     voiceRef.current = voice
     mutedRef.current = muted
-    waitingRef.current = learnerWaiting
+    waitingRef.current = learnerTalking
   })
 
   useEffect(() => {
@@ -65,7 +66,8 @@ export function useCoachVoice(learnerWaiting: boolean): CoachVoice {
   function next() {
     const s = synth()
     const v = voiceRef.current
-    if (!s || !v || mutedRef.current || waitingRef.current || currentRef.current) return
+    const may = maySpeakNow({ hasVoice: !!v, muted: mutedRef.current, speaking: !!currentRef.current, learnerTalking: waitingRef.current })
+    if (!s || !v || !may) return
     const speech = queueRef.current.shift()
     if (!speech) return
     const u = new SpeechSynthesisUtterance(speech.text)
@@ -73,23 +75,34 @@ export function useCoachVoice(learnerWaiting: boolean): CoachVoice {
     u.lang = v.lang
     const done = () => {
       if (currentRef.current !== u) return
+      clearTimeout(timeoutRef.current)
       currentRef.current = null
       setSpeaking(false)
       next()
     }
     u.onend = done
-    // Also when Chrome refuses to speak before the visitor has clicked the page: the rest
-    // still waits, for the next click that adds to it.
-    u.onerror = done
+    u.onerror = (event) => {
+      // Chrome refuses to speak before the visitor has clicked the page: what waits would
+      // be refused too, so it goes.
+      if (event.error === 'not-allowed') queueRef.current = []
+      done()
+    }
     currentRef.current = u
     setSpeaking(true)
     s.speak(u)
+    // Never stuck: past its time, the message counts as said.
+    timeoutRef.current = setTimeout(() => {
+      if (currentRef.current !== u) return
+      s.cancel()
+      done()
+    }, speechTimeoutMs(speech.text))
   }
 
   // Stops what is being said now; with clear, what waits goes too.
   function stop(clear: boolean) {
     if (clear) queueRef.current = []
     if (!currentRef.current) return
+    clearTimeout(timeoutRef.current)
     currentRef.current = null
     setSpeaking(false)
     synth()?.cancel()
@@ -97,14 +110,15 @@ export function useCoachVoice(learnerWaiting: boolean): CoachVoice {
 
   // The learner's words were sent, or a voice arrived: carry on.
   useEffect(() => {
-    if (!learnerWaiting) next()
+    if (!learnerTalking) next()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [learnerWaiting, voice])
+  }, [learnerTalking, voice])
 
   // Leaving the Workspace stops the voice.
   useEffect(
     () => () => {
       queueRef.current = []
+      clearTimeout(timeoutRef.current)
       currentRef.current = null
       synth()?.cancel()
     },

@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { InferenceSource } from 'firebase/ai'
 import {
   ALL_DONE_SPEECH,
+  chatQuestionIds,
   entrySpeech,
+  maySpeakNow,
+  newExpertReply,
+  speechTimeoutMs,
   expertSpeech,
   keepForStep,
   pickVoice,
@@ -152,5 +156,43 @@ describe('the mute is remembered on this browser', () => {
     })
     expect(readCoachMuted()).toBe(false)
     expect(() => writeCoachMuted(true)).not.toThrow()
+  })
+})
+
+describe('when the coach may speak', () => {
+  const ready = { hasVoice: true, muted: false, speaking: false, learnerTalking: false }
+  it('speaks only with a voice, unmuted, with nothing else being said and the learner quiet', () => {
+    expect(maySpeakNow(ready)).toBe(true)
+    expect(maySpeakNow({ ...ready, hasVoice: false })).toBe(false)
+    expect(maySpeakNow({ ...ready, muted: true })).toBe(false)
+    expect(maySpeakNow({ ...ready, speaking: true })).toBe(false)
+    expect(maySpeakNow({ ...ready, learnerTalking: true })).toBe(false)
+  })
+
+  it('never stays stuck on a message: it counts as said after its time, which grows with its length', () => {
+    const step1 = 'Step 1 of 4, Place the LED. Push the LED into the middle of the breadboard with its long leg and its short leg in two different rows. The long leg is the positive side.'
+    // Samantha took 13.8 s for this on Nov 25.
+    expect(speechTimeoutMs(step1)).toBeGreaterThan(13_800)
+    expect(speechTimeoutMs(step1)).toBeLessThan(40_000)
+    expect(speechTimeoutMs('Done.')).toBeLessThan(speechTimeoutMs(step1))
+  })
+})
+
+describe("which experts' replies are read", () => {
+  const question = (id: string) => ({ id, stepId: 's1', question: 'Which leg?', status: 'open' })
+  it('reads a reply only when its question was in the chat before it', () => {
+    expect(newExpertReply('q1', new Set(['q1']))).toBe(true)
+    expect(newExpertReply('q1', new Set())).toBe(false)
+  })
+
+  it("knows the learner's questions, the AI's own and the ones an asking run tracks", () => {
+    const entries = [
+      { id: 'asked-q1', at: 1, kind: 'asked', question: question('q1') },
+      { id: 'judge-q2', at: 2, kind: 'judge-asked', question: question('q2') },
+      { id: 'auto1', at: 3, kind: 'auto', auto: { id: 'auto1', stepId: 's1', said: 'x', kind: 'asking', questionId: 'q3' } },
+      { id: 'auto2', at: 4, kind: 'auto', auto: { id: 'auto2', stepId: 's1', said: 'x', kind: 'asking', questionId: null } },
+      { id: 'reply-q4', at: 5, kind: 'expert-reply', question: question('q4') },
+    ] as unknown as ChatEntry[]
+    expect([...chatQuestionIds(entries)].sort()).toEqual(['q1', 'q2', 'q3'])
   })
 })

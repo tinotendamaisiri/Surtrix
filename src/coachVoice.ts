@@ -33,6 +33,37 @@ export function stepSpeech(stepNumber: number, stepCount: number, title: string,
 
 export const ALL_DONE_SPEECH = 'All steps done.'
 
+// The longest a message may take before the coach treats it as said: Chrome does not always
+// report the end of speech, and the coach and Listening must never stay stuck. Samantha
+// took about 90 ms a character (Nov 25), so this leaves room for a slower voice.
+export function speechTimeoutMs(text: string): number {
+  return 3000 + text.length * 150
+}
+
+// Whether the coach may start its next message now: there is a voice, it is not muted,
+// nothing else is being said, and the learner is not talking or waiting for words to go.
+export function maySpeakNow(s: { hasVoice: boolean; muted: boolean; speaking: boolean; learnerTalking: boolean }): boolean {
+  return s.hasVoice && !s.muted && !s.speaking && !s.learnerTalking
+}
+
+// An expert's reply is read only when its question was already in the chat before the
+// reply came: a question and its reply that arrive together were answered before this
+// visit (for example after opening the Workspace offline).
+export function newExpertReply(questionId: string, knownQuestions: ReadonlySet<string>): boolean {
+  return knownQuestions.has(questionId)
+}
+
+// The question ids the chat shows now: the learner's questions, the AI's own, and the ones
+// an asking run is tracking.
+export function chatQuestionIds(entries: readonly ChatEntry[]): Set<string> {
+  const ids = new Set<string>()
+  for (const e of entries) {
+    if (e.kind === 'asked' || e.kind === 'judge-asked') ids.add(e.question.id)
+    else if (e.kind === 'auto' && 'questionId' in e.auto && e.auto.questionId) ids.add(e.auto.questionId)
+  }
+  return ids
+}
+
 export function expertSpeech(answer: string): string {
   return `An expert answered: ${answer}`
 }

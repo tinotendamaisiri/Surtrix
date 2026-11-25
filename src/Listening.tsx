@@ -156,7 +156,6 @@ export function CoachVoiceToggle({ voice }: { voice: CoachVoice }) {
       type="button"
       className={`ws-pill ws-listen${on ? ' ws-listen-on' : ''}`}
       aria-pressed={on}
-      aria-label="Coach voice"
       onClick={voice.toggleMute}
     >
       <SpeakerIcon crossed={!on} />

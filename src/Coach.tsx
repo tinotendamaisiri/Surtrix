@@ -36,7 +36,9 @@ import { CoachVoiceToggle, ListeningToggle } from './Listening.tsx'
 import { useCoachVoice } from './useCoachVoice.ts'
 import {
   ALL_DONE_SPEECH,
+  chatQuestionIds,
   entrySpeech,
+  newExpertReply,
   speechKey,
   stepSpeech,
   WIRING_FAILED_TEXT,
@@ -150,7 +152,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   )
   // The coach voice (#95): it waits while the learner's heard words wait, and Listening
   // holds while it speaks, so the recogniser never hears the coach.
-  const voice = useCoachVoice(listening.waiting)
+  const voice = useCoachVoice(listening.waiting || listening.hearing)
   useEffect(() => {
     listening.hold(voice.speaking)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -218,9 +220,6 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   // and an open one on a step blocks a new automatic one there.
   const [mine, setMine] = useState<{ questions: Question[]; failed?: boolean }>({ questions: [] })
   const mineRef = useRef(mine)
-  // The coach voice says only expert replies that come in after the first list of
-  // questions: the ones already there were answered before this visit.
-  const questionsSpokenRef = useRef<'waiting' | 'first' | 'after'>('waiting')
   const savedRef = useRef(saved)
   const choiceRef = useRef(autoChoice)
   // Each automatic run's number: a step change or a new run makes an older one stop.
@@ -235,10 +234,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   useEffect(() => {
     return watchMyQuestions(
       skill.id,
-      (questions) => {
-        if (questionsSpokenRef.current === 'waiting') questionsSpokenRef.current = 'first'
-        setMine({ questions })
-      },
+      (questions) => setMine({ questions }),
       (e) => {
         console.error('Watching your questions failed', e)
         // The last list stays, so its rules and the chat keep working.
@@ -837,22 +833,23 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     entriesRef.current = entries
   })
 
-  // The coach voice (#95) reads each new chat entry that has words to say, once. Entries
-  // there before (an earlier visit's expert replies) stay silent.
+  // The coach voice (#95) reads each new chat entry that has words to say, once. An
+  // expert's reply is read only when its question was in the chat before it.
   const spokenRef = useRef<Set<string> | null>(null)
+  const knownQuestionsRef = useRef<Set<string>>(new Set())
   useEffect(() => {
+    const knownBefore = knownQuestionsRef.current
+    knownQuestionsRef.current = new Set([...knownBefore, ...chatQuestionIds(entries)])
     if (!spokenRef.current) {
       spokenRef.current = new Set(entries.map(speechKey))
       return
     }
     const spoken = spokenRef.current
-    const firstQuestions = questionsSpokenRef.current === 'first'
-    if (firstQuestions) questionsSpokenRef.current = 'after'
     for (const entry of entries) {
       const key = speechKey(entry)
       if (spoken.has(key)) continue
       spoken.add(key)
-      if (firstQuestions && (entry.kind === 'asked' || entry.kind === 'judge-asked' || entry.kind === 'expert-reply')) continue
+      if (entry.kind === 'expert-reply' && !newExpertReply(entry.question.id, knownBefore)) continue
       const text = entrySpeech(entry)
       if (text) voice.say({ id: key, stepId: entry.kind === 'expert-reply' ? null : entryStep(entry), text })
     }

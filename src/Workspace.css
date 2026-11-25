@@ -751,6 +751,12 @@ main.workspace {
   font-size: 12px;
 }
 
+/* A step part asked about and not seen in the latest reading (#95). */
+.ws-msg-warning {
+  color: #f9d440;
+  font-size: 13px;
+}
+
 .ws-chat-limit {
   display: flex;
   flex-wrap: wrap;

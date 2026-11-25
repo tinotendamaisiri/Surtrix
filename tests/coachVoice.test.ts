@@ -101,6 +101,13 @@ describe('what the coach says', () => {
     expect(entrySpeech(reply(InferenceSource.IN_CLOUD, saved))).toBe('The long leg is positive. An expert answered: The long leg.')
   })
 
+  it('reads the warning on an answer after the answer, before the on device note', () => {
+    const warned = { ...reply(InferenceSource.ON_DEVICE), partWarning: "I can't see the LED in the picture yet. Show it to the camera." } as ChatEntry
+    expect(entrySpeech(warned)).toBe(
+      `The long leg is positive. I can't see the LED in the picture yet. Show it to the camera. ${ON_DEVICE_NOTE}`,
+    )
+  })
+
   it('reads failed replies as the chat shows them', () => {
     const failed = (reason: 'limited' | 'unanswered' | 'error'): ChatEntry => ({ id: 'f', at: 1, kind: 'reply-failed', stepId: 's1', question: 'x', reason })
     expect(entrySpeech(failed('limited'))).toBe(LIMITED_TEXT)

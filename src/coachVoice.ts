@@ -105,6 +105,7 @@ export function entrySpeech(entry: ChatEntry): string | null {
       const said = [
         answer.text,
         answer.savedAnswer ? expertSpeech(answer.savedAnswer.answer) : '',
+        entry.partWarning ?? '',
         source === InferenceSource.ON_DEVICE ? ON_DEVICE_NOTE : '',
       ]
       return said.filter((s) => s !== '').join(' ')

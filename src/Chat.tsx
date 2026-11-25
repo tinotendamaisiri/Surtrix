@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode, type Ref } from 'react'
 import { InferenceSource } from 'firebase/ai'
 import AutoAskCard from './AutoAskCard.tsx'
+import { replyFailedText } from './coachVoice.ts'
 import { HeardYou, ListeningTag, MicButton, VoiceNoteLine } from './Listening.tsx'
 import type { Listening } from './useListening.ts'
 import type { VoiceNote } from './voice.ts'
@@ -12,8 +13,6 @@ import type { AutoAskChoice } from './autoAsk.ts'
 import {
   CHAT_LIMIT_TEXT,
   CHAT_MAX_LENGTH,
-  COULD_NOT_ANSWER_TEXT,
-  LIMITED_TEXT,
   ON_DEVICE_NOTE,
   type ChatEntry,
   type ChatQuestion,
@@ -277,13 +276,7 @@ function Entry({ entry, ...props }: { entry: ChatEntry } & EntryProps) {
     case 'reply-failed':
       return (
         <>
-          <p>
-            {entry.reason === 'limited'
-              ? LIMITED_TEXT
-              : entry.reason === 'unanswered'
-                ? COULD_NOT_ANSWER_TEXT
-                : 'The AI could not answer right now. Try again, or ask an expert.'}
-          </p>
+          <p>{replyFailedText(entry.reason)}</p>
           {entry.stepId === props.stepId && (
             <button type="button" className="ws-pill ws-pill-gold" onClick={() => props.onAskExpert(entry.question)}>
               Ask an expert

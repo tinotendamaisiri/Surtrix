@@ -348,7 +348,7 @@ function timeOf(date: Date | null | undefined): number {
   return date?.getTime() ?? Number.MAX_SAFE_INTEGER
 }
 
-function entryStep(entry: ChatEntry): string {
+export function entryStep(entry: ChatEntry): string {
   if (entry.kind === 'auto') return entry.auto.stepId
   if (entry.kind === 'asked' || entry.kind === 'judge-asked' || entry.kind === 'expert-reply') return entry.question.stepId
   return entry.stepId

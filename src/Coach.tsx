@@ -499,6 +499,10 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   // model call of its own.
   const cantSeeRef = useRef<CantSee>(NO_CANT_SEE)
   const lastLookRef = useRef<BenchLook | null>(null)
+  // Every step change starts afresh, even back to a step before any new reading.
+  useEffect(() => {
+    cantSeeRef.current = NO_CANT_SEE
+  }, [step.id])
   useEffect(() => {
     const look = watch.look
     if (!look) {

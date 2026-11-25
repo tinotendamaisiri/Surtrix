@@ -221,5 +221,9 @@ describe("the can't see warning (#95)", () => {
     )
     expect(cantSeeText({ said: 'can-see', parts: ['breadboard'] })).toBe('I can see the breadboard now.')
     expect(cantSeeText({ said: 'can-see', parts: ['breadboard', 'LED'] })).toBe('I can see the breadboard and the LED now.')
+    expect(cantSeeText({ said: 'cant-see', parts: ['a breadboard', 'An LED', 'the USB cable'] })).toBe(
+      "I can't see the breadboard, the LED or the USB cable yet. Point the camera at your bench.",
+    )
+    expect(cantSeeText({ said: 'can-see', parts: ['antenna', 'theremin'] })).toBe('I can see the antenna and the theremin now.')
   })
 })

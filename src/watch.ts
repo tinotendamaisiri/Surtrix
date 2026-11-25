@@ -171,9 +171,10 @@ export function cantSeeRoundEnds(state: CantSee): CantSee {
   return { ...state, missed: 0, seenRun: 0 }
 }
 
-// "the X", "the X or the Y", "the X, the Y or the Z".
+// "the X", "the X or the Y", "the X, the Y or the Z". A part named with its own "a", "an"
+// or "the" keeps just one "the".
 function theParts(parts: string[], joiner: 'or' | 'and'): string {
-  const named = parts.map((part) => `the ${part}`)
+  const named = parts.map((part) => `the ${part.replace(/^(a|an|the)\s+/i, '')}`)
   if (named.length === 1) return named[0]
   return `${named.slice(0, -1).join(', ')} ${joiner} ${named[named.length - 1]}`
 }

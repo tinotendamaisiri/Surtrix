@@ -209,6 +209,7 @@ function entryClass(entry: ChatEntry): string {
     case 'thinking':
     case 'reply':
     case 'reply-failed':
+    case 'bench':
       return 'ws-msg ws-msg-ai'
     default:
       return 'ws-chat-note'
@@ -288,6 +289,16 @@ function Entry({ entry, ...props }: { entry: ChatEntry } & EntryProps) {
               Ask an expert
             </button>
           )}
+        </>
+      )
+    case 'bench':
+      return (
+        <>
+          <p className="ws-mono ws-msg-label">
+            <i className="ws-dot" aria-hidden="true" />
+            {sourceLabel[InferenceSource.ON_DEVICE]}
+          </p>
+          <p>{entry.text}</p>
         </>
       )
     case 'auto': {

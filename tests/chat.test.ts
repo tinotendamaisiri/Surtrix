@@ -467,3 +467,12 @@ test('only the first 5 garbled replies in a session go uncounted', () => {
   const free = Array.from({ length: 7 }, () => garbledReplyIsFree())
   expect(free).toEqual([true, true, true, true, true, false, false])
 })
+
+test("the can't see warning counts as new and shows in the closed bar, but never goes to the model (#95)", () => {
+  const bench: ChatItem = { id: 'b1', at: 21, kind: 'bench', stepId: 's1', said: 'cant-see', text: "I can't see the LED yet. Point the camera at your bench." }
+  const items: ChatItem[] = [typed('t1', 's1', 'Which leg?', 1), bench]
+  const entries = chatEntries(items, [], steps)
+  expect(unreadCount(entries, { local: 10, server: 10 })).toBe(1)
+  expect(chatPreview(entries, 's1')).toBe(bench.text)
+  expect(chatHistory(items)).toEqual([{ from: 'learner', text: 'Which leg?' }])
+})

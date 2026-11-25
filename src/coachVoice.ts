@@ -24,7 +24,18 @@ export type Speech = { id: string; stepId: string | null; text: string }
 
 // A step change: what still waits from other steps is dropped.
 export function keepForStep(queue: readonly Speech[], stepId: string): Speech[] {
-  return queue.filter((s) => s.stepId === null || s.stepId === stepId)
+  return queue.filter((s) => belongsHere(s, stepId))
+}
+
+// Whether a message still fits on this step: it is about this step or about none.
+export function belongsHere(speech: Speech, stepId: string): boolean {
+  return speech.stepId === null || speech.stepId === stepId
+}
+
+// The same words already being said or waiting are not queued again (Start camera just
+// after a step change reads that step once).
+export function alreadyQueued(speech: Speech, current: Speech | null, queue: readonly Speech[]): boolean {
+  return [current, ...queue].some((s) => s !== null && s.text === speech.text)
 }
 
 export function stepSpeech(stepNumber: number, stepCount: number, title: string, instruction: string): string {

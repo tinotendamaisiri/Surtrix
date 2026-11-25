@@ -2,7 +2,7 @@
 // Messages wait in a queue and are said one at a time. While the learner's heard words
 // still wait to be sent, the coach waits too, so it never talks over them.
 import { useEffect, useRef, useState } from 'react'
-import { keepForStep, maySpeakNow, pickVoice, readCoachMuted, speechTimeoutMs, writeCoachMuted, type Speech } from './coachVoice.ts'
+import { alreadyQueued, belongsHere, keepForStep, maySpeakNow, pickVoice, readCoachMuted, speechTimeoutMs, writeCoachMuted, type Speech } from './coachVoice.ts'
 
 // Chrome fills the voice list a moment after the page loads; after this long with none,
 // there is no voice to use.
@@ -15,7 +15,7 @@ export type CoachVoice = {
   speaking: boolean
   toggleMute: () => void
   say: (speech: Speech) => void
-  // A step change: what waits from other steps is dropped, then this is said.
+  // A step change: what is said or waits from other steps stops, then this is said.
   newStep: (speech: Speech & { stepId: string }) => void
   // The learner sent a typed message: what is being said now stops.
   stopCurrent: () => void
@@ -33,6 +33,7 @@ export function useCoachVoice(learnerTalking: boolean): CoachVoice {
   const queueRef = useRef<Speech[]>([])
   // The utterance being said, kept so Chrome does not drop it before it ends.
   const currentRef = useRef<SpeechSynthesisUtterance | null>(null)
+  const currentSpeechRef = useRef<Speech | null>(null)
   const voiceRef = useRef(voice)
   const mutedRef = useRef(muted)
   const waitingRef = useRef(learnerTalking)
@@ -77,6 +78,7 @@ export function useCoachVoice(learnerTalking: boolean): CoachVoice {
       if (currentRef.current !== u) return
       clearTimeout(timeoutRef.current)
       currentRef.current = null
+      currentSpeechRef.current = null
       setSpeaking(false)
       next()
     }
@@ -88,6 +90,7 @@ export function useCoachVoice(learnerTalking: boolean): CoachVoice {
       done()
     }
     currentRef.current = u
+    currentSpeechRef.current = speech
     setSpeaking(true)
     s.speak(u)
     // Never stuck: past its time, the message counts as said.
@@ -104,6 +107,7 @@ export function useCoachVoice(learnerTalking: boolean): CoachVoice {
     if (!currentRef.current) return
     clearTimeout(timeoutRef.current)
     currentRef.current = null
+    currentSpeechRef.current = null
     setSpeaking(false)
     synth()?.cancel()
   }
@@ -127,6 +131,7 @@ export function useCoachVoice(learnerTalking: boolean): CoachVoice {
 
   function say(speech: Speech) {
     if (mutedRef.current || !voiceRef.current || speech.text.trim() === '') return
+    if (alreadyQueued(speech, currentSpeechRef.current, queueRef.current)) return
     queueRef.current.push(speech)
     next()
   }
@@ -145,6 +150,8 @@ export function useCoachVoice(learnerTalking: boolean): CoachVoice {
     say,
     newStep: (speech) => {
       queueRef.current = keepForStep(queueRef.current, speech.stepId)
+      const current = currentSpeechRef.current
+      if (current && !belongsHere(current, speech.stepId)) stop(false)
       say(speech)
     },
     stopCurrent: () => {

@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { InferenceSource } from 'firebase/ai'
 import {
+  alreadyQueued,
+  belongsHere,
   ALL_DONE_SPEECH,
   chatQuestionIds,
   entrySpeech,
@@ -58,6 +60,19 @@ describe('the queue on a step change', () => {
       { id: '3', stepId: 's2', text: 'new step' },
     ]
     expect(keepForStep(queue, 's2').map((s) => s.id)).toEqual(['2', '3'])
+  })
+
+  it('stops the old step being read, but not a message about no step or about the new one', () => {
+    expect(belongsHere({ id: '1', stepId: 's1', text: 'Step 1 of 4' }, 's2')).toBe(false)
+    expect(belongsHere({ id: '2', stepId: null, text: 'An expert answered: yes' }, 's2')).toBe(true)
+    expect(belongsHere({ id: '3', stepId: 's2', text: 'Step 2, correct' }, 's2')).toBe(true)
+  })
+
+  it('does not queue the same words twice', () => {
+    const step2 = { id: 'a', stepId: 's2', text: 'Step 2 of 4, Add the resistor.' }
+    expect(alreadyQueued({ ...step2, id: 'b' }, step2, [])).toBe(true)
+    expect(alreadyQueued({ ...step2, id: 'b' }, null, [step2])).toBe(true)
+    expect(alreadyQueued({ id: 'c', stepId: 's2', text: 'Other words.' }, step2, [])).toBe(false)
   })
 })
 

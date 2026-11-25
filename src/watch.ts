@@ -109,3 +109,77 @@ export function describeBenchAnswer(answer: BenchAnswer): string {
     ' ',
   )
 }
+
+// The can't see warning (#95): Nano's readings, one at a time, decide when the coach says
+// in the chat that it cannot see the step's parts, and when it says it can see them again.
+// A part is missing when Nano answers no or not sure for it.
+
+// Readings in a row that miss every part before the coach speaks up.
+export const CANT_SEE_READINGS = 3
+// Readings in a row that see a part before it counts as seen again: Nano sometimes says yes
+// to a part on a frame with nothing on it (3 of 17 readings of a grey frame, Nov 25).
+export const SEEN_READINGS = 2
+
+export type CantSee = {
+  stepId: string | null
+  // Readings in a row, in this round of watching, that missed every part.
+  missed: number
+  // Readings in a row, in this round of watching, that saw a part.
+  seenRun: number
+  // False after a warning, until a part counts as seen: no repeats while nothing changes.
+  mayWarn: boolean
+  // A warning was given and no part has counted as seen since.
+  warned: boolean
+}
+
+export const NO_CANT_SEE: CantSee = { stepId: null, missed: 0, seenRun: 0, mayWarn: true, warned: false }
+
+export type CantSeeSay = { said: 'cant-see' | 'can-see'; parts: string[] }
+
+// One reading on a step. A new step starts afresh; a step with no parts never speaks up.
+// A single reading that sees a part starts the miss count again; it takes SEEN_READINGS in
+// a row to confirm after a warning or to allow the next one.
+export function cantSeeAfterReading(
+  state: CantSee,
+  stepId: string,
+  answer: BenchAnswer,
+): { state: CantSee; say: CantSeeSay | null } {
+  const current = state.stepId === stepId ? state : { ...NO_CANT_SEE, stepId }
+  if (answer.parts.length === 0) return { state: current, say: null }
+  const seen = answer.parts.filter((part) => part.seen === 'yes').map((part) => part.name)
+  if (seen.length > 0) {
+    const seenRun = current.seenRun + 1
+    if (seenRun < SEEN_READINGS) return { state: { ...current, missed: 0, seenRun }, say: null }
+    return {
+      state: { stepId, missed: 0, seenRun, mayWarn: true, warned: false },
+      say: current.warned ? { said: 'can-see', parts: seen } : null,
+    }
+  }
+  const missed = current.missed + 1
+  if (missed >= CANT_SEE_READINGS && current.mayWarn) {
+    return {
+      state: { stepId, missed: 0, seenRun: 0, mayWarn: false, warned: true },
+      say: { said: 'cant-see', parts: answer.parts.map((part) => part.name) },
+    }
+  }
+  return { state: { ...current, missed, seenRun: 0 }, say: null }
+}
+
+// The round of watching ended (the camera stopped, the tab was hidden): both counts start
+// again, but that is not a part seen, so a warning given is not repeated.
+export function cantSeeRoundEnds(state: CantSee): CantSee {
+  return { ...state, missed: 0, seenRun: 0 }
+}
+
+// "the X", "the X or the Y", "the X, the Y or the Z".
+function theParts(parts: string[], joiner: 'or' | 'and'): string {
+  const named = parts.map((part) => `the ${part}`)
+  if (named.length === 1) return named[0]
+  return `${named.slice(0, -1).join(', ')} ${joiner} ${named[named.length - 1]}`
+}
+
+export function cantSeeText(say: CantSeeSay): string {
+  return say.said === 'cant-see'
+    ? `I can't see ${theParts(say.parts, 'or')} yet. Point the camera at your bench.`
+    : `I can see ${theParts(say.parts, 'and')} now.`
+}

@@ -285,6 +285,8 @@ export type ChatItem = { id: string; at: number } & (
   // time), or error (anything else).
   | { kind: 'reply-failed'; stepId: string; question: string; reason: FailReason }
   | { kind: 'auto'; auto: AutoAsk }
+  // The can't see warning or its confirmation (#95), decided on device from Nano's readings.
+  | { kind: 'bench'; stepId: string; said: 'cant-see' | 'can-see'; text: string }
 )
 
 let lastId = 0
@@ -491,6 +493,8 @@ export function chatPreview(entries: ChatEntry[], stepId: string): string {
       return last.question.judgeSaid ?? last.question.question
     case 'expert-reply':
       return `${last.question.reply?.expertName ?? 'An expert'}: ${last.question.reply?.text ?? ''}`
+    case 'bench':
+      return last.text
     default:
       return EMPTY_PREVIEW
   }

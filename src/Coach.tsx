@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { InferenceSource } from 'firebase/ai'
 import AskExpert, { type AskRequest, type JudgeOffer } from './AskExpert.tsx'
-import { useBenchWatch, type BenchWatch } from './benchWatch.ts'
+import { useBenchWatch, type BenchLook, type BenchWatch } from './benchWatch.ts'
 import { grabFrameBase64 } from './cameraFrame.ts'
 import Chat from './Chat.tsx'
 import {
@@ -47,7 +47,14 @@ import {
   type CoachSkill,
   type CoachStep,
 } from './coach.ts'
-import { describeBenchAnswer } from './watch.ts'
+import {
+  cantSeeAfterReading,
+  cantSeeRoundEnds,
+  cantSeeText,
+  describeBenchAnswer,
+  NO_CANT_SEE,
+  type CantSee,
+} from './watch.ts'
 import { describeWiringCheck, WIRING_DEADLINE_MS, WIRING_GIVE_UP_MS } from './wiring.ts'
 import { checkWiring, type WiringResult } from './wiringCheck.ts'
 import BackToSkills from './BackToSkills.tsx'
@@ -486,6 +493,29 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     stepIdRef.current = step.id
     finishedRef.current = progress.finished
   })
+
+  // The can't see warning (#95): each new reading from Nano on the current step goes through
+  // the rules once. The warning opens the chat; its confirmation only counts as new. No
+  // model call of its own.
+  const cantSeeRef = useRef<CantSee>(NO_CANT_SEE)
+  const lastLookRef = useRef<BenchLook | null>(null)
+  useEffect(() => {
+    const look = watch.look
+    if (!look) {
+      cantSeeRef.current = cantSeeRoundEnds(cantSeeRef.current)
+      return
+    }
+    if (look === lastLookRef.current) return
+    lastLookRef.current = look
+    if (progress.finished || look.stepId !== step.id) return
+    const { state, say } = cantSeeAfterReading(cantSeeRef.current, look.stepId, look.answer)
+    cantSeeRef.current = state
+    if (!say) return
+    setChatItems((items) =>
+      appendItem(items, { id: newChatId(), at: Date.now(), kind: 'bench', stepId: look.stepId, said: say.said, text: cantSeeText(say) }),
+    )
+    if (say.said === 'cant-see') setChatOpen(true)
+  }, [watch.look, step.id, progress.finished])
 
   // A new step, or a wiring check starting or ending, lets the next "done" act.
   useEffect(() => {

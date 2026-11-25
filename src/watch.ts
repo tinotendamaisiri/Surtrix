@@ -171,10 +171,14 @@ export function cantSeeRoundEnds(state: CantSee): CantSee {
   return { ...state, missed: 0, seenRun: 0 }
 }
 
-// "the X", "the X or the Y", "the X, the Y or the Z". A part named with its own "a", "an"
-// or "the" keeps just one "the".
+// A part named with its own "a", "an" or "the" keeps just one "the".
+function thePart(part: string): string {
+  return `the ${part.replace(/^(a|an|the)\s+/i, '')}`
+}
+
+// "the X", "the X or the Y", "the X, the Y or the Z".
 function theParts(parts: string[], joiner: 'or' | 'and'): string {
-  const named = parts.map((part) => `the ${part.replace(/^(a|an|the)\s+/i, '')}`)
+  const named = parts.map(thePart)
   if (named.length === 1) return named[0]
   return `${named.slice(0, -1).join(', ')} ${joiner} ${named[named.length - 1]}`
 }
@@ -183,4 +187,14 @@ export function cantSeeText(say: CantSeeSay): string {
   return say.said === 'cant-see'
     ? `I can't see ${theParts(say.parts, 'or')} yet. Point the camera at your bench.`
     : `I can see ${theParts(say.parts, 'and')} now.`
+}
+
+// The warning on a chat answer (#95): the learner asked about a part of this step that the
+// latest reading on this step did not see (no or not sure). Null when the reading saw it,
+// when there is no reading for this step, or when the message is about no part of it.
+export function partNotSeen(part: string | null, reading: { stepId: string; answer: BenchAnswer } | null, stepId: string): string | null {
+  if (part === null || !reading || reading.stepId !== stepId) return null
+  const read = reading.answer.parts.find((p) => p.name === part)
+  if (!read || read.seen === 'yes') return null
+  return `I can't see ${thePart(part)} in the picture yet. Show it to the camera.`
 }

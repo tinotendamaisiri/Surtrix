@@ -65,6 +65,7 @@ import {
   cantSeeText,
   describeBenchAnswer,
   NO_CANT_SEE,
+  partNotSeen,
   type CantSee,
 } from './watch.ts'
 import { describeWiringCheck, WIRING_DEADLINE_MS, WIRING_GIVE_UP_MS } from './wiring.ts'
@@ -523,6 +524,10 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   // the rules once. The warning opens the chat; its confirmation only counts as new. No
   // model call of its own.
   const cantSeeRef = useRef<CantSee>(NO_CANT_SEE)
+  const lookRef = useRef<BenchLook | null>(null)
+  useEffect(() => {
+    lookRef.current = watch.look
+  })
   const lastLookRef = useRef<BenchLook | null>(null)
   // Every step change starts afresh, even back to a step before any new reading.
   useEffect(() => {
@@ -614,7 +619,9 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
         history,
         message,
       })
-      item = { id: thinkingId, at: Date.now(), kind: 'reply', stepId: s.id, question: message, answer: reply.answer, source: reply.source }
+      // The latest reading on this step when the answer lands (#95).
+      const partWarning = partNotSeen(reply.answer.aboutPart ?? null, lookRef.current, s.id) ?? undefined
+      item = { id: thinkingId, at: Date.now(), kind: 'reply', stepId: s.id, question: message, answer: reply.answer, source: reply.source, partWarning }
     } catch (e) {
       console.error('The chat could not answer', e)
       const garbled = e instanceof ChatGarbledError

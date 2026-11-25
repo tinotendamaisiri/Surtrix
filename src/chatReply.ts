@@ -16,6 +16,7 @@ import {
 } from 'firebase/ai'
 import { ai } from './firebase'
 import {
+  aboutPartValues,
   CHAT_INSTRUCTION,
   chatPrompt,
   chatReplySchema,
@@ -56,6 +57,7 @@ function cloudModel(context: ChatContext): GenerativeModel {
             reply: Schema.string(),
             savedAnswerId: Schema.enumString({ enum: ids }),
             unsure: Schema.boolean(),
+            aboutPart: Schema.enumString({ enum: aboutPartValues(context.step.parts) }),
           },
         }),
         // Thinking counts toward this limit, so leave it plenty of room.
@@ -70,7 +72,10 @@ function cloudModel(context: ChatContext): GenerativeModel {
 function deviceModel(context: ChatContext): GenerativeModel {
   return getGenerativeModel(ai, {
     mode: InferenceMode.ONLY_ON_DEVICE,
-    onDeviceParams: { createOptions, promptOptions: { responseConstraint: chatReplySchema(context.savedAnswers) } },
+    onDeviceParams: {
+      createOptions,
+      promptOptions: { responseConstraint: chatReplySchema(context.savedAnswers, context.step.parts) },
+    },
   })
 }
 
@@ -78,7 +83,7 @@ function deviceModel(context: ChatContext): GenerativeModel {
 let lastModels: { key: string; cloud: GenerativeModel; device: GenerativeModel } | null = null
 
 function modelsFor(context: ChatContext) {
-  const key = JSON.stringify(savedAnswerIds(context.savedAnswers))
+  const key = JSON.stringify([savedAnswerIds(context.savedAnswers), aboutPartValues(context.step.parts)])
   if (lastModels?.key !== key) lastModels = { key, cloud: cloudModel(context), device: deviceModel(context) }
   return lastModels
 }
@@ -107,7 +112,7 @@ export async function replyToChat(context: ChatContext): Promise<ChatReply> {
   // Read inside each path, so a garbled cloud reply is known as one and never goes on to
   // the device.
   const read = (result: GenerateContentResult) => ({
-    answer: parseChatReply(result.response.text(), context.savedAnswers),
+    answer: parseChatReply(result.response.text(), context.savedAnswers, context.step.parts),
     source: result.response.inferenceSource ?? 'unknown',
   })
   const reply = await cloudThenDevice({

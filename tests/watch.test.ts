@@ -9,6 +9,7 @@ import {
   cantSeeText,
   describeBenchAnswer,
   NO_CANT_SEE,
+  partNotSeen,
   SEEN_READINGS,
   parseBenchAnswer,
   watchedParts,
@@ -225,5 +226,23 @@ describe("the can't see warning (#95)", () => {
       "I can't see the breadboard, the LED or the USB cable yet. Point the camera at your bench.",
     )
     expect(cantSeeText({ said: 'can-see', parts: ['antenna', 'theremin'] })).toBe('I can see the antenna and the theremin now.')
+  })
+})
+
+describe('the warning on a chat answer (#95)', () => {
+  const reading = (stepId: string, ...seen: Seen[]) => ({
+    stepId,
+    answer: { parts: seen.map((value, i) => ({ name: ['breadboard', 'LED'][i], seen: value })), ledLit: 'no LED seen' as const },
+  })
+  it('warns when the part asked about was not seen, or Nano was not sure, in the latest reading on this step', () => {
+    expect(partNotSeen('LED', reading('s1', 'yes', 'no'), 's1')).toBe("I can't see the LED in the picture yet. Show it to the camera.")
+    expect(partNotSeen('LED', reading('s1', 'yes', 'not sure'), 's1')).toBe("I can't see the LED in the picture yet. Show it to the camera.")
+  })
+  it('says nothing when the part was seen, the message is about no part, or there is no reading for this step', () => {
+    expect(partNotSeen('LED', reading('s1', 'no', 'yes'), 's1')).toBeNull()
+    expect(partNotSeen(null, reading('s1', 'no', 'no'), 's1')).toBeNull()
+    expect(partNotSeen('LED', null, 's1')).toBeNull()
+    expect(partNotSeen('LED', reading('s2', 'no', 'no'), 's1')).toBeNull()
+    expect(partNotSeen('battery', reading('s1', 'no', 'no'), 's1')).toBeNull()
   })
 })

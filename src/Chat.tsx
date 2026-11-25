@@ -264,6 +264,7 @@ function Entry({ entry, ...props }: { entry: ChatEntry } & EntryProps) {
               </p>
             </div>
           )}
+          {entry.partWarning && <p className="ws-msg-warning">{entry.partWarning}</p>}
           {source === InferenceSource.ON_DEVICE && <p className="ws-msg-device">{ON_DEVICE_NOTE}</p>}
           {answer.unsure && entry.stepId === props.stepId && (
             <button type="button" className="ws-pill ws-pill-gold" onClick={() => props.onAskExpert(entry.question)}>

@@ -1,6 +1,7 @@
 // Talking to the Workspace (#80): the Listening toggle under the camera, the mic buttons
 // in the chat, and the LISTENING tag. All three controls turn the same listening on and
 // off (settled f).
+import type { CoachVoice } from './useCoachVoice.ts'
 import type { Listening } from './useListening.ts'
 import { listeningOn, listeningProblem, NO_CHECK_LINE, voiceNoteText, type VoiceNote } from './voice.ts'
 
@@ -88,6 +89,11 @@ export function ListeningToggle({ listening, heard, note, noVoiceCheck }: Toggle
         {label(listening)}
       </button>
       {on && <HeardYou heard={heard} />}
+      {on && listening.held && (
+        <p className="ws-listen-problem" role="status">
+          Coach speaking
+        </p>
+      )}
       {problem && <p className="ws-listen-problem">{problem}</p>}
       <VoiceNoteLine note={note} />
     </>
@@ -120,5 +126,41 @@ export function ListeningTag({ listening }: { listening: Listening }) {
       <Wave />
       LISTENING
     </span>
+  )
+}
+
+function SpeakerIcon({ crossed = false }: { crossed?: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 9v6h4l5 4V5L8 9z" />
+      {crossed ? <path d="M17 9l5 6M22 9l-5 6" /> : <path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" />}
+    </svg>
+  )
+}
+
+// Next to Listening (#95): the coach reading its messages aloud, on until muted. Where this
+// device has no on device English voice, it says so and stays off.
+export function CoachVoiceToggle({ voice }: { voice: CoachVoice }) {
+  if (voice.available === null) return null
+  if (!voice.available) {
+    return (
+      <button type="button" className="ws-pill ws-listen" disabled>
+        <SpeakerIcon crossed />
+        No voice on this device
+      </button>
+    )
+  }
+  const on = !voice.muted
+  return (
+    <button
+      type="button"
+      className={`ws-pill ws-listen${on ? ' ws-listen-on' : ''}`}
+      aria-pressed={on}
+      aria-label="Coach voice"
+      onClick={voice.toggleMute}
+    >
+      <SpeakerIcon crossed={!on} />
+      {on ? 'Coach voice' : 'Coach muted'}
+    </button>
   )
 }

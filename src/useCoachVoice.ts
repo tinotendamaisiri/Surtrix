@@ -51,7 +51,13 @@ function online(): boolean {
 let context: AudioContext | null = null
 function audioContext(): AudioContext | null {
   if (!hasWebAudio()) return null
-  context ??= new AudioContext({ sampleRate: SAMPLE_RATE })
+  if (!context) {
+    // On iPhone, plain page audio follows the ring switch; the coach is playback, like a
+    // video, so it is heard with the switch on silent.
+    const session = (navigator as { audioSession?: { type: string } }).audioSession
+    if (session) session.type = 'playback'
+    context = new AudioContext({ sampleRate: SAMPLE_RATE })
+  }
   if (context.state === 'suspended') void context.resume()
   return context
 }
@@ -240,7 +246,8 @@ export function useCoachVoice({ learnerTalking, skillId, mine }: CoachVoiceOptio
         player.push(read(chunk))
       }
     } catch {
-      // The stream broke partway (or was stopped): what came is said, and the line ends.
+      // The stream broke partway, ended early or was stopped: what came is said, the line
+      // ends, and it is not kept.
       await player.done()
       return true
     }
@@ -386,7 +393,7 @@ export function useCoachVoice({ learnerTalking, skillId, mine }: CoachVoiceOptio
       next()
     },
     prepare: (stepId) => {
-      if (online()) void stepLines(stepId)
+      if (online() && !mutedRef.current) void stepLines(stepId)
     },
   }
 }

@@ -21,14 +21,19 @@ function base64Bytes(data: string): Uint8Array {
   return bytes
 }
 
-// The line's audio, chunk by chunk as it arrives. signal cancels the request.
+// The line's audio, chunk by chunk as it arrives. signal cancels the request. A line the
+// model did not finish normally throws at the end, so it is never saved.
 export async function* streamLine(text: string, signal: AbortSignal): AsyncGenerator<Uint8Array> {
   const result = await speechModel.generateContentStream([{ type: 'text', text, speechMetadata: { style: SPEECH_STYLE } }], { signal })
+  // Read below once the stream ends; a cancelled stream rejects it, which needs no notice.
+  result.response.catch(() => {})
   for await (const chunk of result.stream) {
     for (const part of chunk.inlineDataParts() ?? []) {
       if (part.inlineData.data) yield base64Bytes(part.inlineData.data)
     }
   }
+  const finish = (await result.response).candidates?.[0]?.finishReason
+  if (finish !== 'STOP') throw new Error(`The speech ended early (${finish ?? 'no reason given'}).`)
 }
 
 type SpeechDocument = { key: string; part: number; parts: number; audio: Bytes }

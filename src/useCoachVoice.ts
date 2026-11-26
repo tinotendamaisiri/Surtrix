@@ -11,8 +11,8 @@ import { loadSharedLine, loadStepLines, saveStepLine, streamLine } from './speec
 // Chrome fills the voice list a moment after the page loads; after this long with none,
 // there is no on device voice to use.
 const VOICES_WAIT_MS = 2000
-// Loading a step's saved lines takes longer than this only when something is wrong; the
-// line is then streamed.
+// Loading a step's saved lines, or a line shipped with the app, takes longer than this
+// only when something is wrong; the line is then streamed or said on the device.
 const STEP_LINES_WAIT_MS = 2500
 
 export type CoachVoice = {
@@ -195,11 +195,13 @@ export function useCoachVoice({ learnerTalking, skillId, mine }: CoachVoiceOptio
   async function keptAudio(speech: Speech, key: string): Promise<Uint8Array | null> {
     const heard = heardRef.current.get(key)
     if (heard) return heard
+    // Offline, only lines already loaded count: waiting would only delay the device voice.
+    const wait = online() ? STEP_LINES_WAIT_MS : 0
     if (speech.fixed && speech.stepId !== null) {
-      const saved = (await waitFor(stepLines(speech.stepId), STEP_LINES_WAIT_MS, new Map<string, Uint8Array>())).get(key)
+      const saved = (await waitFor(stepLines(speech.stepId), wait, new Map<string, Uint8Array>())).get(key)
       if (saved) return saved
     }
-    if (SHARED_LINE_KEYS.has(key)) return loadSharedLine(key).catch(() => null)
+    if (SHARED_LINE_KEYS.has(key)) return waitFor(loadSharedLine(key).catch(() => null), STEP_LINES_WAIT_MS, null)
     return null
   }
 

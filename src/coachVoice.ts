@@ -2,6 +2,7 @@
 // (coachSpeech.ts); the on device voice picked here says it offline or when no audio
 // comes. No browser calls here; useCoachVoice.ts speaks.
 import { InferenceSource } from 'firebase/ai'
+import { badgeSpeech } from './safety.ts'
 import { COULD_NOT_ANSWER_TEXT, LIMITED_TEXT, ON_DEVICE_NOTE, type ChatEntry, type FailReason } from './chat.ts'
 import { describeWiringCheck, type WiringCheck } from './wiring.ts'
 
@@ -40,8 +41,11 @@ export function alreadyQueued(speech: Speech, current: Speech | null, queue: rea
   return [current, ...queue].some((s) => s !== null && s.text === speech.text)
 }
 
-export function stepSpeech(stepNumber: number, stepCount: number, title: string, instruction: string): string {
-  return `Step ${stepNumber} of ${stepCount}, ${title}. ${instruction}`
+// The step's safety badges are said before its instruction (#104): "Step 4 of 4, Connect
+// the power. Watch out for electricity. With the power module ...".
+export function stepSpeech(stepNumber: number, stepCount: number, title: string, instruction: string, badges?: readonly unknown[]): string {
+  const safety = badgeSpeech(badges)
+  return `Step ${stepNumber} of ${stepCount}, ${title}. ${safety ? `${safety} ` : ''}${instruction}`
 }
 
 export const ALL_DONE_SPEECH = 'All steps done.'

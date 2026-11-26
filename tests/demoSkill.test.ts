@@ -95,6 +95,7 @@ describe('seed writes', () => {
           title: { stringValue: 'Light an LED with a resistor' },
           creatorId: { stringValue: 'surtrix' },
           stepCount: { integerValue: '4' },
+          badges: { arrayValue: { values: [{ stringValue: 'electricity' }] } },
         },
       },
       updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }],

@@ -1,0 +1,48 @@
+/* Safety badges (#104), from the expert design: blue means wear, yellow means watch out. */
+.sbrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  font: 600 11px Inter, system-ui, sans-serif;
+  padding: 5px 10px 5px 7px;
+  white-space: nowrap;
+}
+.sb-wear {
+  background: rgba(96, 165, 250, 0.14);
+  color: #bfdbfe;
+  border: 1px solid rgba(96, 165, 250, 0.45);
+}
+.sb-hazard {
+  background: rgba(249, 212, 64, 0.14);
+  color: #f9d440;
+  border: 1px solid rgba(249, 212, 64, 0.5);
+}
+.sb-more {
+  color: #cfc6b8;
+  border: 1px solid rgba(255, 236, 205, 0.18);
+  padding: 5px 10px;
+}
+.sb-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.skills-badges,
+.landing-badges {
+  margin: 10px 0 2px;
+}
+.ws-step-badges {
+  margin: 4px 0 10px;
+}

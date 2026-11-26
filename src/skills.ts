@@ -10,9 +10,14 @@ import {
   skillDocuments,
   type StepDocument,
 } from './skillDocuments'
+import { knownBadges, type BadgeId } from './safety.ts'
 import { publishedNewestFirst, type PublishedSkill } from './skillsPage'
 
-export type SkillSummary = { id: string; title: string; stepCount: number; published: boolean }
+function listValue(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : []
+}
+
+export type SkillSummary = { id: string; title: string; stepCount: number; published: boolean; badges: BadgeId[] }
 
 async function learnerId(): Promise<string> {
   await signInLearner()
@@ -49,10 +54,11 @@ export async function listSkillsBy(creatorId: string): Promise<SkillSummary[]> {
       title: d.get('title') as string,
       stepCount: d.get('stepCount') as number,
       published: d.get('published') === true,
+      badges: knownBadges(listValue(d.get('badges'))),
       createdAt: d.get('createdAt') as Timestamp | null,
     }))
     .sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0))
-    .map(({ id, title, stepCount, published }) => ({ id, title, stepCount, published }))
+    .map(({ id, title, stepCount, published, badges }) => ({ id, title, stepCount, published, badges }))
 }
 
 // Every published skill, newest publish first, for From experts in All skills (#52).
@@ -70,6 +76,7 @@ export async function listPublishedSkills(): Promise<PublishedSkill[]> {
         stepCount: Number(d.get('stepCount') ?? 0),
         expertName: String(d.get('expertName') ?? ''),
         publishedAt: publishedAt?.toMillis?.() ?? 0,
+        badges: knownBadges(listValue(d.get('badges'))),
       }
     }),
   )
@@ -99,6 +106,7 @@ export async function loadSkill(skillId: string): Promise<CoachSkill | null> {
         stepCount: skillSnapshot.get('stepCount'),
         published: skillSnapshot.get('published'),
         mine: skillSnapshot.get('creatorId') === userId,
+        badges: skillSnapshot.get('badges'),
       },
       steps.docs.map((d) => ({ id: d.id, data: d.data() as Partial<StepDocument> })),
     )

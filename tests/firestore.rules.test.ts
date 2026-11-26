@@ -470,8 +470,11 @@ describe('demo skill', () => {
     expect(loaded).toEqual({
       id: DEMO_SKILL_ID,
       title: demoSkill.title,
+      // Read from the steps; the card reads the skill's own badges field (#104).
+      badges: ['electricity'],
       steps: demoSkill.steps.map((s, i) => ({ id: `step-${i + 1}`, ...s })),
     })
+    expect(data.badges).toEqual(['electricity'])
   })
 
   test('the seeded demo skill is in no learner\'s own list', async () => {
@@ -579,6 +582,24 @@ const closedPaths = ['questions/question-1', 'anything/else', 'skills/skill-1/no
 
 // Saved coach lines (#100): the skill's creator saves its fixed lines, anyone who can read
 // the skill reads them, and nobody changes them or writes them into the demo skill.
+// Safety badges (#104): an optional list on a new skill and on its steps.
+describe('safety badges on a saved skill', () => {
+  test('a skill and its steps may carry badges', async () => {
+    await assertSucceeds(
+      saveSkill(learner(), { skill: { ...skill, badges: ['fumes'], steps: skill.steps.map((s) => ({ ...s, badges: ['gloves'] })) } }),
+    )
+    const saved = await getDoc(doc(learner().firestore(), 'skills/skill-1/steps/step-1'))
+    expect(saved.get('badges')).toEqual(['gloves'])
+  })
+
+  test('badges must be a list of at most 20', async () => {
+    await assertFails(saveSkill(learner(), { skillChanges: { badges: 'gloves' } }))
+    await assertFails(saveSkill(learner(), { stepChanges: { badges: 'gloves' } }))
+    await assertFails(saveSkill(learner(), { skillChanges: { badges: Array(21).fill('gloves') } }))
+    await assertSucceeds(saveSkill(learner(), { skillChanges: { badges: Array(20).fill('gloves') } }))
+  })
+})
+
 describe('saved coach lines', () => {
   const KEY = '0123456789abcdef0123456789abcdef'
   const line = (changes: DocumentData = {}) => ({

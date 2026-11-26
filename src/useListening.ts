@@ -56,11 +56,19 @@ function onDeviceRecognition(): RecognitionClass | null {
 
 // After Chrome ends a recognition (silence, a pause), listening starts again this soon.
 const RESTART_MS = 250
+// After the coach stops speaking, listening starts again this soon, so the room's echo of
+// the coach's voice has died away (#95).
+const RESUME_AFTER_SPEECH_MS = 500
+// Words still coming in, finished or not, count as the learner talking until this long
+// after the last ones, so the coach never starts over a sentence half said (#95).
+const HEARING_QUIET_MS = 1500
 
 export type Listening = {
   state: ListeningState
   // A message has been heard and waits for the silence that ends it.
   waiting: boolean
+  // Words are coming in now, finished or not (#95).
+  hearing: boolean
   // Turns listening on (needs a tap: the first time it gets the language pack ready) or off.
   toggle: () => void
   // The same, one way each, for Start camera and Stop camera (#92). Both do nothing when
@@ -72,6 +80,11 @@ export type Listening = {
   turnOff: () => void
   // Drops the message waiting for its silence; true when there was one.
   drop: () => boolean
+  // While the coach speaks (#95): the recogniser stops, so it never hears the coach, and
+  // starts again shortly after. Not a stop: messages already heard still go, and it never
+  // counts toward the busy line. Listening stays on meanwhile.
+  hold: (on: boolean) => void
+  held: boolean
   // Goes up each time listening stops (turned off, the tab hidden, the mic refused): a
   // message heard before a stop is never sent (Tino, Nov 21, settled r).
   stops: () => number
@@ -101,6 +114,12 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
   // Counts each turn on: one still getting ready when a later one began gives way to it, so
   // an earlier camera never starts the recogniser for a later one (#92).
   const turnOnsRef = useRef(0)
+  // The coach is speaking (#95).
+  const heldRef = useRef(false)
+  const [held, setHeld] = useState(false)
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const [hearing, setHearing] = useState(false)
+  const hearingTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => {
     onMessageRef.current = onMessage
   })
@@ -138,6 +157,8 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
     clearTimeout(dueTimerRef.current)
     pendingRef.current = null
     setWaiting(false)
+    clearTimeout(hearingTimerRef.current)
+    setHearing(false)
     const r = recognitionRef.current
     recognitionRef.current = null
     if (!r) return
@@ -148,6 +169,11 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
   function begin(C: RecognitionClass) {
     stopRecognition()
     refusalsRef.current = 0
+    // While the coach speaks, the recogniser waits: the end of the hold starts it.
+    if (heldRef.current) {
+      setState(document.visibilityState === 'hidden' ? 'paused' : 'listening')
+      return
+    }
     // Whether audio started in this run of the recogniser.
     let heardAudio = false
     const r = new C()
@@ -161,6 +187,9 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
       const pending = pendingRef.current
       // Any words heard, finished or not, keep the message waiting.
       if (pending) pending.lastHeardAt = now
+      setHearing(true)
+      clearTimeout(hearingTimerRef.current)
+      hearingTimerRef.current = setTimeout(() => setHearing(false), HEARING_QUIET_MS)
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i]
         const text = result[0].transcript.trim()
@@ -291,10 +320,31 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
   useEffect(
     () => () => {
       wantRef.current = false
+      clearTimeout(holdTimerRef.current)
+      clearTimeout(hearingTimerRef.current)
       stopRecognition()
     },
     [],
   )
+
+  function hold(on: boolean) {
+    if (heldRef.current === on) return
+    heldRef.current = on
+    setHeld(on)
+    clearTimeout(holdTimerRef.current)
+    if (on) {
+      // The coach waits for words still waiting to go, so normally there are none; any
+      // left go as they are rather than being lost.
+      if (pendingRef.current) sendPending()
+      stopRecognition()
+      return
+    }
+    holdTimerRef.current = setTimeout(() => {
+      const C = onDeviceRecognition()
+      if (heldRef.current || !wantRef.current || !readyRef.current || !C || document.visibilityState === 'hidden') return
+      begin(C)
+    }, RESUME_AFTER_SPEECH_MS)
+  }
 
   function drop(): boolean {
     const had = pendingRef.current !== null
@@ -304,5 +354,5 @@ export function useListening(onMessage: (text: string) => void, onTurnOn?: () =>
     return had
   }
 
-  return { state, waiting, toggle, turnOn, turnOff, drop, stops: () => stopsRef.current }
+  return { state, waiting, hearing, toggle, turnOn, turnOff, drop, hold, held, stops: () => stopsRef.current }
 }

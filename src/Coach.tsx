@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { InferenceSource } from 'firebase/ai'
 import AskExpert, { type AskRequest, type JudgeOffer } from './AskExpert.tsx'
-import { useBenchWatch, type BenchWatch } from './benchWatch.ts'
+import { useBenchWatch, type BenchLook, type BenchWatch } from './benchWatch.ts'
 import { grabFrameBase64 } from './cameraFrame.ts'
 import Chat from './Chat.tsx'
 import {
@@ -18,6 +18,7 @@ import {
   chatHistory,
   chatPreview,
   dropPassingAuto,
+  entryStep,
   newChatId,
   putAuto,
   replaceItem,
@@ -31,10 +32,21 @@ import {
   type SeenMark,
 } from './chat.ts'
 import { replyToChat } from './chatReply.ts'
-import { ListeningToggle } from './Listening.tsx'
+import { CoachVoiceToggle, ListeningToggle } from './Listening.tsx'
+import { useCoachVoice } from './useCoachVoice.ts'
+import {
+  ALL_DONE_SPEECH,
+  chatQuestionIds,
+  entrySpeech,
+  newExpertReply,
+  speechKey,
+  stepSpeech,
+  WIRING_FAILED_TEXT,
+  wiringLine,
+} from './coachVoice.ts'
 import { checkTopic, prepareTopicCheck, topicCheckPossible } from './topicCheck.ts'
 import { useListening } from './useListening.ts'
-import { listeningOn, listeningWithCamera, spokenAction, VOICE_NOTE_MS, type VoiceNote } from './voice.ts'
+import { listeningOn, listeningWithCamera, spokenAction, VOICE_NOTE_MS, voiceNoteText, type VoiceNote } from './voice.ts'
 import { pickSavedAnswer, useSavedAnswers, type Pick as SavedPick } from './savedAnswers.ts'
 import {
   goBack,
@@ -47,7 +59,15 @@ import {
   type CoachSkill,
   type CoachStep,
 } from './coach.ts'
-import { describeBenchAnswer } from './watch.ts'
+import {
+  cantSeeAfterReading,
+  cantSeeRoundEnds,
+  cantSeeText,
+  describeBenchAnswer,
+  NO_CANT_SEE,
+  partNotSeen,
+  type CantSee,
+} from './watch.ts'
 import { describeWiringCheck, WIRING_DEADLINE_MS, WIRING_GIVE_UP_MS } from './wiring.ts'
 import { checkWiring, type WiringResult } from './wiringCheck.ts'
 import BackToSkills from './BackToSkills.tsx'
@@ -131,6 +151,13 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       void topicCheckPossible().then((possible) => setNoVoiceCheck(!possible))
     },
   )
+  // The coach voice (#95): it waits while the learner's heard words wait, and Listening
+  // holds while it speaks, so the recogniser never hears the coach.
+  const voice = useCoachVoice(listening.waiting || listening.hearing)
+  useEffect(() => {
+    listening.hold(voice.speaking)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voice.speaking])
   // Spoken messages Nano passed, waiting for the reply before them; sent one by one.
   // stops: listening's stop count when it was heard; an older one means listening stopped
   // since, and it never goes.
@@ -301,6 +328,12 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     if (streamRef.current || startingRef.current) return
     const cameraLive = openCamera()
     if (listeningWithCamera('start camera', listening.state) === 'turn on') listening.turnOn(cameraLive)
+    // The tap that starts hands free work reads the step (#95).
+    if (!progress.finished) voice.say({ id: `start-${Date.now()}`, stepId: step.id, text: currentStepSpeech() })
+  }
+
+  function currentStepSpeech(): string {
+    return stepSpeech(progress.stepIndex + 1, skill.steps.length, step.title, step.instruction)
   }
 
   // Closes the camera; Listening is left as it is.
@@ -487,6 +520,37 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     finishedRef.current = progress.finished
   })
 
+  // The can't see warning (#95): each new reading from Nano on the current step goes through
+  // the rules once. The warning opens the chat; its confirmation only counts as new. No
+  // model call of its own.
+  const cantSeeRef = useRef<CantSee>(NO_CANT_SEE)
+  const lookRef = useRef<BenchLook | null>(null)
+  useEffect(() => {
+    lookRef.current = watch.look
+  })
+  const lastLookRef = useRef<BenchLook | null>(null)
+  // Every step change starts afresh, even back to a step before any new reading.
+  useEffect(() => {
+    cantSeeRef.current = NO_CANT_SEE
+  }, [step.id])
+  useEffect(() => {
+    const look = watch.look
+    if (!look) {
+      cantSeeRef.current = cantSeeRoundEnds(cantSeeRef.current)
+      return
+    }
+    if (look === lastLookRef.current) return
+    lastLookRef.current = look
+    if (progress.finished || look.stepId !== step.id) return
+    const { state, say } = cantSeeAfterReading(cantSeeRef.current, look.stepId, look.answer)
+    cantSeeRef.current = state
+    if (!say) return
+    setChatItems((items) =>
+      appendItem(items, { id: newChatId(), at: Date.now(), kind: 'bench', stepId: look.stepId, said: say.said, text: cantSeeText(say) }),
+    )
+    if (say.said === 'cant-see') setChatOpen(true)
+  }, [watch.look, step.id, progress.finished])
+
   // A new step, or a wiring check starting or ending, lets the next "done" act.
   useEffect(() => {
     doneActingRef.current = false
@@ -555,7 +619,9 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
         history,
         message,
       })
-      item = { id: thinkingId, at: Date.now(), kind: 'reply', stepId: s.id, question: message, answer: reply.answer, source: reply.source }
+      // The latest reading on this step when the answer lands (#95).
+      const partWarning = partNotSeen(reply.answer.aboutPart ?? null, lookRef.current, s.id) ?? undefined
+      item = { id: thinkingId, at: Date.now(), kind: 'reply', stepId: s.id, question: message, answer: reply.answer, source: reply.source, partWarning }
     } catch (e) {
       console.error('The chat could not answer', e)
       const garbled = e instanceof ChatGarbledError
@@ -773,6 +839,56 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   useEffect(() => {
     entriesRef.current = entries
   })
+
+  // The coach voice (#95) reads each new chat entry that has words to say, once. An
+  // expert's reply is read only when its question was in the chat before it.
+  const spokenRef = useRef<Set<string> | null>(null)
+  const knownQuestionsRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const knownBefore = knownQuestionsRef.current
+    knownQuestionsRef.current = new Set([...knownBefore, ...chatQuestionIds(entries)])
+    if (!spokenRef.current) {
+      spokenRef.current = new Set(entries.map(speechKey))
+      return
+    }
+    const spoken = spokenRef.current
+    for (const entry of entries) {
+      const key = speechKey(entry)
+      if (spoken.has(key)) continue
+      spoken.add(key)
+      if (entry.kind === 'expert-reply' && !newExpertReply(entry.question.id, knownBefore)) continue
+      const text = entrySpeech(entry)
+      if (text) voice.say({ id: key, stepId: entry.kind === 'expert-reply' ? null : entryStep(entry), text })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries])
+
+  // The wiring verdict, or that the check could not run (#95). A correct verdict belongs
+  // to the step it moves on to, so the step change does not drop it.
+  useEffect(() => {
+    if (wiring?.kind === 'result') {
+      voice.say({ id: `wiring-${Date.now()}`, stepId: wiring.showOn, text: wiringLine(wiring.stepNumber, wiring.result.check) })
+    } else if (wiring?.kind === 'failed') {
+      voice.say({ id: `wiring-${Date.now()}`, stepId: wiring.stepId, text: WIRING_FAILED_TEXT })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wiring])
+
+  // The quiet note after a spoken message that did not go.
+  useEffect(() => {
+    if (voiceNote) voice.say({ id: `note-${voiceNote.id}`, stepId: null, text: voiceNoteText(voiceNote.note) })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceNote])
+
+  // A step change reads the new step; opening the Workspace reads nothing.
+  const stepSpokenRef = useRef(here)
+  useEffect(() => {
+    if (stepSpokenRef.current === here) return
+    stepSpokenRef.current = here
+    if (progress.finished) voice.newStep({ id: `step-${Date.now()}`, stepId: FINISHED, text: ALL_DONE_SPEECH })
+    else voice.newStep({ id: `step-${Date.now()}`, stepId: step.id, text: currentStepSpeech() })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [here])
   const currentNotice = chatItems.find((i) => i.id === currentAutoId && i.kind === 'auto' && i.auto.kind === 'notice')
   const markDoneAnyway =
     !progress.finished &&
@@ -822,7 +938,10 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
               listening={listening}
               heard={heardYou}
               voiceNote={voiceNote}
-              onSend={(message) => void sendChat(message)}
+              onSend={(message) => {
+                voice.stopCurrent()
+                void sendChat(message)
+              }}
               onAskExpert={askAnExpert}
               panel={
                 <AskExpert
@@ -905,6 +1024,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
               note={chatInView ? null : voiceNote}
               noVoiceCheck={noVoiceCheck}
             />
+            <CoachVoiceToggle voice={voice} />
             <p className="ws-privacy">Video and voice stay on this device.</p>
           </div>
           {cameraError && <p className="ws-error">Could not open the camera. Check the browser has permission to use it.</p>}
@@ -1028,9 +1148,7 @@ function WiringCard({
   }
   if (wiring?.kind === 'failed') {
     return (
-      <p className="ws-wiring-line ws-error">
-        The wiring check is not available right now. Ask an expert in the chat, or Mark done anyway.
-      </p>
+      <p className="ws-wiring-line ws-error">{WIRING_FAILED_TEXT}</p>
     )
   }
   if (!shown) {
@@ -1046,8 +1164,7 @@ function WiringCard({
     <>
       <p className={`ws-wiring-line ${check.verdict === 'not yet' ? 'ws-not-yet' : ''}`}>
         <span aria-hidden="true">{correct ? '✓ ' : check.verdict === 'not yet' ? '✗ ' : '? '}</span>
-        Step {shown.stepNumber}
-        {correct ? '' : check.verdict === 'not yet' ? ', not yet' : ', not sure'}: {describeWiringCheck(check)}
+        {wiringLine(shown.stepNumber, check)}
       </p>
       <p className="ws-mono ws-wiring-meta">
         {(sourceText[source] ?? source).toUpperCase()} · {ms.toLocaleString('en-US')} MS

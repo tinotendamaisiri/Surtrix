@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode, type Ref } from 'react'
 import { InferenceSource } from 'firebase/ai'
 import AutoAskCard from './AutoAskCard.tsx'
+import { replyFailedText } from './coachVoice.ts'
 import { HeardYou, ListeningTag, MicButton, VoiceNoteLine } from './Listening.tsx'
 import type { Listening } from './useListening.ts'
 import type { VoiceNote } from './voice.ts'
@@ -12,8 +13,6 @@ import type { AutoAskChoice } from './autoAsk.ts'
 import {
   CHAT_LIMIT_TEXT,
   CHAT_MAX_LENGTH,
-  COULD_NOT_ANSWER_TEXT,
-  LIMITED_TEXT,
   ON_DEVICE_NOTE,
   type ChatEntry,
   type ChatQuestion,
@@ -209,6 +208,7 @@ function entryClass(entry: ChatEntry): string {
     case 'thinking':
     case 'reply':
     case 'reply-failed':
+    case 'bench':
       return 'ws-msg ws-msg-ai'
     default:
       return 'ws-chat-note'
@@ -264,6 +264,7 @@ function Entry({ entry, ...props }: { entry: ChatEntry } & EntryProps) {
               </p>
             </div>
           )}
+          {entry.partWarning && <p className="ws-msg-warning">{entry.partWarning}</p>}
           {source === InferenceSource.ON_DEVICE && <p className="ws-msg-device">{ON_DEVICE_NOTE}</p>}
           {answer.unsure && entry.stepId === props.stepId && (
             <button type="button" className="ws-pill ws-pill-gold" onClick={() => props.onAskExpert(entry.question)}>
@@ -276,18 +277,22 @@ function Entry({ entry, ...props }: { entry: ChatEntry } & EntryProps) {
     case 'reply-failed':
       return (
         <>
-          <p>
-            {entry.reason === 'limited'
-              ? LIMITED_TEXT
-              : entry.reason === 'unanswered'
-                ? COULD_NOT_ANSWER_TEXT
-                : 'The AI could not answer right now. Try again, or ask an expert.'}
-          </p>
+          <p>{replyFailedText(entry.reason)}</p>
           {entry.stepId === props.stepId && (
             <button type="button" className="ws-pill ws-pill-gold" onClick={() => props.onAskExpert(entry.question)}>
               Ask an expert
             </button>
           )}
+        </>
+      )
+    case 'bench':
+      return (
+        <>
+          <p className="ws-mono ws-msg-label">
+            <i className="ws-dot" aria-hidden="true" />
+            {sourceLabel[InferenceSource.ON_DEVICE]}
+          </p>
+          <p>{entry.text}</p>
         </>
       )
     case 'auto': {

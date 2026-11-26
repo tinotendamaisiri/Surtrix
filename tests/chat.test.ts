@@ -10,6 +10,7 @@ import {
   chatHistory,
   chatPreview,
   chatPrompt,
+  aboutPartValues,
   chatReplySchema,
   ChatReplyError,
   dropPassingAuto,
@@ -114,13 +115,28 @@ test('the instruction keeps to the safety and privacy rules, with no dashes', ()
 test("the reply's shape lets the model name only this step's saved answers, or none", () => {
   expect(chatReplySchema(answers)).toMatchObject({
     properties: { savedAnswerId: { enum: ['a1', 'a2', 'none'] } },
-    required: ['reply', 'savedAnswerId', 'unsure'],
+    required: ['reply', 'savedAnswerId', 'unsure', 'aboutPart'],
   })
+})
+
+test("the reply names the step part the message asks about, only from this step's parts, or none (#95)", () => {
+  expect(chatReplySchema(answers, [' breadboard', 'LED', 'LED', ''])).toMatchObject({
+    properties: { aboutPart: { enum: ['breadboard', 'LED', 'none'] } },
+  })
+  expect(aboutPartValues([])).toEqual(['none'])
+  const parts = ['breadboard', 'LED']
+  const read = (aboutPart: unknown) =>
+    parseChatReply(JSON.stringify({ reply: 'Long leg.', savedAnswerId: 'none', unsure: false, aboutPart }), answers, parts).aboutPart
+  expect(read('LED')).toBe('LED')
+  expect(read('none')).toBeNull()
+  expect(read('battery')).toBeNull()
+  expect(read(undefined)).toBeNull()
+  expect(CHAT_INSTRUCTION).toContain('aboutPart')
 })
 
 test('a reply with a saved answer that fits shows that answer', () => {
   const reply = parseChatReply('{"reply":"An expert said this.","savedAnswerId":"a2","unsure":false}', answers)
-  expect(reply).toEqual({ text: 'An expert said this.', savedAnswer: answers[1], unsure: false })
+  expect(reply).toEqual({ text: 'An expert said this.', savedAnswer: answers[1], unsure: false, aboutPart: null })
 })
 
 test('a reply naming no real saved answer shows none', () => {
@@ -466,4 +482,13 @@ test('only the first 5 garbled replies in a session go uncounted', () => {
   expect(FREE_GARBLED_REPLIES).toBe(5)
   const free = Array.from({ length: 7 }, () => garbledReplyIsFree())
   expect(free).toEqual([true, true, true, true, true, false, false])
+})
+
+test("the can't see warning counts as new and shows in the closed bar, but never goes to the model (#95)", () => {
+  const bench: ChatItem = { id: 'b1', at: 21, kind: 'bench', stepId: 's1', said: 'cant-see', text: "I can't see the LED yet. Point the camera at your bench." }
+  const items: ChatItem[] = [typed('t1', 's1', 'Which leg?', 1), bench]
+  const entries = chatEntries(items, [], steps)
+  expect(unreadCount(entries, { local: 10, server: 10 })).toBe(1)
+  expect(chatPreview(entries, 's1')).toBe(bench.text)
+  expect(chatHistory(items)).toEqual([{ from: 'learner', text: 'Which leg?' }])
 })

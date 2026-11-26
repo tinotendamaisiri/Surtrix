@@ -3,9 +3,20 @@ import {
   BenchAnswerError,
   benchAnswerSchema,
   benchQuestion,
+  CANT_SEE_READINGS,
+  cantSeeAfterReading,
+  cantSeeRoundEnds,
+  cantSeeText,
   describeBenchAnswer,
+  NO_CANT_SEE,
+  partNotSeen,
+  SEEN_READINGS,
   parseBenchAnswer,
   watchedParts,
+  type BenchAnswer,
+  type CantSee,
+  type CantSeeSay,
+  type Seen,
 } from '../src/watch.ts'
 
 const parts = ['breadboard', 'LED', '220 ohm resistor']
@@ -127,5 +138,111 @@ describe('describeBenchAnswer', () => {
     ['not sure', 'LED: not sure.'],
   ] as const)('says %s as "%s" when there are no parts', (ledLit, text) => {
     expect(describeBenchAnswer({ parts: [], ledLit })).toBe(text)
+  })
+})
+
+describe("the can't see warning (#95)", () => {
+  const reading = (...seen: Seen[]): BenchAnswer => ({
+    parts: seen.map((value, i) => ({ name: ['breadboard', 'LED', 'resistor'][i], seen: value })),
+    ledLit: 'no LED seen',
+  })
+  // Runs readings on one step from a state, and lists what the coach said after each one.
+  function run(readings: BenchAnswer[], start: CantSee = NO_CANT_SEE, stepId = 's1') {
+    let state = start
+    const said: (CantSeeSay | null)[] = []
+    for (const answer of readings) {
+      const next = cantSeeAfterReading(state, stepId, answer)
+      state = next.state
+      said.push(next.say)
+    }
+    return { state, said }
+  }
+  const missing = reading('no', 'not sure')
+  const warning = { said: 'cant-see', parts: ['breadboard', 'LED'] }
+
+  it('speaks up after 3 readings in a row that miss every part, counting not sure as missing', () => {
+    expect(CANT_SEE_READINGS).toBe(3)
+    expect(run([missing, missing, missing]).said).toEqual([null, null, warning])
+    expect(run([reading('not sure', 'not sure'), reading('no', 'no'), reading('not sure', 'no')]).said[2]).toEqual(warning)
+  })
+
+  it('stays quiet while any part is seen, and a single reading that sees a part starts the count again', () => {
+    expect(run([reading('yes', 'no'), reading('no', 'yes'), reading('yes', 'not sure')]).said).toEqual([null, null, null])
+    expect(run([missing, missing, reading('no', 'yes'), missing, missing]).said).toEqual([null, null, null, null, null])
+  })
+
+  it('does not repeat while nothing changes', () => {
+    const said = run([missing, missing, missing, missing, missing, missing, missing]).said
+    expect(said.filter(Boolean)).toEqual([warning])
+  })
+
+  it('confirms once a part is seen in 2 readings in a row, with the parts seen, and warns again after 3 more misses', () => {
+    expect(SEEN_READINGS).toBe(2)
+    const seenTwice = [reading('yes', 'not sure'), reading('yes', 'not sure'), reading('yes', 'yes')]
+    const { said } = run([missing, missing, missing, ...seenTwice, missing, missing, missing])
+    expect(said).toEqual([null, null, warning, null, { said: 'can-see', parts: ['breadboard'] }, null, null, null, warning])
+  })
+
+  it('a single false yes neither confirms nor lets the warning come back (Nov 25, grey frame)', () => {
+    const falseYes = reading('yes', 'not sure')
+    const { said } = run([missing, missing, missing, falseYes, missing, missing, missing, falseYes, missing, missing, missing])
+    expect(said.filter(Boolean)).toEqual([warning])
+  })
+
+  it('gives no confirmation without a warning first', () => {
+    expect(run([reading('yes', 'yes'), reading('yes', 'yes')]).said).toEqual([null, null])
+  })
+
+  it('a camera restart starts both counts again but is not a part seen', () => {
+    const warned = run([missing, missing, missing]).state
+    const restarted = cantSeeRoundEnds(warned)
+    expect(run([missing, missing, missing, missing], restarted).said).toEqual([null, null, null, null])
+    const counting = cantSeeRoundEnds(run([missing, missing]).state)
+    expect(run([missing, missing], counting).said).toEqual([null, null])
+    const seenOnce = cantSeeRoundEnds(run([missing, missing, missing, reading('yes', 'no')]).state)
+    expect(run([reading('yes', 'no')], seenOnce).said).toEqual([null])
+  })
+
+  it('a new step starts afresh and drops a confirmation still due', () => {
+    const warned = run([missing, missing, missing]).state
+    expect(run([reading('yes', 'yes'), reading('yes', 'yes')], warned, 's2').said).toEqual([null, null])
+    expect(run([missing, missing, missing], warned, 's2').said[2]).toEqual(warning)
+  })
+
+  it('never speaks up on a step with no parts', () => {
+    const none: BenchAnswer = { parts: [], ledLit: 'no LED seen' }
+    expect(run([none, none, none, none]).said).toEqual([null, null, null, null])
+  })
+
+  it('names the parts as the step lists them', () => {
+    expect(cantSeeText({ said: 'cant-see', parts: ['breadboard'] })).toBe("I can't see the breadboard yet. Point the camera at your bench.")
+    expect(cantSeeText(warning as CantSeeSay)).toBe("I can't see the breadboard or the LED yet. Point the camera at your bench.")
+    expect(cantSeeText({ said: 'cant-see', parts: ['breadboard', 'LED', '220 or 330 ohm resistor'] })).toBe(
+      "I can't see the breadboard, the LED or the 220 or 330 ohm resistor yet. Point the camera at your bench.",
+    )
+    expect(cantSeeText({ said: 'can-see', parts: ['breadboard'] })).toBe('I can see the breadboard now.')
+    expect(cantSeeText({ said: 'can-see', parts: ['breadboard', 'LED'] })).toBe('I can see the breadboard and the LED now.')
+    expect(cantSeeText({ said: 'cant-see', parts: ['a breadboard', 'An LED', 'the USB cable'] })).toBe(
+      "I can't see the breadboard, the LED or the USB cable yet. Point the camera at your bench.",
+    )
+    expect(cantSeeText({ said: 'can-see', parts: ['antenna', 'theremin'] })).toBe('I can see the antenna and the theremin now.')
+  })
+})
+
+describe('the warning on a chat answer (#95)', () => {
+  const reading = (stepId: string, ...seen: Seen[]) => ({
+    stepId,
+    answer: { parts: seen.map((value, i) => ({ name: ['breadboard', 'LED'][i], seen: value })), ledLit: 'no LED seen' as const },
+  })
+  it('warns when the part asked about was not seen, or Nano was not sure, in the latest reading on this step', () => {
+    expect(partNotSeen('LED', reading('s1', 'yes', 'no'), 's1')).toBe("I can't see the LED in the picture yet. Show it to the camera.")
+    expect(partNotSeen('LED', reading('s1', 'yes', 'not sure'), 's1')).toBe("I can't see the LED in the picture yet. Show it to the camera.")
+  })
+  it('says nothing when the part was seen, the message is about no part, or there is no reading for this step', () => {
+    expect(partNotSeen('LED', reading('s1', 'no', 'yes'), 's1')).toBeNull()
+    expect(partNotSeen(null, reading('s1', 'no', 'no'), 's1')).toBeNull()
+    expect(partNotSeen('LED', null, 's1')).toBeNull()
+    expect(partNotSeen('LED', reading('s2', 'no', 'no'), 's1')).toBeNull()
+    expect(partNotSeen('battery', reading('s1', 'no', 'no'), 's1')).toBeNull()
   })
 })

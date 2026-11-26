@@ -8,8 +8,9 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Safety badges (#104) are optional: a list of at most 20 badge ids. Rules cannot check
-    // each id; the app reads only the ids it knows (src/safety.ts).
+    // Safety badges (#104) are optional: a list of at most 20 badge ids. The ids themselves
+    // are left unchecked on purpose, so new badges need no rules change; the app reads only
+    // the ids it knows (src/safety.ts).
     function badgesFit(data) {
       return !('badges' in data) || (data.badges is list && data.badges.size() <= 20);
     }

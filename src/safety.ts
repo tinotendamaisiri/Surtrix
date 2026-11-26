@@ -31,9 +31,6 @@ export type BadgeId = keyof typeof BADGES
 
 const ORDER = Object.keys(BADGES) as BadgeId[]
 
-// The most a skill or step stores (the rules allow as many as there could ever be).
-export const MAX_BADGES = 20
-
 export function isBadgeId(id: unknown): id is BadgeId {
   return typeof id === 'string' && Object.hasOwn(BADGES, id)
 }

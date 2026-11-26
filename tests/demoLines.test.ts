@@ -36,6 +36,15 @@ describe('checkMadeLines', () => {
     await expect(checkMadeLines({ model: SPEECH_MODEL, voice: SPEECH_VOICE, lines: lines.slice(1) })).rejects.toThrow('Missing')
     await expect(checkMadeLines({ model: SPEECH_MODEL, voice: SPEECH_VOICE, lines: [{ ...lines[0], audio: '' }, ...lines.slice(1)] })).rejects.toThrow('no audio')
   })
+
+  test('refuses a line there twice, under the wrong step, or not a demo line', async () => {
+    const lines = await made()
+    const check = (l: MadeLine[]) => checkMadeLines({ model: SPEECH_MODEL, voice: SPEECH_VOICE, lines: l })
+    await expect(check([...lines, lines[0]])).rejects.toThrow('there twice')
+    await expect(check([...lines, { ...lines[0], stepId: 'step-9' }])).rejects.toThrow('Not a demo line')
+    const [other] = await made([{ stepId: 'step-1', text: 'Something else.' }])
+    await expect(check([...lines, other])).rejects.toThrow('Not a demo line')
+  })
 })
 
 describe('demoLineWrites', () => {

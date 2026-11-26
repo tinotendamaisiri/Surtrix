@@ -136,15 +136,19 @@ them when the demo skill's wording, or the speech model, voice or style in
    http://localhost:5173/scripts/demo-lines.html and click Make the lines. It makes one
    line every few seconds, to stay under the speech model's limit of about 10 requests a
    minute, about 3 minutes in all, and saves `demo-lines.json`.
+   Chrome puts it in Downloads; delete any older `demo-lines.json` there first, so the
+   new one keeps that name.
 2. Write them, to the emulator or the real Firestore (with an owner's access token):
 
 ```
-node --env-file-if-exists=.env.local scripts/uploadDemoLines.ts emulator demo-lines.json
-GOOGLE_ACCESS_TOKEN="$(gcloud auth print-access-token --account <owner account>)" node scripts/uploadDemoLines.ts real demo-lines.json
+node --env-file-if-exists=.env.local scripts/uploadDemoLines.ts emulator ~/Downloads/demo-lines.json
+GOOGLE_ACCESS_TOKEN="$(gcloud auth print-access-token --account <owner account>)" node scripts/uploadDemoLines.ts real ~/Downloads/demo-lines.json
 ```
 
-The upload refuses a file made for other words, model or voice. Keep `demo-lines.json`
-out of the repo.
+The upload refuses a file made for other words, model, voice or style, or that is not
+exactly the demo's lines. Lines made earlier stay in Firestore and are never played. Delete
+`demo-lines.json` afterwards; it never goes in the repo. `npm run dev:local` does not load
+these lines into the emulator, so there they are streamed unless uploaded as above.
 
 ### Clearing test data
 

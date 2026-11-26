@@ -4,7 +4,7 @@
 // whole set is saved as demo-lines.json for scripts/uploadDemoLines.ts.
 import { lineKey, SPEECH_MODEL, SPEECH_VOICE } from '../src/coachSpeech.ts'
 import { streamLine } from '../src/speechLines.ts'
-import { demoLines, type MadeLine, type MadeLines } from './demoLines.ts'
+import { demoLines, toBase64, type MadeLine, type MadeLines } from './demoLines.ts'
 
 // The speech model allows about 10 requests a minute for the project (seen Nov 26).
 const GAP_MS = 7000
@@ -14,12 +14,6 @@ const button = document.getElementById('make') as HTMLButtonElement
 
 function show(line: string) {
   log.textContent += `${line}\n`
-}
-
-function base64(bytes: Uint8Array): string {
-  let text = ''
-  for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
-  return btoa(text)
 }
 
 async function makeLine(text: string): Promise<Uint8Array> {
@@ -42,7 +36,7 @@ button.addEventListener('click', async () => {
     if (i > 0) await new Promise((resolve) => setTimeout(resolve, GAP_MS))
     try {
       const audio = await makeLine(line.text)
-      made.push({ ...line, key: await lineKey(line.text), audio: base64(audio) })
+      made.push({ ...line, key: await lineKey(line.text), audio: toBase64(audio) })
       show(`${i + 1}/${lines.length} ${line.stepId} ${(audio.length / 48000).toFixed(1)} s  ${line.text}`)
     } catch (e) {
       show(`${i + 1}/${lines.length} ${line.stepId} FAILED (${e instanceof Error ? e.message : String(e)})  ${line.text}`)

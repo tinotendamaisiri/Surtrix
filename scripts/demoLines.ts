@@ -20,37 +20,47 @@ function partChoices(parts: readonly string[]): string[][] {
   return choices
 }
 
-// Per step: its instruction, its "can't see" warning and one confirmation per choice of parts.
+// Per step: its instruction, its "can't see" warning and one confirmation per choice of
+// parts. A step with no parts never warns (src/watch.ts), so it has neither.
 export function demoLines(): DemoLine[] {
   return demoSkill.steps.flatMap((step, i) => {
     const stepId = `step-${i + 1}`
+    const watched = step.parts.length > 0
     return [
       stepSpeech(i + 1, demoSkill.steps.length, step.title, step.instruction),
-      cantSeeText({ said: 'cant-see', parts: step.parts }),
+      ...(watched ? [cantSeeText({ said: 'cant-see', parts: step.parts })] : []),
       ...partChoices(step.parts).map((parts) => cantSeeText({ said: 'can-see', parts })),
     ].map((text) => ({ stepId, text }))
   })
 }
 
-// Refuses a file made for other words, another model or voice, or with a line missing.
+const lineId = (l: DemoLine) => `${l.stepId}\n${l.text}`
+
+// Refuses a file made for other words, another model, voice or style, or that is not
+// exactly the demo's lines (one each, under the right step).
 export async function checkMadeLines(made: MadeLines): Promise<void> {
   if (made.model !== SPEECH_MODEL || made.voice !== SPEECH_VOICE) {
     throw new Error(`The lines were made with ${made.model} ${made.voice}, the app uses ${SPEECH_MODEL} ${SPEECH_VOICE}.`)
   }
   for (const line of made.lines) {
-    if (line.key !== (await lineKey(line.text))) throw new Error(`The key of "${line.text}" does not match its words.`)
+    if (line.key !== (await lineKey(line.text))) {
+      throw new Error(`The key of "${line.text}" does not match its words, or the lines were made with another speaking style.`)
+    }
     if (line.audio === '') throw new Error(`"${line.text}" has no audio.`)
   }
-  const madeSet = new Set(made.lines.map((l) => `${l.stepId}\n${l.text}`))
-  const missing = demoLines().filter((l) => !madeSet.has(`${l.stepId}\n${l.text}`))
-  if (missing.length > 0) throw new Error(`Missing: ${missing.map((l) => l.text).join(' | ')}`)
+  const expected = new Set(demoLines().map(lineId))
+  const madeIds = made.lines.map(lineId)
+  const missing = [...expected].filter((id) => !madeIds.includes(id))
+  if (missing.length > 0) throw new Error(`Missing: ${missing.join(' | ')}`)
+  const extra = madeIds.filter((id, i) => !expected.has(id) || madeIds.indexOf(id) !== i)
+  if (extra.length > 0) throw new Error(`Not a demo line, or there twice: ${extra.join(' | ')}`)
 }
 
 function fromBase64(text: string): Uint8Array {
   return Uint8Array.from(atob(text), (c) => c.charCodeAt(0))
 }
 
-function toBase64(bytes: Uint8Array): string {
+export function toBase64(bytes: Uint8Array): string {
   let text = ''
   for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
   return btoa(text)

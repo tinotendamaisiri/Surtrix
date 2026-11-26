@@ -124,6 +124,28 @@ GOOGLE_ACCESS_TOKEN="$(gcloud auth print-access-token --account <owner account>)
 Running it again rewrites only those documents and keeps any other answers stored
 under the steps. Questions and expert answers point at these ids, so they never change.
 
+### The demo skill's coach lines
+
+The coach reads the demo skill's fixed lines (each step's instruction, its "can't see"
+warning and its confirmations, 16 in all) from Firestore under
+`skills/sample-led/steps/*/speech`, so they play at once. They are not in the repo. Remake
+them when the demo skill's wording, or the speech model, voice or style in
+`src/coachSpeech.ts`, changes; until then those lines are streamed every time.
+
+1. With `npm run dev` running (the App Check debug token from `.env.local` is needed), open
+   http://localhost:5173/scripts/demo-lines.html and click Make the lines. It makes one
+   line every few seconds, to stay under the speech model's limit of about 10 requests a
+   minute, about 3 minutes in all, and saves `demo-lines.json`.
+2. Write them, to the emulator or the real Firestore (with an owner's access token):
+
+```
+node --env-file-if-exists=.env.local scripts/uploadDemoLines.ts emulator demo-lines.json
+GOOGLE_ACCESS_TOKEN="$(gcloud auth print-access-token --account <owner account>)" node scripts/uploadDemoLines.ts real demo-lines.json
+```
+
+The upload refuses a file made for other words, model or voice. Keep `demo-lines.json`
+out of the repo.
+
 ### Clearing test data
 
 Staging and the live site share one database, so staging checks leave test skills,

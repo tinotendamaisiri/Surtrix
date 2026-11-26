@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 firebase-debug.log*
 .firebase
+
+# Made by scripts/demo-lines.html for scripts/uploadDemoLines.ts; never committed.
+demo-lines.json

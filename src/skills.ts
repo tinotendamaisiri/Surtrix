@@ -17,7 +17,23 @@ function listValue(value: unknown): unknown[] {
   return Array.isArray(value) ? value : []
 }
 
-export type SkillSummary = { id: string; title: string; stepCount: number; published: boolean; badges: BadgeId[] }
+// trade, level, description and minutes are saved by Create a skill (#106); older skills
+// have none, and the cards leave them out.
+export type SkillSummary = {
+  id: string
+  title: string
+  stepCount: number
+  published: boolean
+  badges: BadgeId[]
+  trade?: string
+  level?: string
+  description?: string
+  minutes?: number
+}
+
+function optionalText(value: unknown): boolean {
+  return typeof value === 'string' && value.trim() !== ''
+}
 
 async function learnerId(): Promise<string> {
   await signInLearner()
@@ -55,10 +71,14 @@ export async function listSkillsBy(creatorId: string): Promise<SkillSummary[]> {
       stepCount: d.get('stepCount') as number,
       published: d.get('published') === true,
       badges: knownBadges(listValue(d.get('badges'))),
+      ...(optionalText(d.get('trade')) ? { trade: String(d.get('trade')).trim() } : {}),
+      ...(optionalText(d.get('level')) ? { level: String(d.get('level')).trim() } : {}),
+      ...(optionalText(d.get('description')) ? { description: String(d.get('description')).trim() } : {}),
+      ...(typeof d.get('minutes') === 'number' && d.get('minutes') > 0 ? { minutes: d.get('minutes') as number } : {}),
       createdAt: d.get('createdAt') as Timestamp | null,
     }))
     .sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0))
-    .map(({ id, title, stepCount, published, badges }) => ({ id, title, stepCount, published, badges }))
+    .map(({ createdAt: _createdAt, ...summary }) => summary)
 }
 
 // Every published skill, newest publish first, for From experts in All skills (#52).

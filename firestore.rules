@@ -163,7 +163,8 @@ service cloud.firestore {
       let fields = ['text', 'expertId', 'expertName', 'answeredAt'];
       return after.diff(resource.data).affectedKeys().hasOnly(['status', 'reply'])
         && after.status == 'answered'
-        && reply is map && reply.keys().hasOnly(fields) && reply.keys().hasAll(fields)
+        && reply is map && reply.keys().hasOnly(fields.concat(['photo'])) && reply.keys().hasAll(fields)
+        && answerPhotoFits(reply)
         && isText(reply.text, 2000)
         && reply.expertId == request.auth.uid
         && reply.expertName == expertName()
@@ -171,11 +172,20 @@ service cloud.firestore {
         && existsAfter(/databases/$(database)/documents/skills/$(resource.data.skillId)/steps/$(resource.data.stepId)/answers/$(questionId));
     }
 
+    // An expert's answer photo (#105) is optional: a JPEG of at most 100000 bytes, so the
+    // question (with the learner's photo under 900 KB) stays under Firestore's 1 MiB.
+    function answerPhotoFits(reply) {
+      return !('photo' in reply) || (reply.photo is bytes && reply.photo.size() > 0 && reply.photo.size() <= 100000);
+    }
+
     // The answer sits under its question's skill and step, and repeats its question and reply.
     function isSavedAnswer(skillId, stepId, answerId, a) {
       let question = getAfter(/databases/$(database)/documents/questions/$(answerId)).data;
       let fields = ['questionId', 'question', 'answer', 'expertId', 'expertName', 'createdAt'];
-      return a.keys().hasOnly(fields) && a.keys().hasAll(fields)
+      return a.keys().hasOnly(fields.concat(['photo'])) && a.keys().hasAll(fields)
+        // The saved answer has the reply's photo, or neither has one (#105).
+        && ('photo' in a) == ('photo' in question.reply)
+        && (!('photo' in a) || a.photo == question.reply.photo)
         && a.questionId == answerId
         && question.skillId == skillId
         && question.stepId == stepId
@@ -201,7 +211,8 @@ service cloud.firestore {
         && isText(q.stepTitle, 200)
         && isText(q.stepInstruction, 5000)
         && isText(q.question, 500)
-        // A JPEG under 900 KB keeps the document under Firestore's 1 MiB limit.
+        // A JPEG under 900 KB keeps the document under Firestore's 1 MiB limit, with room
+        // for the reply and an answer photo of at most 100 KB (#105).
         && q.frame is bytes && q.frame.size() > 0 && q.frame.size() < 900 * 1024
         && ((q.origin == 'learner' && q.judgeSaid == null)
           || (q.origin == 'judge' && isText(q.judgeSaid, 2000)))

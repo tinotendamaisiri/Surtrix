@@ -18,7 +18,7 @@ export type ChatQuestion = {
   // False until the server has the question, for example while offline.
   sent: boolean
   createdAt: Date | null
-  reply: { text: string; expertName: string; answeredAt: Date | null } | null
+  reply: { text: string; expertName: string; answeredAt: Date | null; photoUrl?: string } | null
 }
 
 // How many earlier messages (the learner's and the AI's) go to the model with a new one.

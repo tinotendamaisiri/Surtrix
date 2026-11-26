@@ -1644,3 +1644,13 @@ main.workspace {
     animation: none;
   }
 }
+
+/* An expert answer photo (#105). */
+.ws-answer-photo {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  margin: 8px 0;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 236, 205, 0.12);
+}

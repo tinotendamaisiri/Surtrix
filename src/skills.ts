@@ -85,7 +85,7 @@ export async function setSkillPublished(skillId: string, published: boolean, exp
 // A skill this user may not read (unpublished, and not theirs) also counts as not found.
 export async function loadSkill(skillId: string): Promise<CoachSkill | null> {
   if (!isDocumentId(skillId)) return null
-  await learnerId()
+  const userId = await learnerId()
   try {
     const skillRef = doc(db, 'skills', skillId)
     const skillSnapshot = await getDoc(skillRef)
@@ -98,6 +98,7 @@ export async function loadSkill(skillId: string): Promise<CoachSkill | null> {
         title: skillSnapshot.get('title'),
         stepCount: skillSnapshot.get('stepCount'),
         published: skillSnapshot.get('published'),
+        mine: skillSnapshot.get('creatorId') === userId,
       },
       steps.docs.map((d) => ({ id: d.id, data: d.data() as Partial<StepDocument> })),
     )

@@ -88,7 +88,7 @@ export async function seedDemoSkill(target: Target): Promise<void> {
   if (!response.ok) throw new Error(`Seeding the demo skill failed: ${response.status} ${await response.text()}`)
 }
 
-function targetFrom(where: string | undefined): Target {
+export function targetFrom(where: string | undefined): Target {
   if (where === 'emulator') {
     // emulators:exec sets FIRESTORE_EMULATOR_HOST; otherwise use this worktree's port.
     const host =

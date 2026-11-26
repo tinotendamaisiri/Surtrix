@@ -20,8 +20,9 @@ import { auth, db } from './firebase'
 
 export const REPLY_MAX_LENGTH = 2000
 
-// An expert's answer photo (#105), after shrinking; the rules allow the same.
-export const REPLY_PHOTO_MAX_BYTES = 300_000
+// An expert's answer photo (#105), after shrinking; the rules allow the same. With the
+// learner's photo (under 900 KB) the question stays under Firestore's 1 MiB.
+export const REPLY_PHOTO_MAX_BYTES = 100_000
 
 export type Expert = { userId: string; name: string }
 

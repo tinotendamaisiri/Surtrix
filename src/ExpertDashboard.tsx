@@ -343,7 +343,7 @@ function YourSkills({
                 +
               </span>
               Create a skill
-              <span className="xd-muted">Add a manual, photos, a video, a YouTube link or a voice note. AI drafts the steps.</span>
+              <span className="xd-muted">Add a procedure or a PDF. AI drafts the steps.</span>
             </a>
           </li>
         </ul>

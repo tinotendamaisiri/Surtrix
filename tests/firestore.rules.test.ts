@@ -10,6 +10,7 @@ import {
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing'
 import {
+  Bytes,
   collection,
   deleteDoc,
   doc,
@@ -575,6 +576,114 @@ describe('demo skill', () => {
 })
 
 const closedPaths = ['questions/question-1', 'anything/else', 'skills/skill-1/notes/note-1']
+
+// Saved coach lines (#100): the skill's creator saves its fixed lines, anyone who can read
+// the skill reads them, and nobody changes them or writes them into the demo skill.
+describe('saved coach lines', () => {
+  const KEY = '0123456789abcdef0123456789abcdef'
+  const line = (changes: DocumentData = {}) => ({
+    key: KEY,
+    part: 0,
+    parts: 1,
+    text: 'Step 1 of 2, Place the LED. Push the LED into rows 10 and 11, long leg in row 10.',
+    model: 'gemini-3.8-flash-lite-tts',
+    voice: 'Achird',
+    audio: Bytes.fromUint8Array(new Uint8Array(1000)),
+    createdAt: serverTimestamp(),
+    ...changes,
+  })
+  const linePath = (skillId = 'skill-1', id = `${KEY}-0`, stepId = 'step-1') => `skills/${skillId}/steps/${stepId}/speech/${id}`
+
+  test("the skill's creator saves a line of a step, and reads it back", async () => {
+    await storeSkill('skill-1', 'learner-1')
+    const db = learner().firestore()
+    await assertSucceeds(setDoc(doc(db, linePath()), line()))
+    const saved = await assertSucceeds(getDocs(collection(db, 'skills/skill-1/steps/step-1/speech')))
+    expect(saved.size).toBe(1)
+  })
+
+  test('a long line is saved in parts, each named after its part', async () => {
+    await storeSkill('skill-1', 'learner-1')
+    const db = learner().firestore()
+    const batch = writeBatch(db)
+    batch.set(doc(db, linePath('skill-1', `${KEY}-0`)), line({ parts: 2, audio: Bytes.fromUint8Array(new Uint8Array(900000)) }))
+    batch.set(doc(db, linePath('skill-1', `${KEY}-1`)), line({ part: 1, parts: 2 }))
+    await assertSucceeds(batch.commit())
+  })
+
+  test("nobody saves a line in someone else's skill", async () => {
+    await storeSkill('skill-1', 'learner-1', true)
+    await assertFails(setDoc(doc(otherLearner().firestore(), linePath()), line()))
+    await assertFails(setDoc(doc(visitor().firestore(), linePath()), line()))
+  })
+
+  test('nobody saves a line in the demo skill, not even as its creator id', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const documents = skillDocuments(skill, 'surtrix')
+      await setDoc(doc(context.firestore(), `skills/${DEMO_SKILL_ID}`), { ...documents.skill, createdAt: Timestamp.now() })
+      await setDoc(doc(context.firestore(), `skills/${DEMO_SKILL_ID}/steps/step-1`), documents.steps[0].data)
+    })
+    await assertFails(setDoc(doc(testEnv.authenticatedContext('surtrix').firestore(), linePath(DEMO_SKILL_ID)), line()))
+  })
+
+  test('a line must fit its shape', async () => {
+    await storeSkill('skill-1', 'learner-1')
+    const db = learner().firestore()
+    const refused: [string, DocumentData, string?][] = [
+      ['an extra field', line({ extra: 1 })],
+      ['a missing field', without('voice')(line())],
+      ['a key that is not 32 hex characters', line({ key: 'not-a-key' }), 'not-a-key-0'],
+      ['an id that is not key-part', line(), `${KEY}-1`],
+      ['a part past its parts', line({ part: 1, parts: 1 }), `${KEY}-1`],
+      ['more than 20 parts', line({ parts: 21 })],
+      ['audio that is not bytes', line({ audio: 'AAAA' })],
+      ['empty audio', line({ audio: Bytes.fromUint8Array(new Uint8Array(0)) })],
+      ['audio over 900000 bytes', line({ audio: Bytes.fromUint8Array(new Uint8Array(900001)) })],
+      ['empty text', line({ text: '' })],
+      ['text over 2400 characters', line({ text: 'a'.repeat(2401) })],
+      ['a time that is not the server time', line({ createdAt: Timestamp.fromMillis(0) })],
+    ]
+    for (const [why, data, id] of refused) {
+      await assertFails(setDoc(doc(db, linePath('skill-1', id ?? `${KEY}-0`)), data)).catch((e: unknown) => {
+        throw new Error(`${why} was accepted: ${String(e)}`)
+      })
+    }
+  })
+
+  test('a line needs its step to exist', async () => {
+    await storeSkill('skill-1', 'learner-1')
+    await assertFails(setDoc(doc(learner().firestore(), linePath('skill-1', `${KEY}-0`, 'step-9')), line()))
+  })
+
+  test('a saved line is never changed or deleted, even by the creator', async () => {
+    await storeSkill('skill-1', 'learner-1')
+    const db = learner().firestore()
+    await assertSucceeds(setDoc(doc(db, linePath()), line()))
+    await assertFails(setDoc(doc(db, linePath()), line({ text: 'Other words.' })))
+    await assertFails(updateDoc(doc(db, linePath()), { text: 'Other words.' }))
+    await assertFails(deleteDoc(doc(db, linePath())))
+  })
+
+  test('lines are read by whoever can read the skill', async () => {
+    await storeSkill('skill-1', 'learner-1')
+    await storeSkill('skill-2', 'learner-1', true)
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), linePath('skill-1')), line({ createdAt: Timestamp.now() }))
+      await setDoc(doc(context.firestore(), linePath('skill-2')), line({ createdAt: Timestamp.now() }))
+    })
+    const other = otherLearner().firestore()
+    await assertFails(getDocs(collection(other, 'skills/skill-1/steps/step-1/speech')))
+    await assertSucceeds(getDocs(collection(other, 'skills/skill-2/steps/step-1/speech')))
+    await assertFails(getDocs(collection(visitor().firestore(), 'skills/skill-2/steps/step-1/speech')))
+  })
+
+  test("the demo skill's lines are read by any signed in learner", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), linePath(DEMO_SKILL_ID)), line({ createdAt: Timestamp.now() }))
+    })
+    await assertSucceeds(getDocs(collection(learner().firestore(), `skills/${DEMO_SKILL_ID}/steps/step-1/speech`)))
+  })
+})
 
 describe('everything else stays closed', () => {
   for (const [name, context] of [

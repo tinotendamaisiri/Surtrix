@@ -80,6 +80,13 @@ describe('coachSkillFromDocuments', () => {
     }
   })
 
+  test('marks the skill mine only when this user created it (#100)', () => {
+    expect(coachSkillFromDocuments('skill-1', { ...skill, mine: true }, stored([1, 2, 3]))?.mine).toBe(true)
+    for (const mine of [false, undefined]) {
+      expect(coachSkillFromDocuments('skill-1', { ...skill, mine }, stored([1, 2, 3]))).not.toHaveProperty('mine')
+    }
+  })
+
   test("keeps a step's tools, an empty tools list, and a missing tools field apart", () => {
     const [first, second, third] = stored([1, 2, 3])
     const { tools: _tools, ...withoutTools } = third.data

@@ -1,6 +1,6 @@
-// The coach voice (#95): what the coach reads aloud and which voice reads it. Only voices
-// that run on this device are used, so voice still stays on this device. No browser
-// calls here; useCoachVoice.ts speaks.
+// The coach voice (#95): what the coach reads aloud. Since #100 it is said in Achird
+// (coachSpeech.ts); the on device voice picked here says it offline or when no audio
+// comes. No browser calls here; useCoachVoice.ts speaks.
 import { InferenceSource } from 'firebase/ai'
 import { COULD_NOT_ANSWER_TEXT, LIMITED_TEXT, ON_DEVICE_NOTE, type ChatEntry, type FailReason } from './chat.ts'
 import { describeWiringCheck, type WiringCheck } from './wiring.ts'
@@ -19,8 +19,10 @@ export function pickVoice<V extends VoiceLike>(voices: readonly V[]): V | null {
 }
 
 // One thing to say. stepId: the step it belongs to, so a step change drops it while it
-// waits; null for what belongs to no step.
-export type Speech = { id: string; stepId: string | null; text: string }
+// waits; null for what belongs to no step. fixed: words of the skill that never change
+// (the step's instruction, a "can't see" warning, a confirmation), saved with the step
+// once made (#100).
+export type Speech = { id: string; stepId: string | null; text: string; fixed?: boolean }
 
 // A step change: what still waits from other steps is dropped.
 export function keepForStep(queue: readonly Speech[], stepId: string): Speech[] {

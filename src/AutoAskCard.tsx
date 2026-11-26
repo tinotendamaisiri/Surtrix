@@ -50,6 +50,7 @@ export default function AutoAskCard({ autoAsk, asked, onChoose, onStep }: Props)
       <div className="ws-note">
         <p className="ws-mono ws-note-label">FROM AN EXPERT · SAVED</p>
         <p>{answer.answer}</p>
+        {answer.photoUrl && <img className="ws-answer-photo" src={answer.photoUrl} alt="The expert's photo" />}
         <p className="ws-note-meta">
           From <b>{answer.expertName}</b>
           <span className="ws-mono">

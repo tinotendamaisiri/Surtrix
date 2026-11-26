@@ -259,6 +259,7 @@ function Entry({ entry, ...props }: { entry: ChatEntry } & EntryProps) {
             <div className="ws-msg-saved">
               <p className="ws-mono ws-note-label">FROM AN EXPERT · SAVED</p>
               <p>{answer.savedAnswer.answer}</p>
+              {answer.savedAnswer.photoUrl && <img className="ws-answer-photo" src={answer.savedAnswer.photoUrl} alt="The expert's photo" />}
               <p className="ws-note-meta">
                 From <b>{answer.savedAnswer.expertName}</b>
               </p>
@@ -322,6 +323,7 @@ function Entry({ entry, ...props }: { entry: ChatEntry } & EntryProps) {
         <div className="ws-note">
           <p className="ws-mono ws-note-label">REAL EXPERT · ANSWERED</p>
           <p>{reply?.text}</p>
+          {reply?.photoUrl && <img className="ws-answer-photo" src={reply.photoUrl} alt="The expert's photo" />}
           {reply?.expertName && (
             <p className="ws-note-meta">
               From <b>{reply.expertName}</b>

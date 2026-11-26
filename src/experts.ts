@@ -7,6 +7,7 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   query,
   serverTimestamp,
@@ -18,6 +19,9 @@ import {
 import { auth, db } from './firebase'
 
 export const REPLY_MAX_LENGTH = 2000
+
+// An expert's answer photo (#105), after shrinking; the rules allow the same.
+export const REPLY_PHOTO_MAX_BYTES = 300_000
 
 export type Expert = { userId: string; name: string }
 
@@ -88,6 +92,8 @@ export type OpenQuestion = {
   question: string
   frameUrl: string
   judgeSaid: string | null
+  // judge: the AI asked for the learner (AUTO ASKED BY AI); learner: they asked.
+  origin: 'judge' | 'learner'
   createdAt: Date | null
 }
 
@@ -109,8 +115,15 @@ function toOpenQuestion(snapshot: DocumentSnapshot): OpenQuestion {
     question: text(data.question),
     frameUrl: data.frame instanceof Bytes ? `data:image/jpeg;base64,${data.frame.toBase64()}` : '',
     judgeSaid: typeof data.judgeSaid === 'string' ? data.judgeSaid : null,
+    origin: data.origin === 'judge' ? 'judge' : 'learner',
     createdAt: createdAt && typeof createdAt.toDate === 'function' ? createdAt.toDate() : null,
   }
+}
+
+// The questions this expert answered, as who asked them, for Learners helped (#105).
+export async function answeredBy(expertId: string): Promise<{ learnerId: string }[]> {
+  const snapshot = await getDocs(query(collection(db, 'questions'), where('reply.expertId', '==', expertId)))
+  return snapshot.docs.map((d) => ({ learnerId: text(d.get('learnerId')) }))
 }
 
 // Calls onChange with every open question, oldest first, now and whenever one changes.
@@ -144,15 +157,18 @@ export class AlreadyAnsweredError extends Error {
 }
 
 // Writes the reply onto the question and saves it as an answer under the question's
-// skill and step, in one batch: both are saved, or neither.
-export async function replyToQuestion(question: OpenQuestion, replyText: string, expert: Expert): Promise<void> {
+// skill and step, in one batch: both are saved, or neither. photo: an optional shrunk
+// JPEG (#105), saved on both so the learner and later learners see it.
+export async function replyToQuestion(question: OpenQuestion, replyText: string, expert: Expert, photo?: Uint8Array): Promise<void> {
   const problem = replyProblem(replyText)
   if (problem) throw new Error(problem)
+  if (photo && (photo.length === 0 || photo.length > REPLY_PHOTO_MAX_BYTES)) throw new Error('The photo is too large.')
   const answer = replyText.trim()
+  const withPhoto = photo ? { photo: Bytes.fromUint8Array(photo) } : {}
   const batch = writeBatch(db)
   batch.update(doc(db, 'questions', question.id), {
     status: 'answered',
-    reply: { text: answer, expertId: expert.userId, expertName: expert.name, answeredAt: serverTimestamp() },
+    reply: { text: answer, expertId: expert.userId, expertName: expert.name, answeredAt: serverTimestamp(), ...withPhoto },
   })
   batch.set(doc(db, 'skills', question.skillId, 'steps', question.stepId, 'answers', question.id), {
     questionId: question.id,
@@ -161,6 +177,7 @@ export async function replyToQuestion(question: OpenQuestion, replyText: string,
     expertId: expert.userId,
     expertName: expert.name,
     createdAt: serverTimestamp(),
+    ...withPhoto,
   })
   try {
     await batch.commit()

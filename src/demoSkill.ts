@@ -47,6 +47,8 @@ export const demoSkill: Skill = {
       parts: ['power module', 'USB cable'],
       tools: [],
       doneWhen: 'The LED is lit.',
+      // 5 V from USB: a small risk, said before the power goes on (#104).
+      badges: ['electricity'],
     },
   ],
 }

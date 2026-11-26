@@ -3,6 +3,8 @@
 // (#52, read from Firestore) and the 44 example skills from the skills catalog, with
 // search and trade chips. My skills shows the learner's own saved skills.
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import SafetyBadges from './SafetyBadges.tsx'
+import { CARD_BADGES } from './safety.ts'
 import MySkills from './MySkills.tsx'
 import TradeChips from './TradeChips.tsx'
 import { exampleSkills, pinnedSkill, type CatalogSkill } from './skillCatalog.ts'
@@ -198,6 +200,7 @@ function LiveCard() {
         </p>
         <h3>{s.title}</h3>
         <p className="skills-desc">{s.description}</p>
+        <SafetyBadges badges={s.badges} max={CARD_BADGES} className="skills-badges" />
         <p className="skills-by">
           By {s.expert} <Verified />
         </p>
@@ -224,6 +227,7 @@ function PublishedCard({ skill }: { skill: PublishedSkill }) {
       </div>
       <div className="skills-cbody">
         <h3>{skill.title}</h3>
+        <SafetyBadges badges={skill.badges} max={CARD_BADGES} className="skills-badges" />
         <p className="skills-by">
           By {skill.expertName} <Verified />
         </p>
@@ -252,6 +256,7 @@ function ExampleCard({ skill }: { skill: CatalogSkill }) {
         </p>
         <h3>{skill.title}</h3>
         <p className="skills-desc">{skill.description}</p>
+        <SafetyBadges badges={skill.badges} max={CARD_BADGES} className="skills-badges" />
         <p className="skills-by">
           By {skill.expert} <Verified />
         </p>

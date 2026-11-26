@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import SafetyBadges from './SafetyBadges.tsx'
+import { CARD_BADGES } from './safety.ts'
 import { coachHash } from './screenAddress.ts'
 import { listMySkills, type SkillSummary } from './skills.ts'
 
@@ -44,6 +46,7 @@ export default function MySkills() {
           <a className="skills-card skills-mine-card" href={coachHash(skill.id)}>
             <div className="skills-cbody">
               <h3>{skill.title}</h3>
+              <SafetyBadges badges={skill.badges} max={CARD_BADGES} className="skills-badges" />
               <span className="skills-steps">
                 {skill.stepCount} {skill.stepCount === 1 ? 'step' : 'steps'}
               </span>

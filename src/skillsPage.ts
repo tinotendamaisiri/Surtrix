@@ -1,6 +1,7 @@
 // The Skills page and the landing carousel (#83): the trade chips, search, the pinned
 // card, the two landing rows and the card text, from the skills catalog. Pure, so the
 // tests can use it without a browser.
+import type { BadgeId } from './safety.ts'
 import type { CatalogSkill } from './skillCatalog.ts'
 
 export const ALL_TRADES = 'All'
@@ -22,7 +23,7 @@ export function skillMatches(skill: CatalogSkill, search: string, trade: string)
 
 // A skill an expert published (#52), for From experts in All skills. publishedAt is in
 // milliseconds, 0 when unknown.
-export type PublishedSkill = { id: string; title: string; stepCount: number; expertName: string; publishedAt: number }
+export type PublishedSkill = { id: string; title: string; stepCount: number; expertName: string; publishedAt: number; badges?: BadgeId[] }
 
 export function publishedNewestFirst(skills: readonly PublishedSkill[]): PublishedSkill[] {
   return [...skills].sort((a, b) => b.publishedAt - a.publishedAt)

@@ -27,7 +27,7 @@ export function demoLines(): DemoLine[] {
     const stepId = `step-${i + 1}`
     const watched = step.parts.length > 0
     return [
-      stepSpeech(i + 1, demoSkill.steps.length, step.title, step.instruction),
+      stepSpeech(i + 1, demoSkill.steps.length, step.title, step.instruction, step.badges),
       ...(watched ? [cantSeeText({ said: 'cant-see', parts: step.parts })] : []),
       ...partChoices(step.parts).map((parts) => cantSeeText({ said: 'can-see', parts })),
     ].map((text) => ({ stepId, text }))

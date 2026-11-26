@@ -88,7 +88,8 @@ import {
   type AutoAsk,
   type AutoAskChoice,
 } from './autoAsk.ts'
-import { ExpertsCard, PartsList, StepList, ToolsList, WorkspaceShell, WorkspaceTopBar } from './WorkspacePanels.tsx'
+import { ExpertsCard, PartsList, SafetyList, StepList, ToolsList, WorkspaceShell, WorkspaceTopBar } from './WorkspacePanels.tsx'
+import SafetyBadges from './SafetyBadges.tsx'
 
 // Where a wiring check result shows: under a step (by id), or on the All steps done screen.
 const FINISHED = 'finished'
@@ -333,7 +334,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
   }
 
   function currentStepSpeech(): string {
-    return stepSpeech(progress.stepIndex + 1, skill.steps.length, step.title, step.instruction)
+    return stepSpeech(progress.stepIndex + 1, skill.steps.length, step.title, step.instruction, step.badges)
   }
 
   // Closes the camera; Listening is left as it is.
@@ -918,6 +919,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       <div className={`ws-grid${chatOpen && !progress.finished ? ' ws-grid-chat' : ''}`}>
         <aside className="ws-left ws-panel" aria-label={chatOpen && !progress.finished ? 'Chat' : 'Tools, parts and steps'}>
           <div className="ws-left-lists" hidden={chatOpen && !progress.finished}>
+            <SafetyList badges={skill.badges} />
             <ToolsList tools={tools} />
             <PartsList skillId={skill.id} parts={parts} />
             <StepList
@@ -1059,6 +1061,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
                 {progress.done[progress.stepIndex] && <span className="ws-done-mark">DONE</span>}
               </p>
               <h2>{step.title}</h2>
+              <SafetyBadges badges={step.badges} className="ws-step-badges" />
               <p className="ws-instruction">{step.instruction}</p>
               {step.parts.length > 0 && (
                 <div className="ws-need">

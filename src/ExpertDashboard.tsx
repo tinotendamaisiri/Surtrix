@@ -23,7 +23,7 @@ import { learnersHelped, skillsInTab, stepsLine, tabCounts, timeAgo, tradeLine, 
 import { shrinkPhoto } from './photo.ts'
 import { BADGES, CARD_BADGES, type BadgeId } from './safety.ts'
 import SafetyBadges from './SafetyBadges.tsx'
-import { coachHash, SKILLS_HASH } from './screenAddress.ts'
+import { coachHash, editSkillHash, SKILLS_HASH } from './screenAddress.ts'
 import Wordmark from './Wordmark.tsx'
 import './ExpertDashboard.css'
 
@@ -324,6 +324,9 @@ function YourSkills({
                   {!skill.published && <span>Not published</span>}
                 </p>
                 <div className="xd-btns">
+                  <a className="xd-btn" href={editSkillHash(skill.id)}>
+                    Edit
+                  </a>
                   <button
                     type="button"
                     className={`xd-btn${skill.published ? '' : ' xd-primary'}`}
@@ -343,7 +346,7 @@ function YourSkills({
                 +
               </span>
               Create a skill
-              <span className="xd-muted">Add a procedure or a PDF. AI drafts the steps.</span>
+              <span className="xd-muted">Add a manual, photos, a video, a YouTube link or a voice note. AI drafts the steps.</span>
             </a>
           </li>
         </ul>

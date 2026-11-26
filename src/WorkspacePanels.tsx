@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import SafetyBadges from './SafetyBadges.tsx'
 import { knownBadges } from './safety.ts'
 import BackToSkills from './BackToSkills.tsx'
-import type { CoachProgress, CoachStep } from './coach.ts'
+import type { CoachProgress, CoachSkill, CoachStep } from './coach.ts'
 import type { DeviceModelStatus } from './firebase.ts'
 import type { SkillsTab } from './landingIntent.ts'
 import Wordmark from './Wordmark.tsx'
@@ -99,7 +99,29 @@ export function SafetyList({ badges }: { badges: readonly string[] | undefined }
 
 // REQUIRED TOOLS: the skill's tools as pills, or a line when it needs none. Hidden for a
 // skill saved before tools existed (tools is null).
-export function ToolsList({ tools }: { tools: string[] | null }) {
+// details: the skill's own tools from Create a skill (#106), each with its photo and what
+// to use instead; they replace the plain pills.
+export function ToolsList({ tools, details }: { tools: string[] | null; details?: CoachSkill['toolDetails'] }) {
+  if (details?.length) {
+    return (
+      <section className="ws-section" aria-labelledby="ws-tools-heading">
+        <h2 id="ws-tools-heading" className="ws-mono ws-heading">
+          REQUIRED TOOLS
+        </h2>
+        <ul className="ws-tool-details">
+          {details.map((tool) => (
+            <li key={tool.name}>
+              {tool.photoUrl ? <img src={tool.photoUrl} alt="" /> : <span className="ws-tool-icon" aria-hidden="true" />}
+              <span>
+                <b>{tool.name}</b>
+                {tool.alternative && <span className="ws-tool-alt">{tool.alternative}</span>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )
+  }
   if (tools === null) return null
   return (
     <section className="ws-section" aria-labelledby="ws-tools-heading">

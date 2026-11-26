@@ -25,7 +25,6 @@ import {
 import Wordmark from './Wordmark.tsx'
 import './SkillsPage.css'
 
-const chips = tradeChips(exampleSkills)
 
 function reducedMotion(): boolean {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -38,6 +37,8 @@ export default function SkillsPage({ tab }: { tab: SkillsTab }) {
   const [published, setPublished] = useState<PublishedSkill[]>([])
   const resultsRef = useRef<HTMLElement>(null)
   const shown = allSkillsShown(published, exampleSkills, search, trade)
+  // Published skills add their trades to the chips (#106).
+  const chips = tradeChips([...exampleSkills, ...published])
   const pinnedShown = skillMatches(pinnedSkill, search, trade)
 
   // A failed read leaves From experts empty; the rest of the page still shows.
@@ -226,7 +227,9 @@ function PublishedCard({ skill }: { skill: PublishedSkill }) {
         <span className="skills-tag">✓ VERIFIED</span>
       </div>
       <div className="skills-cbody">
+        {(skill.trade || skill.level) && <p className="skills-meta">{[skill.trade, skill.level].filter(Boolean).join(' · ')}</p>}
         <h3>{skill.title}</h3>
+        {skill.description && <p className="skills-desc">{skill.description}</p>}
         <SafetyBadges badges={skill.badges} max={CARD_BADGES} className="skills-badges" />
         <p className="skills-by">
           By {skill.expertName} <Verified />

@@ -62,7 +62,7 @@ export function isDocumentId(id: string): boolean {
 // whole skill: the steps must be exactly step-1 to step-{stepCount}, each with its number.
 export function coachSkillFromDocuments(
   id: string,
-  skill: { title: unknown; stepCount: unknown; published?: unknown },
+  skill: { title: unknown; stepCount: unknown; published?: unknown; mine?: boolean },
   steps: { id: string; data: Partial<StepDocument> }[],
 ): CoachSkill | null {
   if (typeof skill.title !== 'string' || typeof skill.stepCount !== 'number') return null
@@ -75,6 +75,7 @@ export function coachSkillFromDocuments(
     title: skill.title,
     // Only a published skill carries the flag; any other skill leaves it out.
     ...(skill.published === true ? { published: true } : {}),
+    ...(skill.mine === true ? { mine: true } : {}),
     steps: ordered.map(({ id: stepDocId, data }) => ({
       id: stepDocId,
       title: String(data.title),

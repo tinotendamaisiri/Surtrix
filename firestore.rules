@@ -101,6 +101,35 @@ service cloud.firestore {
       allow read: if signedIn() && request.auth.uid == userId;
     }
 
+    // Saved coach lines (#100): the coach's fixed words for a step in the Achird voice, made
+    // once and played from then on. Only the skill's creator saves them, never for the demo
+    // skill (its lines are written with the owner's credentials). A line is split in parts
+    // of at most 900000 bytes, each saved as {key}-{part}. Nobody changes or deletes one.
+    match /skills/{skillId}/steps/{stepId}/speech/{lineId} {
+      allow read: if canReadSkill(skillId, skillData(skillId));
+      allow create: if signedIn()
+        && skillId != 'sample-led'
+        && skillData(skillId).creatorId == request.auth.uid
+        && exists(/databases/$(database)/documents/skills/$(skillId)/steps/$(stepId))
+        && request.resource.data.keys().hasOnly(['key', 'part', 'parts', 'text', 'model', 'voice', 'audio', 'createdAt'])
+        && request.resource.data.keys().hasAll(['key', 'part', 'parts', 'text', 'model', 'voice', 'audio', 'createdAt'])
+        && request.resource.data.key is string
+        && request.resource.data.key.matches('[0-9a-f]{32}')
+        && request.resource.data.part is int
+        && request.resource.data.parts is int
+        && request.resource.data.part >= 0
+        && request.resource.data.part < request.resource.data.parts
+        && request.resource.data.parts <= 20
+        && lineId == request.resource.data.key + '-' + string(request.resource.data.part)
+        && isText(request.resource.data.text, 2400)
+        && isText(request.resource.data.model, 100)
+        && isText(request.resource.data.voice, 100)
+        && request.resource.data.audio is bytes
+        && request.resource.data.audio.size() > 0
+        && request.resource.data.audio.size() <= 900000
+        && request.resource.data.createdAt == request.time;
+    }
+
     // Saved expert answers (#20), reused by plan issue 10. The answer's id is its
     // question's id, and it is written in one batch with the reply on the question.
     match /skills/{skillId}/steps/{stepId}/answers/{answerId} {

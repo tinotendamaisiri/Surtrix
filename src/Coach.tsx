@@ -151,9 +151,9 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       void topicCheckPossible().then((possible) => setNoVoiceCheck(!possible))
     },
   )
-  // The coach voice (#95): it waits while the learner's heard words wait, and Listening
-  // holds while it speaks, so the recogniser never hears the coach.
-  const voice = useCoachVoice(listening.waiting || listening.hearing)
+  // The coach voice (#95, Achird since #100): it waits while the learner's heard words
+  // wait, and Listening holds while it speaks, so the recogniser never hears the coach.
+  const voice = useCoachVoice({ learnerTalking: listening.waiting || listening.hearing, skillId: skill.id, mine: skill.mine === true })
   useEffect(() => {
     listening.hold(voice.speaking)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -329,7 +329,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     const cameraLive = openCamera()
     if (listeningWithCamera('start camera', listening.state) === 'turn on') listening.turnOn(cameraLive)
     // The tap that starts hands free work reads the step (#95).
-    if (!progress.finished) voice.say({ id: `start-${Date.now()}`, stepId: step.id, text: currentStepSpeech() })
+    if (!progress.finished) voice.say({ id: `start-${Date.now()}`, stepId: step.id, text: currentStepSpeech(), fixed: true })
   }
 
   function currentStepSpeech(): string {
@@ -858,7 +858,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
       spoken.add(key)
       if (entry.kind === 'expert-reply' && !newExpertReply(entry.question.id, knownBefore)) continue
       const text = entrySpeech(entry)
-      if (text) voice.say({ id: key, stepId: entry.kind === 'expert-reply' ? null : entryStep(entry), text })
+      if (text) voice.say({ id: key, stepId: entry.kind === 'expert-reply' ? null : entryStep(entry), text, fixed: entry.kind === 'bench' })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entries])
@@ -880,13 +880,22 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voiceNote])
 
+  // This step's and the next step's saved lines load ahead, so their instructions and
+  // warnings play at once (#100).
+  const nextStepId = skill.steps[progress.stepIndex + 1]?.id
+  useEffect(() => {
+    voice.prepare(step.id)
+    if (nextStepId) voice.prepare(nextStepId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step.id, nextStepId])
+
   // A step change reads the new step; opening the Workspace reads nothing.
   const stepSpokenRef = useRef(here)
   useEffect(() => {
     if (stepSpokenRef.current === here) return
     stepSpokenRef.current = here
     if (progress.finished) voice.newStep({ id: `step-${Date.now()}`, stepId: FINISHED, text: ALL_DONE_SPEECH })
-    else voice.newStep({ id: `step-${Date.now()}`, stepId: step.id, text: currentStepSpeech() })
+    else voice.newStep({ id: `step-${Date.now()}`, stepId: step.id, text: currentStepSpeech(), fixed: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [here])
   const currentNotice = chatItems.find((i) => i.id === currentAutoId && i.kind === 'auto' && i.auto.kind === 'notice')
@@ -1025,7 +1034,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
               noVoiceCheck={noVoiceCheck}
             />
             <CoachVoiceToggle voice={voice} />
-            <p className="ws-privacy">Video and voice stay on this device.</p>
+            <p className="ws-privacy">Your video and voice stay on this device.</p>
           </div>
           {cameraError && <p className="ws-error">Could not open the camera. Check the browser has permission to use it.</p>}
         </section>

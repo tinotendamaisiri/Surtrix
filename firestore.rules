@@ -239,6 +239,28 @@ service cloud.firestore {
         && a.createdAt == request.time;
     }
 
+    // AI drafts per visitor per UTC day (#113). The Create a skill page adds 1 before each
+    // draft; at most 5 a day, and a new day starts again at 1. Only the visitor's own count.
+    function utcDay(t) {
+      return math.floor(t.toMillis() / 86400000);
+    }
+    function isDraftCount(d) {
+      return d.keys().hasOnly(['count', 'at']) && d.keys().hasAll(['count', 'at'])
+        && d.count is int && d.at == request.time;
+    }
+    match /draftCounts/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create: if signedIn() && request.auth.uid == uid
+        && isDraftCount(request.resource.data) && request.resource.data.count == 1;
+      allow update: if signedIn() && request.auth.uid == uid
+        && isDraftCount(request.resource.data)
+        && ((utcDay(resource.data.at) == utcDay(request.time)
+            && request.resource.data.count == resource.data.count + 1
+            && request.resource.data.count <= 5)
+          || (utcDay(resource.data.at) != utcDay(request.time)
+            && request.resource.data.count == 1));
+    }
+
     // Uses isText from the skills rules above: trimmed, non empty, at most max characters.
     function isNewQuestion(q) {
       let fields = ['learnerId', 'skillId', 'skillTitle', 'stepId', 'stepNumber', 'stepTitle',

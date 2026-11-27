@@ -24,6 +24,8 @@ import {
   type Attachment,
   type AttachmentKind,
 } from './skillDraft.ts'
+import { countDraft } from './draftCount.ts'
+import { DRAFT_LIMIT_MESSAGE } from './draftLimit.ts'
 import { draftSkill } from './skillDraftCall.ts'
 import { loadSkillForEdit, saveSkill, setSkillPublished, updateSkill } from './skills'
 import Wordmark from './Wordmark.tsx'
@@ -300,6 +302,11 @@ export default function CreateSkill({ skillId }: { skillId?: string }) {
     setDrafting(true)
     setDraftError(null)
     try {
+      // Counted before the model is asked, so a failed draft counts too (#113).
+      if (!(await countDraft())) {
+        setDraftError(DRAFT_LIMIT_MESSAGE)
+        return
+      }
       const result = await draftSkill({ name, trade, level, notes, attachments })
       if (!result.draft) {
         setDraftError('No steps came out of this. Add a procedure, a manual or a video that shows the work.')

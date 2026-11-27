@@ -1654,3 +1654,38 @@ main.workspace {
   border-radius: 12px;
   border: 1px solid rgba(255, 236, 205, 0.12);
 }
+
+/* A skill's own tools (#106): photo, name and what to use instead. */
+.ws-tool-details {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ws-tool-details li {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+}
+.ws-tool-details img,
+.ws-tool-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #1f1912;
+}
+.ws-tool-details b {
+  display: block;
+  color: #f4efe6;
+  font-weight: 600;
+}
+.ws-tool-alt {
+  display: block;
+  color: #a89e8f;
+  margin-top: 2px;
+}

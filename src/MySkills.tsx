@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import SafetyBadges from './SafetyBadges.tsx'
 import { CARD_BADGES } from './safety.ts'
-import { coachHash } from './screenAddress.ts'
+import { coachHash, editSkillHash } from './screenAddress.ts'
 import { listMySkills, type SkillSummary } from './skills.ts'
 
 type State = { kind: 'loading' } | { kind: 'loaded'; skills: SkillSummary[] } | { kind: 'failed' }
 
 // The Skills page's My skills tab (#83, `#skills/mine`): the skills this learner saved,
-// newest first, as simple cards that open their coach. It loads when the tab is opened.
+// newest first, as simple cards that open their coach, each with an Edit link (#106). It
+// loads when the tab is opened.
 export default function MySkills() {
   const [state, setState] = useState<State>({ kind: 'loading' })
 
@@ -57,6 +58,9 @@ export default function MySkills() {
                 Start
               </span>
             </div>
+          </a>
+          <a className="skills-mine-edit" href={editSkillHash(skill.id)} aria-label={`Edit ${skill.title}`}>
+            Edit
           </a>
         </li>
       ))}

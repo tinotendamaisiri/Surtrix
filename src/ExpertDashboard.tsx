@@ -23,11 +23,10 @@ import { learnersHelped, skillsInTab, stepsLine, tabCounts, timeAgo, tradeLine, 
 import { shrinkPhoto } from './photo.ts'
 import { BADGES, CARD_BADGES, type BadgeId } from './safety.ts'
 import SafetyBadges from './SafetyBadges.tsx'
-import { coachHash, editSkillHash, SKILLS_HASH } from './screenAddress.ts'
+import { coachHash, editSkillHash, NEW_SKILL_HASH, SKILLS_HASH } from './screenAddress.ts'
 import Wordmark from './Wordmark.tsx'
 import './ExpertDashboard.css'
 
-const NEW_SKILL_HASH = '#new-skill'
 const QUESTIONS_ID = 'xd-questions'
 
 export default function ExpertDashboard() {

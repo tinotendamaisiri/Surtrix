@@ -178,6 +178,10 @@ export function skillProblem(skill: Skill): string | null {
     if (!step.title.trim() || !step.instruction.trim() || !step.doneWhen.trim()) return `Step ${n} needs a title, what to do, and when it is done.`
     if (step.title.length > LIMITS.title || step.instruction.length > LIMITS.instruction || step.doneWhen.length > LIMITS.doneWhen) return `Step ${n} is too long.`
     if (step.parts.length > LIMITS.parts || step.tools.length > LIMITS.tools) return `Step ${n} has too many parts or tools.`
+    if (step.parts.some((p) => p.length > LIMITS.part) || step.tools.some((t) => t.length > LIMITS.tool)) return `Step ${n} has a part or tool name that is too long.`
+  }
+  for (const tool of skill.tools ?? []) {
+    if (tool.name.length > LIMITS.tool || (tool.alternative ?? '').length > LIMITS.alternative) return `Keep each tool's name and alternative under ${LIMITS.tool} characters.`
   }
   return null
 }

@@ -71,6 +71,14 @@ describe('saving', () => {
     expect(skillProblem({ title: 'Solder', steps: [step] })).toBeNull()
   })
 
+  test('refuses a part, tool or alternative longer than the rules allow', () => {
+    const long = 'x'.repeat(201)
+    expect(skillProblem({ title: 'Solder', steps: [{ ...step, parts: [long] }] })).toMatch(/Step 1 has a part or tool name/)
+    expect(skillProblem({ title: 'Solder', steps: [{ ...step, tools: [long] }] })).toMatch(/Step 1 has a part or tool name/)
+    expect(skillProblem({ title: 'Solder', steps: [step], tools: [{ name: 'Iron', alternative: long }] })).toMatch(/tool's name and alternative/)
+    expect(skillProblem({ title: 'Solder', steps: [{ ...step, parts: ['x'.repeat(200)] }], tools: [{ name: 'x'.repeat(200) }] })).toBeNull()
+  })
+
   test('saves trimmed text and leaves out what is empty', () => {
     expect(cleanSkill({ title: ' Solder ', steps: [{ ...step, parts: [' pin ', ''], badges: ['gloves', 'x'] }], trade: ' ', description: '', minutes: 0, tools: [{ name: ' Iron ', alternative: ' ' }, { name: '' }] })).toEqual({
       title: 'Solder',

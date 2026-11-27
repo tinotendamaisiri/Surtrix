@@ -114,9 +114,9 @@ export default function CreateSkill({ skillId }: { skillId?: string }) {
   const [loadState, setLoadState] = useState<'idle' | 'loading' | 'missing' | 'failed'>(skillId ? 'loading' : 'idle')
   const [saving, setSaving] = useState<'draft' | 'publish' | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
-  // A new skill saved on this page whose publish then failed: trying again updates it
-  // instead of saving a second copy.
-  const created = useRef<{ id: string; before: { stepCount: number; toolCount: number } } | null>(null)
+  // The skill as last saved from this page, when publishing then failed: trying again
+  // updates it as it is now, instead of saving a second copy or deleting steps twice.
+  const saved = useRef<{ id: string; before: { stepCount: number; toolCount: number } } | null>(null)
 
   // Editing one of your own skills: the page opens with it.
   useEffect(() => {
@@ -132,7 +132,10 @@ export default function CreateSkill({ skillId }: { skillId?: string }) {
         setTrade(skill.trade ?? '')
         setLevel(skill.level ?? '')
         setMinutes(skill.minutes ?? 0)
-        setBadges(knownBadges(skill.badges))
+        // The saved list holds the steps' badges too; the page keeps only the skill's own, so
+        // a badge removed from a step does not come back as a skill badge on the next save.
+        const onSteps = new Set(skill.steps.flatMap((s) => knownBadges(s.badges)))
+        setBadges(knownBadges(skill.badges).filter((b) => !onSteps.has(b)))
         setTools(
           (skill.tools ?? []).map((t, i) => {
             const bytes = found.toolPhotos[i]
@@ -189,7 +192,7 @@ export default function CreateSkill({ skillId }: { skillId?: string }) {
     setMenuOpen(false)
     setAttachError(null)
     if (kind === 'youtube') return setYouTubeOpen(true)
-    if (kind === 'record') return void startRecording()
+    if (kind === 'record') return recorderRef.current ? undefined : void startRecording()
     const input = kind === 'audio' ? fileInputs.current.audio : fileInputs.current[kind]
     input?.click()
   }
@@ -346,13 +349,13 @@ export default function CreateSkill({ skillId }: { skillId?: string }) {
     setSaveError(null)
     try {
       const photos = await toolPhotoBytes()
-      let id = skillId
-      if (id && editing) await updateSkill(id, skill, editing.before, photos)
-      else if (created.current) {
-        id = created.current.id
-        await updateSkill(id, skill, created.current.before, photos)
+      const target = saved.current ?? (skillId && editing ? { id: skillId, before: editing.before } : null)
+      let id: string
+      if (target) {
+        id = target.id
+        await updateSkill(id, skill, target.before, photos)
       } else id = await saveSkill(skill, photos)
-      created.current = !skillId ? { id, before: { stepCount: skill.steps.length, toolCount: photos.length } } : null
+      saved.current = { id, before: { stepCount: skill.steps.length, toolCount: photos.length } }
       if (expert && publish !== (editing?.published ?? false)) await setSkillPublished(id, publish, expert.name)
       window.location.hash = expert ? '#expert' : coachHash(id)
     } catch (e) {

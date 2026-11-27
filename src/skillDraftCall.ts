@@ -24,7 +24,7 @@ const draftSchema = Schema.object({
       }),
     }),
     // No maxItems here: with the nested badge enums it made the schema too large to serve
-    // (400 "too many states", staging Nov 27). parseSkill refuses a draft with more than 40 steps.
+    // (400 "too many states", staging Nov 27). The instruction asks for at most MAX_STEPS and parseSkill refuses more.
     steps: Schema.array({
       items: Schema.object({
         properties: {

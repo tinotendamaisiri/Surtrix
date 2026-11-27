@@ -477,6 +477,9 @@ export default function CreateSkill({ skillId }: { skillId?: string }) {
             </div>
           </section>
 
+          {/* Drafting again would renumber a saved skill's steps, and saved expert answers
+              belong to a step by its number: so the AI draft is for a new skill only. */}
+          {!skillId && (
           <section className="xd-panel cs-section" aria-labelledby="cs-add">
             <h2 id="cs-add" className="xd-lbl">
               2 · ADD ANYTHING YOU HAVE
@@ -578,18 +581,19 @@ export default function CreateSkill({ skillId }: { skillId?: string }) {
             </div>
             {draftError && <p className="xd-error" role="alert">{draftError}</p>}
           </section>
+          )}
         </div>
 
         <section className="xd-panel cs-section cs-check" aria-labelledby="cs-check">
           <div className="cs-check-head">
             <h2 id="cs-check" className="xd-lbl">
-              3 · CHECK THE AI DRAFT
+              {skillId ? '2 · CHECK THE SKILL' : '3 · CHECK THE AI DRAFT'}
             </h2>
             {draftNote && <span className="xd-muted cs-from">{draftNote}</span>}
           </div>
 
           <h3>Safety badges</h3>
-          <p className="xd-muted xd-small-text">Suggested by AI from your material. Remove any that do not apply, or add more.</p>
+          <p className="xd-muted xd-small-text">{skillId ? 'Remove any that do not apply, or add more.' : 'Suggested by AI from your material. Remove any that do not apply, or add more.'}</p>
           <ul className="cs-badges">
             {knownBadges(badges).map((id) => (
               <li key={id}>
@@ -665,9 +669,11 @@ export default function CreateSkill({ skillId }: { skillId?: string }) {
                       <button type="button" className="xd-btn xd-primary" onClick={() => changeStep(i, { editing: false, parts: s.parts.map((p) => p.trim()).filter(Boolean), tools: s.tools.map((p) => p.trim()).filter(Boolean) })}>
                         Done
                       </button>
-                      <button type="button" className="xd-btn" onClick={() => setSteps(steps.filter((_, j) => j !== i))}>
-                        Remove step
-                      </button>
+                      {(!skillId || i === steps.length - 1) && (
+                        <button type="button" className="xd-btn" onClick={() => setSteps(steps.filter((_, j) => j !== i))}>
+                          Remove step
+                        </button>
+                      )}
                     </div>
                   </div>
                 ) : (

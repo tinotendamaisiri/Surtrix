@@ -60,13 +60,13 @@ export function SafetyBadge({ id }: { id: BadgeId }) {
   )
 }
 
-// All of the badges, or for a card (max) the first few and "+N" for the rest. Nothing
-// at all when there are none.
+// All of the badges, or for a card (max) the first few and "+N" for the rest, as compact
+// pills. Nothing at all when there are none.
 export default function SafetyBadges({ badges, max, className = '' }: { badges: readonly unknown[] | undefined; max?: number; className?: string }) {
   const { shown, more } = max === undefined ? { shown: knownBadges(badges), more: 0 } : cardBadges(badges, max)
   if (shown.length === 0) return null
   return (
-    <ul className={`sbrow ${className}`} aria-label="Safety">
+    <ul className={`sbrow${max === undefined ? '' : ' sbrow-compact'} ${className}`} aria-label="Safety">
       {shown.map((id) => (
         <SafetyBadge key={id} id={id} />
       ))}

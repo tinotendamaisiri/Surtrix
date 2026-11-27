@@ -391,7 +391,7 @@ export default function CreateSkill({ skillId }: { skillId?: string }) {
     }
   }
 
-  const allParts = [...new Set(steps.flatMap((s) => s.parts))]
+  const allParts = [...new Set(steps.flatMap((s) => s.parts.map((p) => p.trim()).filter(Boolean)))]
   const backHash = expert ? '#expert' : MY_SKILLS_HASH
 
   if (loadState === 'loading') return <Shell expert={expert}><p className="xd-muted">Loading the skill</p></Shell>

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { publishedSkillMatches } from '../src/skillsPage.ts'
-import { ATTACH_LIMITS, attachProblem, cleanSkill, draftedFrom, parseDraft, skillProblem, youTubeLink, youTubePart, type Attachment } from '../src/skillDraft.ts'
+import { ATTACH_LIMITS, attachProblem, cleanSkill, draftedFrom, DRAFT_INSTRUCTION, parseDraft, skillProblem, youTubeLink, youTubePart, type Attachment } from '../src/skillDraft.ts'
 
 const a = (kind: Attachment['kind'], bytes = 1000): Attachment => ({ id: Math.random().toString(), kind, name: kind, detail: '', mimeType: 'x', bytes })
 const step = { title: 'Heat the iron', instruction: 'Set 330 C.', parts: [], tools: ['iron'], doneWhen: 'Solder melts on the tip.' }
@@ -104,5 +104,11 @@ describe('YouTube', () => {
       fileData: { mimeType: 'video/mp4', fileUri: 'https://www.youtube.com/watch?v=jNQXAC9IVRw' },
       videoMetadata: { startOffset: '0s', endOffset: '600s' },
     })
+  })
+})
+
+describe('the draft instruction', () => {
+  test('tells the model the step limit, since the schema can not', () => {
+    expect(DRAFT_INSTRUCTION).toContain('at most 40 steps')
   })
 })

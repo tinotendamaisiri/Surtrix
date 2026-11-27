@@ -4,7 +4,6 @@
 import { getGenerativeModel, InferenceMode, Schema, ThinkingLevel, type Part } from 'firebase/ai'
 import { ai } from './firebase'
 import { ATTACH_LIMITS, BADGE_IDS, DRAFT_INSTRUCTION, DRAFT_MODEL, parseDraft, youTubePart, type Attachment, type Draft } from './skillDraft'
-import { MAX_STEPS } from './skill'
 
 const badgeList = () => Schema.array({ items: Schema.enumString({ enum: BADGE_IDS }) })
 
@@ -24,8 +23,9 @@ const draftSchema = Schema.object({
         propertyOrdering: ['name', 'alternative', 'photo'],
       }),
     }),
+    // No maxItems here: with the nested badge enums it made the schema too large to serve
+    // (400 "too many states", staging Nov 27). The instruction asks for at most MAX_STEPS and parseSkill refuses more.
     steps: Schema.array({
-      maxItems: MAX_STEPS,
       items: Schema.object({
         properties: {
           title: Schema.string(),

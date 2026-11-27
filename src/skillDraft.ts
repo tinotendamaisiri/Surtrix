@@ -2,7 +2,7 @@
 // under Firebase AI Logic's 20 MB, and the model's draft of the skill: steps, tools with
 // alternatives, parts and safety badges. Pure, so the tests use it without Firebase.
 import { BADGES, knownBadges } from './safety.ts'
-import { LIMITS, parseSkill, type Skill, type SkillTool } from './skill.ts'
+import { LIMITS, MAX_STEPS, parseSkill, type Skill, type SkillTool } from './skill.ts'
 
 // The draft model (settled in #106's grilling: a stronger model than flash-lite, for the
 // draft only). A 4.x model also reads Word, PowerPoint and Excel documents.
@@ -135,6 +135,7 @@ export const DRAFT_INSTRUCTION =
   'If one of the attached photos clearly shows a tool, give that photo\'s number (photos are numbered from 1 in the order given), else 0. ' +
   'Safety badges: choose only from the given ids, only where the material shows a real risk, on the steps that need them, and for the whole skill. ' +
   'Write in plain English, short and clear, no dashes as punctuation. Give the time the whole skill takes in minutes. ' +
+  `Use at most ${MAX_STEPS} steps: join small steps when the material has more. ` +
   'If the material does not describe a procedure, return an empty title and no steps.'
 
 // The model's draft, as the expert then checks it. photoIndex: for each tool, the number of

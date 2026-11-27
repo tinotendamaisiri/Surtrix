@@ -41,31 +41,46 @@ service cloud.firestore {
       allow read: if canReadSkill(skillId, resource.data);
       allow create: if signedIn()
         && skillId != 'sample-led'
-        && request.resource.data.keys().hasOnly(['title', 'creatorId', 'stepCount', 'createdAt', 'badges'])
+        && request.resource.data.keys().hasOnly(['title', 'creatorId', 'stepCount', 'createdAt', 'badges', 'trade', 'level', 'description', 'minutes', 'tools'])
         && request.resource.data.keys().hasAll(['title', 'creatorId', 'stepCount', 'createdAt'])
-        && badgesFit(request.resource.data)
-        && isText(request.resource.data.title, 200)
+        && skillFits(request.resource.data)
         && request.resource.data.creatorId == request.auth.uid
-        && request.resource.data.stepCount is int
-        && request.resource.data.stepCount >= 1
-        && request.resource.data.stepCount <= 40
         && request.resource.data.createdAt == request.time;
       // Publishing (#52): only an expert who created the skill, changing only these three
       // fields, under their own name in experts, at server time. Never the demo skill.
-      allow update: if isExpert()
-        && skillId != 'sample-led'
-        && resource.data.creatorId == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['published', 'expertName', 'publishedAt'])
-        && request.resource.data.published is bool
-        && request.resource.data.expertName == expertName()
-        && request.resource.data.publishedAt == request.time;
+      // Editing (#106): the creator changes what Create a skill saves, nothing else.
+      allow update: if (isExpert()
+          && skillId != 'sample-led'
+          && resource.data.creatorId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['published', 'expertName', 'publishedAt'])
+          && request.resource.data.published is bool
+          && request.resource.data.expertName == expertName()
+          && request.resource.data.publishedAt == request.time)
+        || (signedIn()
+          && skillId != 'sample-led'
+          && resource.data.creatorId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'stepCount', 'badges', 'trade', 'level', 'description', 'minutes', 'tools'])
+          && skillFits(request.resource.data));
 
-      // Only the skill's creator creates its steps (the app writes them in one batch with
-      // the skill).
-      // Their ids are step-1, step-2 and so on, matching their number.
+      // What any saved skill must be: a title, 1 to 40 steps, and the optional fields of
+      // Create a skill (#106) within their limits (src/skill.ts LIMITS).
+      function skillFits(d) {
+        return isText(d.title, 200)
+          && d.stepCount is int && d.stepCount >= 1 && d.stepCount <= 40
+          && badgesFit(d)
+          && (!('trade' in d) || isText(d.trade, 60))
+          && (!('level' in d) || d.level in ['Beginner', 'Intermediate', 'Advanced'])
+          && (!('description' in d) || isText(d.description, 300))
+          && (!('minutes' in d) || (d.minutes is int && d.minutes >= 1 && d.minutes <= 600))
+          && (!('tools' in d) || (d.tools is list && d.tools.size() <= 30));
+      }
+
+      // Only the skill's creator writes its steps (the app writes them in one batch with
+      // the skill). Their ids are step-1, step-2 and so on, matching their number. Editing
+      // (#106) rewrites them and removes the ones past the new step count.
       match /steps/{stepId} {
         allow read: if canReadSkill(skillId, skillData(skillId));
-        allow create: if signedIn()
+        allow create, update: if signedIn()
           && skillAfter().creatorId == request.auth.uid
           && request.resource.data.keys().hasOnly(['number', 'title', 'instruction', 'parts', 'tools', 'doneWhen', 'badges'])
           && badgesFit(request.resource.data)
@@ -84,10 +99,36 @@ service cloud.firestore {
           // send them, have none.
           && (!('tools' in request.resource.data)
             || (request.resource.data.tools is list && request.resource.data.tools.size() <= 30));
+        // Only a step past the skill's new step count goes, so steps never leave a gap.
+        allow delete: if signedIn()
+          && skillId != 'sample-led'
+          && skillData(skillId).creatorId == request.auth.uid
+          && resource.data.number > skillAfter().stepCount;
 
         function skillAfter() {
           return getAfter(/databases/$(database)/documents/skills/$(skillId)).data;
         }
+      }
+
+      // A tool's photo (#106): tool-{n} for the skill's n-th tool, a JPEG of at most
+      // 150000 bytes, written and removed only by the skill's creator.
+      match /toolPhotos/{photoId} {
+        allow read: if canReadSkill(skillId, skillData(skillId));
+        allow create, update: if signedIn()
+          && skillId != 'sample-led'
+          && getAfter(/databases/$(database)/documents/skills/$(skillId)).data.creatorId == request.auth.uid
+          && request.resource.data.keys().hasOnly(['number', 'photo'])
+          && request.resource.data.keys().hasAll(['number', 'photo'])
+          && request.resource.data.number is int
+          && request.resource.data.number >= 1
+          && request.resource.data.number <= 30
+          && photoId == 'tool-' + string(request.resource.data.number)
+          && request.resource.data.photo is bytes
+          && request.resource.data.photo.size() > 0
+          && request.resource.data.photo.size() <= 150000;
+        allow delete: if signedIn()
+          && skillId != 'sample-led'
+          && skillData(skillId).creatorId == request.auth.uid;
       }
     }
 

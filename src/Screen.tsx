@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import CaptureTest from './CaptureTest.tsx'
 import ExpertDashboard from './ExpertDashboard.tsx'
 import Home from './Home.tsx'
-import NewSkill from './NewSkill.tsx'
+import CreateSkill from './CreateSkill.tsx'
 import SavedSkillCoach from './SavedSkillCoach.tsx'
 import SkillsPage from './SkillsPage.tsx'
 import { screenFromHash } from './screenAddress.ts'
@@ -52,7 +52,9 @@ export default function Screen() {
   }, [screenKey])
   switch (address.screen) {
     case 'new-skill':
-      return <NewSkill />
+      return <CreateSkill />
+    case 'edit-skill':
+      return <CreateSkill key={address.skillId} skillId={address.skillId} />
     case 'capture-test':
       return <CaptureTest />
     case 'expert':

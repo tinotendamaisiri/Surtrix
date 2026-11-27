@@ -53,6 +53,8 @@ internals.
 * Cloud Gemini, low thinking, with one model per job:
   * `gemini-4-hydrogen` is used ONLY for the wiring judgment: when a step is
     marked done, judge the wiring against the step and say exactly what to move.
+  * `gemini-4-hydrogen` also drafts a skill from an expert's notes and attachments
+    on the Create a skill page (#106), since it reads Word, PowerPoint and Excel too.
   * Every other cloud task uses `gemini-3.5-flash-lite`: converting an uploaded
     procedure into a JSON step list (structured output), simple questions, and
     anything else that is not the wiring judgment.

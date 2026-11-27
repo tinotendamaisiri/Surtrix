@@ -31,6 +31,25 @@
   border: 1px solid rgba(255, 236, 205, 0.18);
   padding: 5px 10px;
 }
+/* On skill cards: a compact pill, 22 px tall with a 12 px icon; same colors. */
+.sbrow-compact {
+  gap: 5px;
+}
+.sbrow-compact .sb {
+  box-sizing: border-box;
+  height: 22px;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 1;
+  padding: 0 8px 0 6px;
+}
+.sbrow-compact .sb svg {
+  width: 12px;
+  height: 12px;
+}
+.sbrow-compact .sb-more {
+  padding: 0 8px;
+}
 .sb-hidden {
   position: absolute;
   width: 1px;

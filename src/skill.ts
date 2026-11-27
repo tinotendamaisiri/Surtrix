@@ -17,13 +17,41 @@ export type Step = {
   badges?: string[]
 }
 
-// badges: the skill's own badges beyond its steps' (#104).
-export type Skill = { title: string; steps: Step[]; badges?: string[] }
+// A tool the whole skill needs (#106), with what to use when the learner has none.
+export type SkillTool = { name: string; alternative?: string }
+
+// badges: the skill's own badges beyond its steps' (#104). trade, level, description,
+// minutes and tools come from Create a skill (#106); skills saved before have none.
+export type Skill = {
+  title: string
+  steps: Step[]
+  badges?: string[]
+  trade?: string
+  level?: string
+  description?: string
+  minutes?: number
+  tools?: SkillTool[]
+}
+
+// The levels a skill can be, as on the cards.
+export const LEVELS = ['Beginner', 'Intermediate', 'Advanced'] as const
 
 export const MAX_STEPS = 40
 
 // Longest text, in characters, for each field. Firestore rules check the same limits.
-export const LIMITS = { title: 200, instruction: 2000, doneWhen: 1000, part: 200, parts: 30, tool: 200, tools: 30 } as const
+export const LIMITS = {
+  title: 200,
+  instruction: 2000,
+  doneWhen: 1000,
+  part: 200,
+  parts: 30,
+  tool: 200,
+  tools: 30,
+  trade: 60,
+  description: 300,
+  alternative: 200,
+  minutes: 600,
+} as const
 
 // The model's answer was not a usable skill.
 export class SkillAnswerError extends Error {

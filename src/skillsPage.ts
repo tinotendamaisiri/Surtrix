@@ -8,8 +8,8 @@ export const ALL_TRADES = 'All'
 
 // The chips: All, Electronics (where the pinned LED card is), then every trade in the
 // order the catalog first names it.
-export function tradeChips(skills: readonly CatalogSkill[]): string[] {
-  return [...new Set([ALL_TRADES, 'Electronics', ...skills.map((s) => s.trade)])]
+export function tradeChips(skills: readonly { trade?: string }[]): string[] {
+  return [...new Set([ALL_TRADES, 'Electronics', ...skills.flatMap((s) => (s.trade ? [s.trade] : []))])]
 }
 
 // A skill matches when the chip is All or its trade, and the search words appear in its
@@ -23,19 +23,20 @@ export function skillMatches(skill: CatalogSkill, search: string, trade: string)
 
 // A skill an expert published (#52), for From experts in All skills. publishedAt is in
 // milliseconds, 0 when unknown.
-export type PublishedSkill = { id: string; title: string; stepCount: number; expertName: string; publishedAt: number; badges?: BadgeId[] }
+export type PublishedSkill = { id: string; title: string; stepCount: number; expertName: string; publishedAt: number; badges?: BadgeId[]; trade?: string; level?: string; description?: string }
 
 export function publishedNewestFirst(skills: readonly PublishedSkill[]): PublishedSkill[] {
   return [...skills].sort((a, b) => b.publishedAt - a.publishedAt)
 }
 
-// A published skill has no trade yet, so it shows only under the All chip, and the search
-// words must appear in its title or expert's name.
+// A published skill shows under All and under its own trade's chip (#106; one saved before
+// trades shows only under All), and the search words must appear in its title, trade,
+// description or expert's name.
 export function publishedSkillMatches(skill: PublishedSkill, search: string, trade: string): boolean {
-  if (trade !== ALL_TRADES) return false
+  if (trade !== ALL_TRADES && skill.trade !== trade) return false
   const words = search.trim().toLowerCase()
   if (words === '') return true
-  return `${skill.title} ${skill.expertName}`.toLowerCase().includes(words)
+  return `${skill.title} ${skill.trade ?? ''} ${skill.description ?? ''} ${skill.expertName}`.toLowerCase().includes(words)
 }
 
 // What All skills shows below the pinned card for this search and chip: the published

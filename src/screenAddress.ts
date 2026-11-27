@@ -8,6 +8,8 @@ export type ScreenAddress =
   // The Skills page (#83) on its All skills or My skills tab.
   | { screen: 'skills'; tab: SkillsTab }
   | { screen: 'new-skill' }
+  // Editing one of the user's own skills on the Create a skill screen (#106).
+  | { screen: 'edit-skill'; skillId: string }
   | { screen: 'coach'; skillId: string }
   | { screen: 'capture-test' }
   | { screen: 'expert' }
@@ -21,12 +23,20 @@ export function screenFromHash(hash: string): ScreenAddress {
   if (hash === HOW_IT_WORKS_HASH) return { screen: 'home', section: 'how' }
   const coach = /^#coach\/([^/]+)$/.exec(hash)
   if (coach) return { screen: 'coach', skillId: coach[1] }
+  const editing = /^#edit-skill\/([^/]+)$/.exec(hash)
+  if (editing) return { screen: 'edit-skill', skillId: editing[1] }
   return { screen: 'home' }
 }
 
 export function coachHash(skillId: string): string {
   return `#coach/${skillId}`
 }
+
+export function editSkillHash(skillId: string): string {
+  return `#edit-skill/${skillId}`
+}
+
+export const NEW_SKILL_HASH = '#new-skill'
 
 export const SKILLS_HASH = '#skills'
 export const MY_SKILLS_HASH = '#skills/mine'

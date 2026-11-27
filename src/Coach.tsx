@@ -920,7 +920,7 @@ function CoachScreen({ skill }: { skill: CoachSkill }) {
         <aside className="ws-left ws-panel" aria-label={chatOpen && !progress.finished ? 'Chat' : 'Tools, parts and steps'}>
           <div className="ws-left-lists" hidden={chatOpen && !progress.finished}>
             <SafetyList badges={skill.badges} />
-            <ToolsList tools={tools} />
+            <ToolsList tools={tools} details={skill.toolDetails} />
             <PartsList skillId={skill.id} parts={parts} />
             <StepList
               steps={skill.steps}

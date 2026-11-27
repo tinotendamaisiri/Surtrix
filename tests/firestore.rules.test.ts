@@ -254,12 +254,12 @@ describe('skills and steps', () => {
     await assertFails(saveSkill(learner(), { stepChanges: { tools: 'multimeter' } }))
   })
 
-  test('nobody can change or delete a saved skill or step, not even its creator', async () => {
+  test('nobody deletes a saved skill; its creator edits it (#106) but never leaves a gap in its steps', async () => {
     await saveSkill(learner())
     const db = learner().firestore()
-    await assertFails(updateDoc(doc(db, 'skills/skill-1'), { title: 'Changed' }))
+    await assertSucceeds(updateDoc(doc(db, 'skills/skill-1'), { title: 'Changed' }))
     await assertFails(deleteDoc(doc(db, 'skills/skill-1')))
-    await assertFails(updateDoc(doc(db, 'skills/skill-1/steps/step-1'), { title: 'Changed' }))
+    await assertSucceeds(updateDoc(doc(db, 'skills/skill-1/steps/step-1'), { title: 'Changed' }))
     await assertFails(deleteDoc(doc(db, 'skills/skill-1/steps/step-1')))
     await assertFails(setDoc(doc(db, 'skills/skill-1'), { ...skillDocuments(skill, 'learner-1').skill, createdAt: serverTimestamp() }))
   })
@@ -597,6 +597,77 @@ describe('safety badges on a saved skill', () => {
     await assertFails(saveSkill(learner(), { stepChanges: { badges: 'gloves' } }))
     await assertFails(saveSkill(learner(), { skillChanges: { badges: Array(21).fill('gloves') } }))
     await assertSucceeds(saveSkill(learner(), { skillChanges: { badges: Array(20).fill('gloves') } }))
+  })
+})
+
+// Create a skill (#106): new fields on a skill, editing by its creator, and tool photos.
+describe('creating and editing a skill (#106)', () => {
+  const extras = { trade: 'Soldering', level: 'Beginner', description: 'Tack one pin first.', minutes: 20, tools: [{ name: 'Iron', alternative: 'No iron? A gas pen.' }] }
+
+  test('a new skill may have a trade, level, description, minutes and tools', async () => {
+    await assertSucceeds(saveSkill(learner(), { skillChanges: extras }))
+  })
+
+  test('those fields must fit', async () => {
+    for (const bad of [{ level: 'Expert' }, { minutes: 0 }, { minutes: 601 }, { description: 'a'.repeat(301) }, { trade: '' }, { tools: 'Iron' }]) {
+      await assertFails(saveSkill(learner(), { skillChanges: { ...extras, ...bad } })).catch((e: unknown) => {
+        throw new Error(`${JSON.stringify(bad)} was accepted: ${String(e)}`)
+      })
+    }
+  })
+
+  test('its creator edits it: fields, steps rewritten, a step removed', async () => {
+    await saveSkill(learner(), { skillChanges: extras })
+    const db = learner().firestore()
+    const batch = writeBatch(db)
+    batch.update(doc(db, 'skills/skill-1'), { title: 'Light an LED, better', stepCount: 1, trade: 'Electronics', minutes: 15 })
+    batch.set(doc(db, 'skills/skill-1/steps/step-1'), { number: 1, ...step, title: 'Place it' })
+    batch.delete(doc(db, 'skills/skill-1/steps/step-2'))
+    await assertSucceeds(batch.commit())
+  })
+
+  test('nobody else edits it, and nobody changes its creator or time', async () => {
+    await saveSkill(learner(), { skillChanges: extras })
+    await assertFails(updateDoc(doc(otherLearner().firestore(), 'skills/skill-1'), { title: 'Mine now' }))
+    await assertFails(setDoc(doc(otherLearner().firestore(), 'skills/skill-1/steps/step-1'), { number: 1, ...step }))
+    await assertFails(deleteDoc(doc(otherLearner().firestore(), 'skills/skill-1/steps/step-2')))
+    await assertFails(updateDoc(doc(learner().firestore(), 'skills/skill-1'), { creatorId: 'learner-2' }))
+    await assertFails(updateDoc(doc(learner().firestore(), 'skills/skill-1'), { createdAt: Timestamp.now() }))
+  })
+
+  test('an edit must still fit: a step past the count is refused', async () => {
+    await saveSkill(learner())
+    const db = learner().firestore()
+    const batch = writeBatch(db)
+    batch.update(doc(db, 'skills/skill-1'), { stepCount: 1 })
+    batch.set(doc(db, 'skills/skill-1/steps/step-2'), stepTwo)
+    await assertFails(batch.commit())
+  })
+
+  test('a tool photo is written by the creator, at most 150000 bytes, named after its tool', async () => {
+    await saveSkill(learner(), { skillChanges: extras })
+    const db = learner().firestore()
+    const photo = (size: number) => ({ number: 1, photo: Bytes.fromUint8Array(new Uint8Array(size).fill(1)) })
+    await assertSucceeds(setDoc(doc(db, 'skills/skill-1/toolPhotos/tool-1'), photo(150000)))
+    await assertFails(setDoc(doc(db, 'skills/skill-1/toolPhotos/tool-1'), photo(150001)))
+    await assertFails(setDoc(doc(db, 'skills/skill-1/toolPhotos/tool-2'), photo(10)))
+    await assertFails(setDoc(doc(otherLearner().firestore(), 'skills/skill-1/toolPhotos/tool-1'), photo(10)))
+    await assertSucceeds(deleteDoc(doc(db, 'skills/skill-1/toolPhotos/tool-1')))
+  })
+
+  test("a tool photo is read like the skill: not by others while it is not published", async () => {
+    await saveSkill(learner(), { skillChanges: extras })
+    await setDoc(doc(learner().firestore(), 'skills/skill-1/toolPhotos/tool-1'), { number: 1, photo: Bytes.fromUint8Array(new Uint8Array(10)) })
+    await assertFails(getDoc(doc(otherLearner().firestore(), 'skills/skill-1/toolPhotos/tool-1')))
+    await assertSucceeds(getDoc(doc(learner().firestore(), 'skills/skill-1/toolPhotos/tool-1')))
+  })
+
+  test('the demo skill is never edited', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const documents = skillDocuments(skill, 'surtrix')
+      await setDoc(doc(context.firestore(), `skills/${DEMO_SKILL_ID}`), { ...documents.skill, createdAt: Timestamp.now() })
+    })
+    await assertFails(updateDoc(doc(testEnv.authenticatedContext('surtrix').firestore(), `skills/${DEMO_SKILL_ID}`), { title: 'Changed' }))
   })
 })
 

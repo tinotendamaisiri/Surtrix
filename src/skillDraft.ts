@@ -36,20 +36,21 @@ export const ATTACH_LIMITS = {
   youtube: 1,
   audio: 1,
   recordSeconds: 300,
+  // The notes box: a long pasted procedure fits, a runaway paste does not.
+  notesChars: 50_000,
 } as const
 
+// Only the current Word, PowerPoint and Excel formats; the old .doc, .ppt and .xls are not
+// offered until one has been read in a real draft.
 const OFFICE_TYPES = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/msword',
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'application/vnd.ms-powerpoint',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.ms-excel',
 ]
 
 // The documents the draft model reads (Firebase AI Logic docs, Nov 26).
 export const DOCUMENT_TYPES = ['application/pdf', 'text/plain', ...(DRAFT_READS_OFFICE ? OFFICE_TYPES : [])]
-export const DOCUMENT_ACCEPT = DRAFT_READS_OFFICE ? '.pdf,.txt,.doc,.docx,.ppt,.pptx,.xls,.xlsx' : '.pdf,.txt'
+export const DOCUMENT_ACCEPT = DRAFT_READS_OFFICE ? '.pdf,.txt,.docx,.pptx,.xlsx' : '.pdf,.txt'
 
 const KIND_WORDS: Record<AttachmentKind, [string, string]> = {
   document: ['document', 'documents'],

@@ -87,6 +87,9 @@ export default function CreateSkill({ skillId }: { skillId?: string }) {
   // 2 Add anything you have
   const [notes, setNotes] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
+  // The list as it is right now, so several files picked at once, or a recording that ends
+  // while a file is added, are each checked against everything already in.
+  const attached = useRef<Attachment[]>([])
   const photoBlobs = useRef(new Map<string, Blob>())
   const [menuOpen, setMenuOpen] = useState(false)
   const [youTubeOpen, setYouTubeOpen] = useState(false)
@@ -111,6 +114,9 @@ export default function CreateSkill({ skillId }: { skillId?: string }) {
   const [loadState, setLoadState] = useState<'idle' | 'loading' | 'missing' | 'failed'>(skillId ? 'loading' : 'idle')
   const [saving, setSaving] = useState<'draft' | 'publish' | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
+  // A new skill saved on this page whose publish then failed: trying again updates it
+  // instead of saving a second copy.
+  const created = useRef<{ id: string; before: { stepCount: number; toolCount: number } } | null>(null)
 
   // Editing one of your own skills: the page opens with it.
   useEffect(() => {
@@ -159,20 +165,22 @@ export default function CreateSkill({ skillId }: { skillId?: string }) {
   const hasDraft = steps.length > 0 || tools.length > 0 || badges.length > 0
 
   function add(attachment: Omit<Attachment, 'id'>, blob?: Blob): boolean {
-    const problem = attachProblem(attachments, attachment)
+    const problem = attachProblem(attached.current, attachment)
     if (problem) {
       setAttachError(problem)
       return false
     }
     const id = newId()
     if (blob) photoBlobs.current.set(id, blob)
-    setAttachments((current) => [...current, { ...attachment, id }])
+    attached.current = [...attached.current, { ...attachment, id }]
+    setAttachments(attached.current)
     setAttachError(null)
     return true
   }
 
   function remove(id: string) {
-    setAttachments((current) => current.filter((a) => a.id !== id))
+    attached.current = attached.current.filter((a) => a.id !== id)
+    setAttachments(attached.current)
     photoBlobs.current.delete(id)
     setAttachError(null)
   }
@@ -197,6 +205,11 @@ export default function CreateSkill({ skillId }: { skillId?: string }) {
             setAttachError(`${file.name} is not a document Surtrix can read. Use ${DOCUMENT_ACCEPT.replaceAll(',', ' ')}.`)
             continue
           }
+          const problem = attachProblem(attached.current, { kind, bytes: file.size })
+          if (problem) {
+            setAttachError(problem)
+            break
+          }
           const base64 = await readBase64(file)
           if (!add({ kind, name: file.name, detail: sizeText(file.size), mimeType, bytes: file.size, base64 })) break
         } else if (kind === 'photo') {
@@ -208,7 +221,7 @@ export default function CreateSkill({ skillId }: { skillId?: string }) {
           )
           if (!ok) break
         } else {
-          const problem = attachProblem(attachments, { kind, bytes: file.size })
+          const problem = attachProblem(attached.current, { kind, bytes: file.size })
           if (problem) {
             setAttachError(problem)
             break
@@ -233,7 +246,7 @@ export default function CreateSkill({ skillId }: { skillId?: string }) {
   }
 
   async function startRecording() {
-    const problem = attachProblem(attachments, { kind: 'audio', bytes: 0 })
+    const problem = attachProblem(attached.current, { kind: 'audio', bytes: 0 })
     if (problem) return setAttachError(problem)
     let stream: MediaStream
     try {
@@ -241,7 +254,14 @@ export default function CreateSkill({ skillId }: { skillId?: string }) {
     } catch {
       return setAttachError('Allow the microphone to record a voice note.')
     }
-    const recorder = new MediaRecorder(stream)
+    let recorder: MediaRecorder
+    try {
+      recorder = new MediaRecorder(stream)
+    } catch (e) {
+      console.error('Could not record', e)
+      stream.getTracks().forEach((t) => t.stop())
+      return setAttachError('This browser could not record. Upload an audio file instead.')
+    }
     const chunks: Blob[] = []
     const started = Date.now()
     const timer = setInterval(() => {
@@ -328,7 +348,11 @@ export default function CreateSkill({ skillId }: { skillId?: string }) {
       const photos = await toolPhotoBytes()
       let id = skillId
       if (id && editing) await updateSkill(id, skill, editing.before, photos)
-      else id = await saveSkill(skill, photos)
+      else if (created.current) {
+        id = created.current.id
+        await updateSkill(id, skill, created.current.before, photos)
+      } else id = await saveSkill(skill, photos)
+      created.current = !skillId ? { id, before: { stepCount: skill.steps.length, toolCount: photos.length } } : null
       if (expert && publish !== (editing?.published ?? false)) await setSkillPublished(id, publish, expert.name)
       window.location.hash = expert ? '#expert' : coachHash(id)
     } catch (e) {
@@ -458,7 +482,7 @@ export default function CreateSkill({ skillId }: { skillId?: string }) {
               2 · ADD ANYTHING YOU HAVE
             </h2>
             <div className="cs-notes">
-              <textarea className="xd-field" rows={5} value={notes} aria-label="Your notes" placeholder="Paste a procedure, or write what an expert should say at each step." onChange={(e) => setNotes(e.target.value)} />
+              <textarea className="xd-field" rows={5} value={notes} aria-label="Your notes" maxLength={ATTACH_LIMITS.notesChars} placeholder="Paste a procedure, or write what an expert should say at each step." onChange={(e) => setNotes(e.target.value)} />
               <div className="cs-attach-row">
                 <div className="cs-attach">
                   <button type="button" className="xd-btn xd-gold" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>

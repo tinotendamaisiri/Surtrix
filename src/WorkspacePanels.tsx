@@ -109,8 +109,8 @@ export function ToolsList({ tools, details }: { tools: string[] | null; details?
           REQUIRED TOOLS
         </h2>
         <ul className="ws-tool-details">
-          {details.map((tool) => (
-            <li key={tool.name}>
+          {details.map((tool, i) => (
+            <li key={i}>
               {tool.photoUrl ? <img src={tool.photoUrl} alt="" /> : <span className="ws-tool-icon" aria-hidden="true" />}
               <span>
                 <b>{tool.name}</b>

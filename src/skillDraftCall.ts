@@ -3,7 +3,7 @@
 // a YouTube link goes as a link. Nothing attached is stored.
 import { getGenerativeModel, InferenceMode, Schema, ThinkingLevel, type Part } from 'firebase/ai'
 import { ai } from './firebase'
-import { BADGE_IDS, DRAFT_INSTRUCTION, DRAFT_MODEL, parseDraft, type Attachment, type Draft } from './skillDraft'
+import { ATTACH_LIMITS, BADGE_IDS, DRAFT_INSTRUCTION, DRAFT_MODEL, parseDraft, type Attachment, type Draft } from './skillDraft'
 import { MAX_STEPS } from './skill'
 
 const badgeList = () => Schema.array({ items: Schema.enumString({ enum: BADGE_IDS }) })
@@ -71,7 +71,7 @@ export function draftParts(input: { name: string; trade: string; level: string; 
       text: [
         `Skill name from the expert: ${input.name || '(none yet)'}`,
         `Trade: ${input.trade || '(not chosen)'}. Level: ${input.level || '(not chosen)'}.`,
-        `The expert's notes:\n${input.notes.trim() || '(none)'}`,
+        `The expert's notes:\n${input.notes.trim().slice(0, ATTACH_LIMITS.notesChars) || '(none)'}`,
       ].join('\n'),
     },
   ]

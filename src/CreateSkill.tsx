@@ -36,6 +36,12 @@ const TOOL_PHOTO_BYTES = 150_000
 const FIRST_TRADES = ['Electronics', 'Soldering', 'Auto mechanics', 'Plumbing', 'Electrical']
 
 type EditorStep = Step & { badges: string[]; editing?: boolean }
+
+// The parts and tools boxes keep exactly what is typed (split and joined on commas, so the
+// cursor stays put); opening a step for editing shows them as "LED, resistor". Done trims.
+function spaced(items: readonly string[]): string[] {
+  return items.map((item, i) => (i === 0 ? item.trim() : ` ${item.trim()}`))
+}
 type ToolPhoto = { url: string; blob?: Blob; bytes?: Uint8Array }
 type EditorTool = { name: string; alternative: string; photo: ToolPhoto | null }
 
@@ -242,7 +248,7 @@ export default function CreateSkill({ skillId }: { skillId?: string }) {
   function addYouTube() {
     const url = youTubeLink(youTubeText)
     if (!url) return setAttachError('That is not a YouTube video link. Paste the link of a public or unlisted video.')
-    if (add({ kind: 'youtube', name: url.replace('https://www.', ''), detail: 'YouTube video, read by AI', mimeType: 'video/mp4', bytes: 0, url })) {
+    if (add({ kind: 'youtube', name: url.replace('https://www.', ''), detail: `First ${ATTACH_LIMITS.youtubeSeconds / 60} minutes read by AI`, mimeType: 'video/mp4', bytes: 0, url })) {
       setYouTubeText('')
       setYouTubeOpen(false)
     }
@@ -665,8 +671,8 @@ export default function CreateSkill({ skillId }: { skillId?: string }) {
                     <input className="xd-field" value={s.title} aria-label={`Step ${i + 1} title`} placeholder="Title" maxLength={200} onChange={(e) => changeStep(i, { title: e.target.value })} />
                     <textarea className="xd-field" rows={3} value={s.instruction} aria-label={`Step ${i + 1} instruction`} placeholder="What to do" maxLength={2000} onChange={(e) => changeStep(i, { instruction: e.target.value })} />
                     <input className="xd-field" value={s.doneWhen} aria-label={`Step ${i + 1} done when`} placeholder="Done when" maxLength={1000} onChange={(e) => changeStep(i, { doneWhen: e.target.value })} />
-                    <input className="xd-field" value={s.parts.join(', ')} aria-label={`Step ${i + 1} parts`} placeholder="Parts, with commas" onChange={(e) => changeStep(i, { parts: e.target.value.split(',') })} />
-                    <input className="xd-field" value={s.tools.join(', ')} aria-label={`Step ${i + 1} tools`} placeholder="Tools, with commas" onChange={(e) => changeStep(i, { tools: e.target.value.split(',') })} />
+                    <input className="xd-field" value={s.parts.join(',')} aria-label={`Step ${i + 1} parts`} placeholder="Parts, with commas" onChange={(e) => changeStep(i, { parts: e.target.value.split(',') })} />
+                    <input className="xd-field" value={s.tools.join(',')} aria-label={`Step ${i + 1} tools`} placeholder="Tools, with commas" onChange={(e) => changeStep(i, { tools: e.target.value.split(',') })} />
                     <BadgePicker chosen={s.badges} toggle onPick={(id) => changeStep(i, { badges: s.badges.includes(id) ? s.badges.filter((b) => b !== id) : [...s.badges, id] })} />
                     <div className="xd-btns">
                       <button type="button" className="xd-btn xd-primary" onClick={() => changeStep(i, { editing: false, parts: s.parts.map((p) => p.trim()).filter(Boolean), tools: s.tools.map((p) => p.trim()).filter(Boolean) })}>
@@ -683,7 +689,7 @@ export default function CreateSkill({ skillId }: { skillId?: string }) {
                   <div className="cs-step-view">
                     <div className="cs-step-top">
                       <b>{s.title || 'Untitled step'}</b>
-                      <button type="button" className="xd-btn xd-small" onClick={() => changeStep(i, { editing: true })}>
+                      <button type="button" className="xd-btn xd-small" onClick={() => changeStep(i, { editing: true, parts: spaced(s.parts), tools: spaced(s.tools) })}>
                         Edit
                       </button>
                     </div>

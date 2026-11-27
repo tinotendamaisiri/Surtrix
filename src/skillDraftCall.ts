@@ -3,7 +3,7 @@
 // a YouTube link goes as a link. Nothing attached is stored.
 import { getGenerativeModel, InferenceMode, Schema, ThinkingLevel, type Part } from 'firebase/ai'
 import { ai } from './firebase'
-import { ATTACH_LIMITS, BADGE_IDS, DRAFT_INSTRUCTION, DRAFT_MODEL, parseDraft, type Attachment, type Draft } from './skillDraft'
+import { ATTACH_LIMITS, BADGE_IDS, DRAFT_INSTRUCTION, DRAFT_MODEL, parseDraft, youTubePart, type Attachment, type Draft } from './skillDraft'
 import { MAX_STEPS } from './skill'
 
 const badgeList = () => Schema.array({ items: Schema.enumString({ enum: BADGE_IDS }) })
@@ -79,7 +79,7 @@ export function draftParts(input: { name: string; trade: string; level: string; 
   for (const a of input.attachments) {
     const label = a.kind === 'photo' ? `Photo ${++photo} (${a.name}):` : `${a.kind === 'youtube' ? 'YouTube video' : a.kind[0].toUpperCase() + a.kind.slice(1)} (${a.name}):`
     parts.push({ type: 'text', text: label })
-    if (a.kind === 'youtube' && a.url) parts.push({ type: 'fileData', fileData: { mimeType: 'video/mp4', fileUri: a.url } })
+    if (a.kind === 'youtube' && a.url) parts.push(youTubePart(a.url))
     else if (a.base64) parts.push({ type: 'inlineData', inlineData: { mimeType: a.mimeType, data: a.base64 } })
   }
   return parts

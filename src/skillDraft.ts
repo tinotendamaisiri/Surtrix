@@ -38,6 +38,9 @@ export const ATTACH_LIMITS = {
   recordSeconds: 300,
   // The notes box: a long pasted procedure fits, a runaway paste does not.
   notesChars: 50_000,
+  // A YouTube video is read only this far (Tino, Nov 27): about 88 tokens a second, so at
+  // most about 53,000 tokens, where a whole hour would be about 300,000.
+  youtubeSeconds: 600,
 } as const
 
 // Only the current Word, PowerPoint and Excel formats; the old .doc, .ppt and .xls are not
@@ -95,6 +98,17 @@ export function youTubeLink(text: string): string | null {
         ? (url.searchParams.get('v') ?? /^\/(?:shorts|embed|live)\/([^/]+)/.exec(url.pathname)?.[1] ?? '')
         : ''
   return /^[\w-]{11}$/.test(id) ? `https://www.youtube.com/watch?v=${id}` : null
+}
+
+// The request part for a YouTube link: the video by its link, clipped to its first
+// minutes. The SDK's types only list a clip for inline video, but the API takes it on a link
+// too (probe, Nov 27: the first 5 s of a 19 s video read as 441 tokens instead of 1,676).
+export function youTubePart(url: string) {
+  return {
+    type: 'fileData' as const,
+    fileData: { mimeType: 'video/mp4', fileUri: url },
+    videoMetadata: { startOffset: '0s', endOffset: `${ATTACH_LIMITS.youtubeSeconds}s` },
+  }
 }
 
 // "Drafted from 1 document, 3 photos, 1 video, 1 voice note".

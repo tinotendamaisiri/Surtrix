@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { publishedSkillMatches } from '../src/skillsPage.ts'
-import { ATTACH_LIMITS, attachProblem, cleanSkill, draftedFrom, parseDraft, skillProblem, youTubeLink, type Attachment } from '../src/skillDraft.ts'
+import { ATTACH_LIMITS, attachProblem, cleanSkill, draftedFrom, parseDraft, skillProblem, youTubeLink, youTubePart, type Attachment } from '../src/skillDraft.ts'
 
 const a = (kind: Attachment['kind'], bytes = 1000): Attachment => ({ id: Math.random().toString(), kind, name: kind, detail: '', mimeType: 'x', bytes })
 const step = { title: 'Heat the iron', instruction: 'Set 330 C.', parts: [], tools: ['iron'], doneWhen: 'Solder melts on the tip.' }
@@ -94,5 +94,15 @@ describe('published skills by trade (#106)', () => {
     expect(publishedSkillMatches(skill, '', 'Soldering')).toBe(true)
     expect(publishedSkillMatches(skill, '', 'Plumbing')).toBe(false)
     expect(publishedSkillMatches(skill, 'tack one', 'All')).toBe(true)
+  })
+})
+
+describe('YouTube', () => {
+  test('a link is read only for its first 10 minutes', () => {
+    expect(youTubePart('https://www.youtube.com/watch?v=jNQXAC9IVRw')).toEqual({
+      type: 'fileData',
+      fileData: { mimeType: 'video/mp4', fileUri: 'https://www.youtube.com/watch?v=jNQXAC9IVRw' },
+      videoMetadata: { startOffset: '0s', endOffset: '600s' },
+    })
   })
 })

@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
-import { doc, getDoc, serverTimestamp, setDoc, Timestamp } from 'firebase/firestore'
+import { deleteDoc, doc, getDoc, serverTimestamp, setDoc, Timestamp } from 'firebase/firestore'
 import { afterAll, beforeAll, describe, test } from 'vitest'
 
 let testEnv: RulesTestEnvironment
@@ -39,6 +39,7 @@ describe('drafts per visitor per day (#113)', () => {
     await assertFails(press('judge-3', 1, 'judge-4'))
     await assertFails(getDoc(doc(visitor('judge-3'), 'draftCounts', 'judge-1')))
     await assertSucceeds(getDoc(doc(visitor('judge-1'), 'draftCounts', 'judge-1')))
+    await assertFails(deleteDoc(doc(visitor('judge-1'), 'draftCounts', 'judge-1')))
     await assertFails(setDoc(doc(testEnv.unauthenticatedContext().firestore(), 'draftCounts', 'x'), { count: 1, at: serverTimestamp() }))
   })
 

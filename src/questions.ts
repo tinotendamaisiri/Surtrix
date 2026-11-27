@@ -43,6 +43,8 @@ export type Reply = {
   text: string
   expertName: string
   answeredAt: Date | null
+  // The expert's photo (#105), as a data URL, when they answered with one.
+  photoUrl?: string
 }
 
 export type Question = {
@@ -138,6 +140,7 @@ function toReply(value: unknown): Reply | null {
     text: reply.text,
     expertName: typeof reply.expertName === 'string' ? reply.expertName : '',
     answeredAt: toDate(reply.answeredAt),
+    ...(reply.photo instanceof Bytes ? { photoUrl: `data:image/jpeg;base64,${reply.photo.toBase64()}` } : {}),
   }
 }
 

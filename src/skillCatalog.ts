@@ -5,6 +5,7 @@
 // names, step counts and times are placeholders. Photos are in public/landing (Pexels,
 // free license).
 import { DEMO_SKILL_ID } from './demoSkill.ts'
+import type { BadgeId } from './safety.ts'
 import { coachHash } from './screenAddress.ts'
 
 export type CatalogSkill = {
@@ -19,6 +20,8 @@ export type CatalogSkill = {
   time: string
   // Practice only, not for real emergencies (first aid): shown as TRAINING ONLY.
   trainingOnly?: true
+  // What to wear and watch out for (#104), chosen by trade and task on Nov 26.
+  badges: readonly BadgeId[]
 }
 
 // The one live skill, pinned for judges on the Skills page.
@@ -31,6 +34,7 @@ export const pinnedSkill: CatalogSkill & { href: string } = {
   expert: 'Surtrix team',
   steps: 4,
   time: '10 min',
+  badges: ['electricity'],
   href: coachHash(DEMO_SKILL_ID),
 }
 
@@ -44,6 +48,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'M. Okafor',
     steps: 9,
     time: '60 min',
+    badges: ['gloves', 'safety-glasses', 'sharp-edges'],
   },
   {
     image: 'skill-oil.jpg',
@@ -54,6 +59,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'M. Okafor',
     steps: 10,
     time: '40 min',
+    badges: ['gloves', 'safety-glasses', 'heat-burns'],
   },
   {
     image: 'skill-phone.jpg',
@@ -64,6 +70,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'R. Silva',
     steps: 11,
     time: '45 min',
+    badges: ['safety-glasses', 'sharp-edges'],
   },
   {
     image: 'skill-laptop.jpg',
@@ -74,6 +81,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'R. Silva',
     steps: 8,
     time: '30 min',
+    badges: ['electricity', 'chemical-burns'],
   },
   {
     image: 'skill-welding.jpg',
@@ -84,6 +92,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'T. Jones',
     steps: 7,
     time: '30 min',
+    badges: ['helmet', 'gloves', 'electricity', 'heat-burns', 'fumes'],
   },
   {
     image: 'skill-gearbox.jpg',
@@ -94,6 +103,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'A. Patel',
     steps: 14,
     time: '90 min',
+    badges: ['gloves', 'sharp-edges'],
   },
   {
     image: 'skill-hvac.jpg',
@@ -104,6 +114,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'D. Brooks',
     steps: 8,
     time: '25 min',
+    badges: ['safety-glasses', 'gloves', 'chemical-burns'],
   },
   {
     image: 'skill-plumbing.jpg',
@@ -114,6 +125,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'L. Chen',
     steps: 7,
     time: '30 min',
+    badges: ['gloves', 'sharp-edges'],
   },
   {
     image: 'skill-electrical.jpg',
@@ -124,6 +136,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'K. Mensah',
     steps: 12,
     time: '50 min',
+    badges: ['gloves', 'safety-glasses', 'electricity'],
   },
   {
     image: 'skill-solder.jpg',
@@ -134,6 +147,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'Surtrix team',
     steps: 6,
     time: '20 min',
+    badges: ['safety-glasses', 'heat-burns', 'fumes'],
   },
   {
     image: 'skill-printer.jpg',
@@ -144,6 +158,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'J. Park',
     steps: 6,
     time: '15 min',
+    badges: ['gloves', 'heat-burns'],
   },
   {
     image: 'skill-bike.jpg',
@@ -154,6 +169,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'J. Park',
     steps: 5,
     time: '15 min',
+    badges: ['gloves', 'sharp-edges'],
   },
   {
     image: 'skill-drone.jpg',
@@ -164,6 +180,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'A. Patel',
     steps: 9,
     time: '40 min',
+    badges: ['electricity', 'sharp-edges'],
   },
   {
     image: 'skill-knitting.jpg',
@@ -174,6 +191,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'E. Moyo',
     steps: 6,
     time: '120 min',
+    badges: [],
   },
   {
     image: 'skill-dress.jpg',
@@ -184,6 +202,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'N. Banda',
     steps: 8,
     time: '45 min',
+    badges: ['sharp-edges'],
   },
   {
     image: 'skill-shoe.jpg',
@@ -194,6 +213,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'S. Okoro',
     steps: 6,
     time: '30 min',
+    badges: ['safety-glasses', 'sharp-edges'],
   },
   {
     image: 'skill-pottery.jpg',
@@ -204,6 +224,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'H. Sato',
     steps: 7,
     time: '40 min',
+    badges: [],
   },
   {
     image: 'skill-pasta.jpg',
@@ -214,6 +235,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'G. Rossi',
     steps: 8,
     time: '60 min',
+    badges: [],
   },
   {
     image: 'skill-sourdough.jpg',
@@ -224,6 +246,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'G. Rossi',
     steps: 12,
     time: '24 hr',
+    badges: ['heat-burns'],
   },
   {
     image: 'skill-omelette.jpg',
@@ -234,6 +257,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'G. Rossi',
     steps: 6,
     time: '10 min',
+    badges: ['heat-burns'],
   },
   {
     image: 'skill-chocolate.jpg',
@@ -244,6 +268,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'C. Dubois',
     steps: 7,
     time: '30 min',
+    badges: ['heat-burns'],
   },
   {
     image: 'skill-chicken.jpg',
@@ -254,6 +279,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'C. Dubois',
     steps: 10,
     time: '25 min',
+    badges: ['sharp-edges'],
   },
   {
     image: 'skill-drywall.jpg',
@@ -264,6 +290,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'L. Chen',
     steps: 9,
     time: '60 min',
+    badges: ['safety-glasses', 'respirator'],
   },
   {
     image: 'skill-switch.jpg',
@@ -274,6 +301,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'K. Mensah',
     steps: 8,
     time: '20 min',
+    badges: ['electricity'],
   },
   {
     image: 'skill-sink.jpg',
@@ -284,6 +312,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'L. Chen',
     steps: 6,
     time: '20 min',
+    badges: ['gloves'],
   },
   {
     image: 'skill-caulk.jpg',
@@ -294,6 +323,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'L. Chen',
     steps: 7,
     time: '40 min',
+    badges: ['gloves', 'sharp-edges'],
   },
   {
     image: 'skill-pcbuild.jpg',
@@ -304,6 +334,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'R. Silva',
     steps: 14,
     time: '90 min',
+    badges: ['sharp-edges'],
   },
   {
     image: 'skill-chargeport.jpg',
@@ -314,6 +345,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'R. Silva',
     steps: 11,
     time: '45 min',
+    badges: ['safety-glasses', 'heat-burns'],
   },
   {
     image: 'skill-esp32.jpg',
@@ -324,6 +356,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'Surtrix team',
     steps: 6,
     time: '15 min',
+    badges: [],
   },
   {
     image: 'skill-smd.jpg',
@@ -334,6 +367,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'Surtrix team',
     steps: 8,
     time: '30 min',
+    badges: ['safety-glasses', 'heat-burns', 'fumes'],
   },
   {
     image: 'skill-tire.jpg',
@@ -344,6 +378,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'M. Okafor',
     steps: 9,
     time: '20 min',
+    badges: ['gloves'],
   },
   {
     image: 'skill-bikechain.jpg',
@@ -354,6 +389,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'J. Park',
     steps: 7,
     time: '20 min',
+    badges: ['gloves'],
   },
   {
     image: 'skill-chainsaw.jpg',
@@ -364,6 +400,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'D. Brooks',
     steps: 10,
     time: '40 min',
+    badges: ['gloves', 'safety-glasses', 'sharp-edges'],
   },
   {
     image: 'skill-moto.jpg',
@@ -374,6 +411,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'M. Okafor',
     steps: 9,
     time: '35 min',
+    badges: ['gloves', 'heat-burns'],
   },
   {
     image: 'skill-cpr.jpg',
@@ -384,6 +422,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'First aid trainer',
     steps: 8,
     time: '20 min',
+    badges: [],
     trainingOnly: true,
   },
   {
@@ -395,6 +434,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'First aid trainer',
     steps: 6,
     time: '10 min',
+    badges: [],
     trainingOnly: true,
   },
   {
@@ -406,6 +446,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'First aid trainer',
     steps: 7,
     time: '10 min',
+    badges: ['gloves'],
     trainingOnly: true,
   },
   {
@@ -417,6 +458,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'H. Sato',
     steps: 12,
     time: '15 min',
+    badges: [],
   },
   {
     image: 'skill-dovetail.jpg',
@@ -427,6 +469,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'A. Patel',
     steps: 11,
     time: '120 min',
+    badges: ['safety-glasses', 'sharp-edges'],
   },
   {
     image: 'skill-leather.jpg',
@@ -437,6 +480,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'S. Okoro',
     steps: 10,
     time: '180 min',
+    badges: ['sharp-edges'],
   },
   {
     image: 'skill-jewelry.jpg',
@@ -447,6 +491,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'N. Banda',
     steps: 8,
     time: '45 min',
+    badges: ['safety-glasses', 'sharp-edges'],
   },
   {
     image: 'skill-pipette.jpg',
@@ -457,6 +502,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'Dr. Ncube',
     steps: 6,
     time: '10 min',
+    badges: ['gloves', 'safety-glasses'],
   },
   {
     image: 'skill-slide.jpg',
@@ -467,6 +513,7 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'Dr. Ncube',
     steps: 6,
     time: '10 min',
+    badges: ['gloves', 'sharp-edges'],
   },
   {
     image: 'skill-gel.jpg',
@@ -477,5 +524,6 @@ export const exampleSkills: readonly CatalogSkill[] = [
     expert: 'Dr. Ncube',
     steps: 12,
     time: '90 min',
+    badges: ['gloves', 'safety-glasses', 'electricity', 'chemical-burns'],
   },
 ]

@@ -9,6 +9,14 @@ export type SavedAnswer = {
   answer: string
   expertName: string
   createdAt: Date | null
+  // The expert's photo (#105), as a data URL, when they answered with one.
+  photoUrl?: string
+}
+
+// A Firestore Bytes value (an answer photo) as a JPEG data URL, without importing Firebase.
+export function photoUrlOf(value: unknown): string | undefined {
+  const bytes = value as { toBase64?: () => string } | null
+  return bytes && typeof bytes.toBase64 === 'function' ? `data:image/jpeg;base64,${bytes.toBase64()}` : undefined
 }
 
 // The pick when no saved answer fits the learner's question.
@@ -21,13 +29,14 @@ function isText(value: unknown): value is string {
 // A saved answer from its document, or null when the document is not a whole answer.
 export function savedAnswerFromDocument(id: string, data: Record<string, unknown>): SavedAnswer | null {
   if (id === NONE_FITS) return null
-  const { question, answer, expertName, createdAt } = data
+  const { question, answer, expertName, createdAt, photo } = data
   if (!isText(question) || !isText(answer) || !isText(expertName)) return null
   const time =
     createdAt && typeof (createdAt as { toDate?: unknown }).toDate === 'function'
       ? (createdAt as { toDate: () => Date }).toDate()
       : null
-  return { id, question: question.trim(), answer: answer.trim(), expertName: expertName.trim(), createdAt: time }
+  const photoUrl = photoUrlOf(photo)
+  return { id, question: question.trim(), answer: answer.trim(), expertName: expertName.trim(), createdAt: time, ...(photoUrl ? { photoUrl } : {}) }
 }
 
 // Oldest first, so the list reads in the order the answers were given.

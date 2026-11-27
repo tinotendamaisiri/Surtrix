@@ -29,6 +29,13 @@ describe('skillDocuments', () => {
     expect(documents.steps[0].data.tools).toEqual(['pliers'])
   })
 
+  test("writes a step's known badges, and the skill's own plus its steps' on the skill (#104)", () => {
+    const documents = skillDocuments({ title: 'Solder', badges: ['fumes'], steps: [{ ...step, badges: ['heat-burns', 'laser'] }, step] }, 'learner-1')
+    expect(documents.skill.badges).toEqual(['heat-burns', 'fumes'])
+    expect(documents.steps[0].data.badges).toEqual(['heat-burns'])
+    expect(documents.steps[1].data).not.toHaveProperty('badges')
+  })
+
   test('a new skill is never published and has no expert name', () => {
     const documents = skillDocuments({ title: 'Light an LED', steps: [step] }, 'learner-1')
     expect(Object.keys(documents.skill).sort()).toEqual(['createdAt', 'creatorId', 'stepCount', 'title'])
@@ -78,6 +85,15 @@ describe('coachSkillFromDocuments', () => {
       expect(coachSkill).not.toBeNull()
       expect(coachSkill).not.toHaveProperty('published')
     }
+  })
+
+  test("reads the skill's and steps' badges, known ids only, and leaves them out when there are none (#104)", () => {
+    const [first, second, third] = stored([1, 2, 3])
+    const withBadges = [{ ...first, data: { ...first.data, badges: ['gloves', 'laser'] } }, second, { ...third, data: { ...third.data, badges: ['fumes'] } }]
+    const coachSkill = coachSkillFromDocuments('skill-1', { ...skill, badges: ['helmet'] }, withBadges)
+    expect(coachSkill?.badges).toEqual(['gloves', 'helmet', 'fumes'])
+    expect(coachSkill?.steps.map((s) => s.badges)).toEqual([['gloves'], undefined, ['fumes']])
+    expect(coachSkillFromDocuments('skill-1', skill, stored([1, 2, 3]))).not.toHaveProperty('badges')
   })
 
   test('marks the skill mine only when this user created it (#100)', () => {

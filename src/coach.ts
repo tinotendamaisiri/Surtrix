@@ -8,7 +8,8 @@ export type CoachStep = Omit<Step, 'tools'> & { id: string; tools?: string[] }
 
 // published is true for a skill an expert published (#52): its Exit goes to All skills.
 // mine: this user created the skill (only then are the coach's lines saved with it, #100).
-export type CoachSkill = { id: string; title: string; published?: boolean; mine?: boolean; steps: CoachStep[] }
+// badges: every safety badge of the skill and its steps (#104).
+export type CoachSkill = { id: string; title: string; published?: boolean; mine?: boolean; badges?: string[]; steps: CoachStep[] }
 
 // Where the learner is in a skill. Kept in memory only: a reload starts again.
 export type CoachProgress = {

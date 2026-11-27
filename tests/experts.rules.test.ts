@@ -26,7 +26,7 @@ import {
   where,
   writeBatch,
 } from 'firebase/firestore'
-import { afterAll, beforeAll, describe, test } from 'vitest'
+import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 let testEnv: RulesTestEnvironment
 
@@ -181,6 +181,25 @@ describe('after an answer', () => {
   })
 })
 
+// An expert's answer photo (#105): optional, the same bytes on the reply and the answer.
+const PHOTO = Bytes.fromUint8Array(new Uint8Array(1000).fill(7))
+const BIG_PHOTO = Bytes.fromUint8Array(new Uint8Array(100001))
+
+describe('an answer photo', () => {
+  test('is saved on the reply and the saved answer together', async () => {
+    const id = await openQuestion()
+    await assertSucceeds(reply(expert(), id, { reply: { photo: PHOTO }, answer: { photo: PHOTO } }))
+    const saved = await getDoc(doc(expert(), `skills/sample-led/steps/step-2/answers/${id}`))
+    expect((saved.get('photo') as Bytes).toUint8Array().length).toBe(1000)
+  })
+
+  test('of exactly 100000 bytes is allowed', async () => {
+    const id = await openQuestion()
+    const photo = Bytes.fromUint8Array(new Uint8Array(100000))
+    await assertSucceeds(reply(expert(), id, { reply: { photo }, answer: { photo } }))
+  })
+})
+
 describe('a reply is refused', () => {
   const refused: [string, Change][] = [
     ['without the saved answer', { withAnswer: false }],
@@ -198,6 +217,12 @@ describe('a reply is refused', () => {
     ['when the answer text differs from the reply', { answer: { answer: 'Something else.' } }],
     ['when the answer repeats another question', { answer: { question: 'Something else?' } }],
     ['with an extra answer field', { answer: { frame: 'x' } }],
+    ['with a photo on the reply but not the saved answer (#105)', { reply: { photo: PHOTO } }],
+    ['with a photo on the saved answer but not the reply', { answer: { photo: PHOTO } }],
+    ['with different photos on the reply and the answer', { reply: { photo: PHOTO }, answer: { photo: Bytes.fromUint8Array(new Uint8Array(999)) } }],
+    ['with a photo over 100000 bytes', { reply: { photo: BIG_PHOTO }, answer: { photo: BIG_PHOTO } }],
+    ['with an empty photo', { reply: { photo: Bytes.fromUint8Array(new Uint8Array(0)) }, answer: { photo: Bytes.fromUint8Array(new Uint8Array(0)) } }],
+    ['with a photo that is not bytes', { reply: { photo: 'jpeg' }, answer: { photo: 'jpeg' } }],
     ['with a saved answer time set by the browser', { answer: { createdAt: Timestamp.now() } }],
   ]
   for (const [name, change] of refused) {

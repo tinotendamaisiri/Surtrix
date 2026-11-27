@@ -1,4 +1,6 @@
 import { useEffect, useRef, type ReactNode, type RefObject } from 'react'
+import SafetyBadges from './SafetyBadges.tsx'
+import { CARD_BADGES } from './safety.ts'
 import './Landing.css'
 import LandingFooter from './LandingFooter.tsx'
 import { HERO_IMAGE, HERO_SMALL_IMAGE } from './landingImages.ts'
@@ -169,6 +171,7 @@ function SkillCard({ skill, copy = false }: { skill: CatalogSkill; copy?: boolea
         <div className="landing-card-body">
           <h3>{skill.title}</h3>
           <p>{skill.description}</p>
+          <SafetyBadges badges={skill.badges} max={CARD_BADGES} className="landing-badges" />
           <span className="landing-ticks">
             <Tick>Verified by {skill.expert}</Tick>
             <Tick>{skill.steps} steps</Tick>

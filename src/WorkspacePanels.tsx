@@ -1,6 +1,8 @@
 // The Surtrix Workspace's pieces (#62): the top bar, the tools list, the parts list with
 // its picture modal, the step list, and the From live experts card. Coach.tsx lays them out.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import SafetyBadges from './SafetyBadges.tsx'
+import { knownBadges } from './safety.ts'
 import BackToSkills from './BackToSkills.tsx'
 import type { CoachProgress, CoachStep } from './coach.ts'
 import type { DeviceModelStatus } from './firebase.ts'
@@ -78,6 +80,20 @@ function NanoStatus({ status, downloadPercent }: { status: DeviceModelStatus | n
       <i className="ws-dot" aria-hidden="true" />
       {text}
     </span>
+  )
+}
+
+// SAFETY (#104): every badge of the skill, what to wear and what to watch out for, above
+// the tools. Hidden for a skill with none.
+export function SafetyList({ badges }: { badges: readonly string[] | undefined }) {
+  if (knownBadges(badges).length === 0) return null
+  return (
+    <section className="ws-section" aria-labelledby="ws-safety-heading">
+      <h2 id="ws-safety-heading" className="ws-mono ws-heading">
+        SAFETY
+      </h2>
+      <SafetyBadges badges={badges} />
+    </section>
   )
 }
 
